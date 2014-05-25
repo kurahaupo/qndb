@@ -1,0 +1,398 @@
+#!/usr/bin/perl
+
+use 5.008;
+use strict;
+use warnings;
+use utf8;
+
+use PDF::API2;
+use Text::CSV;
+use Getopt::Long qw(:config auto_abbrev bundling);
+use Data::Dumper;
+
+use constant pt => 1;
+use constant px => 2/3;
+use constant in => 72;
+use constant mm => 72 / 25.4;
+
+my $banner_scale = 1.61803398874989484820;
+my $fontsize = 12*pt;
+my $instruction_colour = 'orange';
+my $label_bottom_margin = 4*mm;
+my $label_height;
+my $label_left_margin = 1*mm;
+my $label_right_margin = 1*mm;
+my $label_step_across;
+my $label_step_down;
+my $label_top_margin = 4*mm;
+my $label_width;
+my $line_spacing = 1.25;
+my $media_box = 'a4';
+my $num_across = 3;
+my $num_down = 7;
+my $page_bottom_margin = 14*mm;
+my $page_height;
+my $page_left_margin = 0;
+my $page_right_margin = 0;
+my $page_top_margin = 14*mm;
+my $page_width;
+my $postcode_fontsize = 14;
+my $verbose = 0;
+my $x_start = 0;
+my $y_start = 0;
+my %skip_inserts = map { ( $_ => 1 ) } 'mt_eden_minutes';
+my @binmode;
+
+sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
+sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
+sub sum(@) { my $r = shift; $r += $_ for @_; $r }
+
+{
+
+my %units = (
+    cm => 0.1*mm,
+    in => in,
+    m  => 1000*mm,
+    mm => mm,
+    pt => pt,
+    px => px,
+    μm => 0.001*mm,
+);
+
+my %paper_sizes = (
+        (map {
+            (my $x = $_) =~ s/^a//i;
+            my $h = 2**(0.25-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'a0' : "a$_") => [ $w, $h ] );
+        } -2 .. 10),
+        (map {
+            (my $x = $_) =~ s/^b//i;
+            my $h = 2**(0.5-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'b0' : "b$_") => [ $w, $h ] );
+        } 0 .. 10),
+        (map {
+            (my $x = $_) =~ s/^c//i;
+            my $w = 2**(0.375-$x/2);
+            my $h = $w / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'c0' : "c$_") => [ $w, $h ] );    # landscape
+        } 0 .. 10),
+        dl => [ 220, 110 ],                                         # landscape
+    );
+print Dumper(\%paper_sizes) if 0;
+
+sub as_points($) {
+    my $v = $_[0];
+    if ($v =~ s/[a-z]+$//) {
+        $v *= $units{$&} || die "Unknown unit-of-measure $&\n";
+    }
+    $v;
+}
+
+my %label_product = (
+    'avery-l7160-shrink' => {
+            media_box            => 'a4',
+            num_across           => 3,
+            num_down             => 7,
+            page_top_margin      => as_points '5mm',
+            page_bottom_margin   => as_points '-1mm',
+            page_left_margin     => as_points '0mm',
+            page_right_margin    => as_points '-6mm',
+            label_top_margin     => as_points '1mm',
+            label_bottom_margin  => as_points '3mm',
+            label_left_margin    => as_points '3mm',
+            label_right_margin   => as_points '3mm',
+        },
+    'avery-l7160' => {
+            media_box            => 'a4',
+            num_across           => 3,
+            num_down             => 7,
+            page_top_margin      => as_points '17mm',
+            page_bottom_margin   => as_points '13mm',
+            page_left_margin     => as_points '5mm',
+            page_right_margin    => as_points '6mm',
+            label_top_margin     => as_points '1.5mm',
+            label_bottom_margin  => as_points '1.5mm',
+            label_left_margin    => as_points '5.7mm',
+            label_right_margin   => as_points '7.7mm',
+        },
+    );
+sub use_preset {
+    my $p = $label_product{$_[1]} || die "Unknown label product '$_[1]'\n";
+    (
+        $media_box, $num_across, $num_down,
+        $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
+        $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
+    ) = @$p{qw{
+        media_box num_across num_down
+        page_top_margin page_bottom_margin page_left_margin page_right_margin
+        label_top_margin label_bottom_margin label_left_margin label_right_margin
+    }};
+}
+
+sub M($) {
+    my $r = \$_[0];
+    sub { $$r = as_points $_[-1] }
+}
+
+sub N($) {
+    my $r = \$_[0];
+    sub { $$r = ! $_[1] }
+}
+
+my $use_bom;
+my $use_crlf;
+my $use_encoding;
+GetOptions
+    'P|preset=s'    => \&use_preset,
+    'a=i'           => sub { $media_box = $_[0].$_[1] },
+    'b=i'           => sub { $media_box = $_[0].$_[1] },
+    'bom|B!'        => \$use_bom,
+    'color|colour=s' => \$instruction_colour,
+    'encoding|E=s'  => \$use_encoding,
+    'insert=s'      => sub { (my $a = lc $_[1]) =~ s/\W+/_/g; $skip_inserts{$a} = 0 },
+    'latin|eo|O'    => sub { $use_encoding = undef },
+    'lh=s'          => M$label_height,
+    'lw=s'          => M$label_width,
+    'lxh=s'         => M$label_step_down,
+    'lxw=s'         => M$label_step_across,
+    'na=i'          => \$num_across,
+    'nd=i'          => \$num_down,
+    'ph=s'          => M$page_height,
+    'pw=s'          => M$page_width,
+    'skip-insert=s' => sub { (my $a = lc $_[1]) =~ s/\W+/_/g; $skip_inserts{$a} = 1 },
+    'utf16be|eb|B'  => sub { $use_encoding = "UTF-16BE" },
+    'utf16le|el|L'  => sub { $use_encoding = "UTF-16LE" },
+    'utf8|eu|U'     => sub { $use_encoding = "UTF-8" },
+    'v+'            => \$verbose,
+    'xo=s'          => M$x_start,
+    'yo=s'          => M$y_start,
+    or exit 64;
+
+$use_encoding and push @binmode, ":encoding($use_encoding)";
+$use_crlf and push @binmode, ":crlf";
+unshift @binmode, " :raw" if @binmode;
+$use_bom and push @binmode, ":bom";
+warn "BINMODE=@binmode\n" if $verbose && @binmode;
+}
+
+$x_start += $label_left_margin + $page_left_margin;
+$y_start += $label_top_margin + $page_top_margin;
+
+{
+package CommonCSV;
+sub fix_one {
+    my $r = shift;
+    1;
+}
+}
+
+{
+package CommonLabel;
+sub fix_one {
+    my $r = shift;
+    1;
+}
+}
+
+{
+package HouseHoldLabel;
+our @ISA = CommonLabel::;
+sub fix_one {
+    my $r = shift;
+    $r->SUPER::fix_one(@_);
+    1;
+}
+}
+
+{
+package InfoLabel;
+our @ISA = CommonLabel::;
+sub fix_one {
+    my $r = shift;
+    $r->SUPER::fix_one(@_);
+    my @inserts = grep { (my $a = lc $_) =~ s/\W+/_/g; ! $skip_inserts{$a} } sort split /\s*,\s*/, $r->{inserts} // '';
+    $r->{inserts} = join ',', @inserts;
+    $r->{LIST_insert} = \@inserts;
+    $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
+}
+}
+
+sub process_file($$) {
+    my $inname = "(stdin)";
+    my $infile = shift;
+    if (!ref $infile) {
+        $inname = $infile;
+        $infile = undef;
+        open $infile, "<@binmode", $inname or die "Can't open $inname; $!\n";
+    }
+
+    my $outname = "(stdout)";
+    my $outfile = shift;
+    if (!ref $outfile) {
+        $outname = $outfile;
+        $outfile = undef;
+        ! -e $outname or die "Destination file $outname already exists (when processing $inname)!\n";
+        open $outfile, ">@binmode", $outname or die "Can't open $outname; $!\n";
+    }
+
+    my @headers;
+    my @records;
+    my %record_by_uid;
+    my %record_by_name;
+
+    my $csv = Text::CSV::->new({ sep_char => "\t", binary => 1 }) or die "Can't construct CSV reader; $!";
+
+    {
+    my $r0 = $csv->getline($infile) or die "Can't get header line from $inname\n";
+    print "Read headers: " . Dumper($r0) if $verbose > 2;
+    $r0->[0] =~ s/^\ufeff//;     # kill Byte-Order-Mark
+    $r0->[0] =~ s/^!//;          # kill the ! used to force headers to sort to beginning of file
+    $r0->[0] =~ s/^_//;          # kill various random characters which get mapped, including ! and BOM
+    @headers = map { s/\W+/_/g; lc $_ } @$r0;
+    print "Parsed headers: " . Dumper(\@headers) if $verbose > 2;
+    }
+
+    my $summary_record;
+    my $curr_inserts;
+    my @curr_inserts;
+    my %count_inserts;
+    RECORD:while ( my $ra = $csv->getline($infile) ) {
+        $#$ra >= 0 or next;  # skip blank lines
+        $#$ra <= $#headers or warn "Line $. has $#$ra fields, but headers had $#headers\n";
+
+        my %rh;
+        @rh{@headers} = @$ra;
+        my $r = bless \%rh, CommonCSV::;
+        $r->fix_one;
+        $r->{inserts} ||= '(none)';
+        if (scalar(@records) % ($num_across*$num_down) == 0
+          || !defined $curr_inserts
+          || $r->{inserts} ne $curr_inserts) {
+            $curr_inserts = $r->{inserts};
+            @curr_inserts = split /[,\n]/, $curr_inserts;
+            @curr_inserts or @curr_inserts = 'none';
+                push @records, $summary_record = bless { page_info => 'next %{count}u -->',
+                                    map { ( "address$_" => $curr_inserts[$_] ) } 0 .. $#curr_inserts }, InfoLabel::;
+        }
+        push @records, $r;
+        ++$count_inserts{$_} for @curr_inserts;
+        ++$summary_record->{count};
+        if (my $uid = $r->{uid}) { $record_by_uid{$uid} = $r }
+        if (my $name = $r->{name}) { $record_by_name{$name} = $r }
+    }
+    my @insert_types = sort keys %count_inserts;
+    push @records, bless { page_info => 'count',
+                            map { ( "address$_" => "$insert_types[$_]: $count_inserts{$insert_types[$_]}" ) } 0 .. $#insert_types }, CommonCSV::;
+    warn "STOPPED file on line $.\n" if $verbose;
+    close $infile or die "Error while reading $inname; $!\n";
+
+    my $pdf = PDF::API2->new();
+
+    my $page = $pdf->page();
+    $page->mediabox($media_box);
+    ( undef, undef, $page_width, $page_height ) = $page->get_mediabox();
+
+    my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
+    my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
+
+    $num_across ||= $printable_page_width  / ($label_step_across || $label_width);
+    $num_down   ||= $printable_page_height / ($label_step_down   || $label_height);
+
+    $label_step_across ||= $printable_page_width  / $num_across || $label_height + $label_top_margin + $label_bottom_margin;
+    $label_step_down   ||= $printable_page_height / $num_down   || $label_width  + $label_left_margin + $label_right_margin;
+
+    $label_height ||= $label_step_down   -  $label_top_margin - $label_bottom_margin;
+    $label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
+
+    my $font      = $pdf->corefont('Helvetica');
+    my $bold_font = $pdf->corefont('Helvetica-Bold');
+    my $text      = $page->text();
+    $text->fillcolor('black');
+    my $label_on_page = 0;
+    my $page_num = 1;
+
+    warn sprintf "First Page\n"
+               . "page size: %.2fmm x %.2fmm (%s)\n"
+               . "printable page size: %.2fmm x %.2fmm\n"
+               . "labels/page: %s x %s\n"
+               . "label size: %.2fmm x %.2fmm\n"
+               . "label step: %.2fmm x %.2fmm\n"
+               ,
+                $page_width/mm, $page_height/mm, $media_box,
+                $printable_page_width/mm, $printable_page_height/mm,
+                $num_across, $num_down,
+                $label_width/mm, $label_height/mm,
+                $label_step_across/mm, $label_step_down/mm,
+        if $verbose;
+
+    for my $r ( @records ) {
+        if (!$page) {
+            warn "Next Page\n" if $verbose;
+            $page = $pdf->page();
+            $page->mediabox($media_box);
+            $text = $page->text();
+            $text->fillcolor('black');
+            ++$page_num;
+            $label_on_page = 0;
+        }
+        my $col  = $label_on_page % $num_across;
+        my $row  = ($label_on_page-$col) / $num_across;
+        my $top  = $page_height - $y_start - $label_step_down * $row;
+        my $left =                $x_start + $label_step_across * $col;
+
+        my @lines = map { $r->{$_} || () } qw{ name care_of address0 address1 address2 address3 address4 country };
+
+        my $nlines = @lines;
+        my $active_fontsize = min $fontsize, $label_height / $nlines / $line_spacing;
+        if (my $p = $r->{page_info}) {
+            if (my @v = $p =~ m/\%\{(\w+)\}/g) {
+                warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
+                $p =~ s/\%\{(\w+)\}/%/g;
+                $p = sprintf $p, @$r{@v};
+            }
+            $nlines += $banner_scale;
+            $active_fontsize = min $fontsize, $label_height / $nlines / $line_spacing;
+            my $banner_fontsize = $active_fontsize*$banner_scale;
+            $text->font( $bold_font, $banner_fontsize );
+            $text->fillcolor($instruction_colour);
+            $text->translate( $left, $top - $banner_fontsize*$line_spacing );
+            $text->text($p);
+        } else {
+            $text->fillcolor('black');
+        }
+
+        $text->font( $font, $active_fontsize );
+       #my ($maxw) = map { $text->advance_width($_); } @lines;
+       #if ($maxw > $label_width ) {
+       #    $active_fontsize *= $label_width / $maxw;
+       #    $text->font( $font, $active_fontsize );
+       #}
+        for (0 .. $#lines) {
+            $text->translate( $left, $top - ($nlines - $#lines + $_)*$active_fontsize*$line_spacing );
+            $text->text($lines[$_]);
+        }
+
+        if (my $p = $r->{postcode}) {
+            $text->font( $bold_font, $postcode_fontsize );
+            $text->translate( $left + $label_width, $top - $label_height + $postcode_fontsize );
+            $text->text_right($p);
+        }
+
+        warn sprintf "Page %u row %u column %u: lines=%u font=%.2fmm (%.2fpt)\n", $page_num, $row, $col, $nlines, $active_fontsize/mm, $active_fontsize if $verbose > 1;
+        if (++$label_on_page >= $num_across * $num_down) {
+            undef $page;
+        }
+    }
+    print {$outfile} $pdf->stringify;
+}
+
+process_file *STDIN{IO}, *STDOUT{IO} if !@ARGV;
+for my $in (@ARGV) {
+    (my $out = $in) =~ s/\.\w*$//;
+    $out .= '.pdf';
+    process_file $in, $out
+}
+
+1;
