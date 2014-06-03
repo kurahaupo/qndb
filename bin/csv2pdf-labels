@@ -14,8 +14,98 @@ use constant pt => 1;
 use constant px => 2/3;
 use constant in => 72;
 use constant mm => 72 / 25.4;
+use constant golden_mean => (sqrt(5)+1)/2;  # (= Φ, phi)
 
-my $banner_scale = 1.61803398874989484820;
+my $verbose = 0;
+
+################################################################################
+
+#
+# manage the pdf pagination outside the main loop;
+# font selections reside within a current page;...
+#
+{
+package PDF_paginator;
+
+sub new {
+    my $class = shift;
+    my ($page_size) = @_;
+    my $p = bless { page_size => $page_size }, $class;
+    warn "Next Page\n" if $verbose;
+    $p->_startpage;
+    return $p;
+}
+
+sub pdf {
+    my $p = shift;
+    $p->{pdf} ||= PDF::API2->new(@_)
+}
+
+sub _startpage {
+    my $p = shift;
+    my $pdf = $p->pdf;
+    warn "Next Page\n" if $verbose;
+    my $page = $p->{page} = $pdf->page(@_);
+    $page->mediabox($p->{page_size});
+    ( undef, undef, $p->{page_width}, $p->{page_height} ) = $page->get_mediabox();
+    $p->{page_item_num} = 0;
+}
+
+# start a page if none currently, otherwise use current page
+sub page {
+    my $p = shift;
+    $p->_startpage if ! $p->{page};
+    $p->{page};
+}
+
+# close the current page, so that the next call to "page" will start a new page
+sub closepage {
+    my $p = shift;
+    #$p->{page} or return;  # no current page
+    delete $p->{text};
+    delete $p->{page};
+}
+
+# get the "text" attribute of the current page (starting a new page if necessary)
+sub text {
+    my $p = shift;
+    $p->{text} ||= $p->page->text();
+}
+
+sub corefont {
+    my $p = shift;
+    my $name = shift;
+    $p->{fontcache}{$name} ||= $p->pdf->corefont($name);
+}
+
+sub pages {
+    my $p = shift;
+    $p->{pdf} && $p->{pdf}->pages || 0
+}
+
+sub stringify {
+    my $p = shift;
+    $p->{pdf} or return;
+    $p->closepage;
+    my $r = $p->{pdf}->stringify;
+    %$p = ();
+    $r;
+}
+
+sub write_into {
+    my $p = shift;
+    my $filename = shift;
+    my $pdf = $p->{pdf} or return;
+    $pdf->saveas($filename);
+}
+
+#sub DESTROY { }
+}
+
+################################################################################
+
+my $banner_scale = golden_mean;
+my $force_overwrite = 1;
 my $fontsize = 12*pt;
 my $instruction_colour = 'orange';
 my $label_bottom_margin = 4*mm;
@@ -27,21 +117,18 @@ my $label_step_down;
 my $label_top_margin = 4*mm;
 my $label_width;
 my $line_spacing = 1.25;
-my $media_box = 'a4';
-my $num_across = 3;
-my $num_down = 7;
+my $page_size = 'a4';
+my $labels_across = 3;
+my $labels_down = 7;
 my $page_bottom_margin = 14*mm;
-my $page_height;
 my $page_left_margin = 0;
 my $page_right_margin = 0;
 my $page_top_margin = 14*mm;
-my $page_width;
 my $postcode_fontsize = 14;
-my $verbose = 0;
 my $x_start = 0;
 my $y_start = 0;
 my %skip_inserts = map { ( $_ => 1 ) } 'mt_eden_minutes';
-my @binmode;
+my @rd_binmode;
 
 sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
 sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
@@ -92,9 +179,9 @@ sub as_points($) {
 
 my %label_product = (
     'avery-l7160-shrink' => {
-            media_box            => 'a4',
-            num_across           => 3,
-            num_down             => 7,
+            page_size            => 'a4',
+            labels_across        => 3,
+            labels_down          => 7,
             page_top_margin      => as_points '5mm',
             page_bottom_margin   => as_points '-1mm',
             page_left_margin     => as_points '0mm',
@@ -105,9 +192,9 @@ my %label_product = (
             label_right_margin   => as_points '3mm',
         },
     'avery-l7160' => {
-            media_box            => 'a4',
-            num_across           => 3,
-            num_down             => 7,
+            page_size            => 'a4',
+            labels_across        => 3,
+            labels_down          => 7,
             page_top_margin      => as_points '17mm',
             page_bottom_margin   => as_points '13mm',
             page_left_margin     => as_points '5mm',
@@ -121,11 +208,11 @@ my %label_product = (
 sub use_preset {
     my $p = $label_product{$_[1]} || die "Unknown label product '$_[1]'\n";
     (
-        $media_box, $num_across, $num_down,
+        $page_size, $labels_across, $labels_down,
         $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
         $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
     ) = @$p{qw{
-        media_box num_across num_down
+        page_size labels_across labels_down
         page_top_margin page_bottom_margin page_left_margin page_right_margin
         label_top_margin label_bottom_margin label_left_margin label_right_margin
     }};
@@ -146,8 +233,8 @@ my $use_crlf;
 my $use_encoding;
 GetOptions
     'P|preset=s'    => \&use_preset,
-    'a=i'           => sub { $media_box = $_[0].$_[1] },
-    'b=i'           => sub { $media_box = $_[0].$_[1] },
+    'a=i'           => sub { $page_size = $_[0].$_[1] },
+    'b=i'           => sub { $page_size = $_[0].$_[1] },
     'bom|B!'        => \$use_bom,
     'color|colour=s' => \$instruction_colour,
     'encoding|E=s'  => \$use_encoding,
@@ -157,10 +244,8 @@ GetOptions
     'lw=s'          => M$label_width,
     'lxh=s'         => M$label_step_down,
     'lxw=s'         => M$label_step_across,
-    'na=i'          => \$num_across,
-    'nd=i'          => \$num_down,
-    'ph=s'          => M$page_height,
-    'pw=s'          => M$page_width,
+    'na=i'          => \$labels_across,
+    'nd=i'          => \$labels_down,
     'skip-insert=s' => sub { (my $a = lc $_[1]) =~ s/\W+/_/g; $skip_inserts{$a} = 1 },
     'utf16be|eb|B'  => sub { $use_encoding = "UTF-16BE" },
     'utf16le|el|L'  => sub { $use_encoding = "UTF-16LE" },
@@ -170,23 +255,17 @@ GetOptions
     'yo=s'          => M$y_start,
     or exit 64;
 
-$use_encoding and push @binmode, ":encoding($use_encoding)";
-$use_crlf and push @binmode, ":crlf";
-unshift @binmode, " :raw" if @binmode;
-$use_bom and push @binmode, ":bom";
-warn "BINMODE=@binmode\n" if $verbose && @binmode;
+$use_encoding and push @rd_binmode, ":encoding($use_encoding)";
+$use_crlf and push @rd_binmode, ":crlf";
+unshift @rd_binmode, " :raw" if @rd_binmode;
+$use_bom and push @rd_binmode, ":bom";
+warn "BINMODE=@rd_binmode\n" if $verbose && @rd_binmode;
 }
 
 $x_start += $label_left_margin + $page_left_margin;
 $y_start += $label_top_margin + $page_top_margin;
 
-{
-package CommonCSV;
-sub fix_one {
-    my $r = shift;
-    1;
-}
-}
+################################################################################
 
 {
 package CommonLabel;
@@ -197,12 +276,16 @@ sub fix_one {
 }
 
 {
-package HouseHoldLabel;
+package HouseholdLabel;
 our @ISA = CommonLabel::;
 sub fix_one {
     my $r = shift;
     $r->SUPER::fix_one(@_);
     1;
+}
+
+sub render {
+    my $r = shift;
 }
 }
 
@@ -217,24 +300,21 @@ sub fix_one {
     $r->{LIST_insert} = \@inserts;
     $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
 }
+
+sub render {
+    my $r = shift;
+}
 }
 
 sub process_file($$) {
-    my $inname = "(stdin)";
     my $infile = shift;
+    my $outfile = shift;
+
+    my $inname = "(stdin)";
     if (!ref $infile) {
         $inname = $infile;
         $infile = undef;
-        open $infile, "<@binmode", $inname or die "Can't open $inname; $!\n";
-    }
-
-    my $outname = "(stdout)";
-    my $outfile = shift;
-    if (!ref $outfile) {
-        $outname = $outfile;
-        $outfile = undef;
-        ! -e $outname or die "Destination file $outname already exists (when processing $inname)!\n";
-        open $outfile, ">@binmode", $outname or die "Can't open $outname; $!\n";
+        open $infile, "<@rd_binmode", $inname or die "Can't open $inname; $!\n";
     }
 
     my @headers;
@@ -264,10 +344,10 @@ sub process_file($$) {
 
         my %rh;
         @rh{@headers} = @$ra;
-        my $r = bless \%rh, CommonCSV::;
+        my $r = bless \%rh, HouseholdLabel::;
         $r->fix_one;
         $r->{inserts} ||= '(none)';
-        if (scalar(@records) % ($num_across*$num_down) == 0
+        if (scalar(@records) % ($labels_across*$labels_down) == 0
           || !defined $curr_inserts
           || $r->{inserts} ne $curr_inserts) {
             $curr_inserts = $r->{inserts};
@@ -284,34 +364,27 @@ sub process_file($$) {
     }
     my @insert_types = sort keys %count_inserts;
     push @records, bless { page_info => 'count',
-                            map { ( "address$_" => "$insert_types[$_]: $count_inserts{$insert_types[$_]}" ) } 0 .. $#insert_types }, CommonCSV::;
+                           map { ( "address$_" => "$insert_types[$_]: $count_inserts{$insert_types[$_]}" ) } 0 .. $#insert_types },
+                        InfoLabel::;
     warn "STOPPED file on line $.\n" if $verbose;
     close $infile or die "Error while reading $inname; $!\n";
 
-    my $pdf = PDF::API2->new();
+    my $pq = new PDF_paginator:: ($page_size);
+    my $page_width = $pq->{page_width};
+    my $page_height = $pq->{page_height};
 
-    my $page = $pdf->page();
-    $page->mediabox($media_box);
-    ( undef, undef, $page_width, $page_height ) = $page->get_mediabox();
-
+    {
     my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
 
-    $num_across ||= $printable_page_width  / ($label_step_across || $label_width);
-    $num_down   ||= $printable_page_height / ($label_step_down   || $label_height);
+    $labels_across ||= $printable_page_width  / ($label_step_across || $label_width);
+    $labels_down   ||= $printable_page_height / ($label_step_down   || $label_height);
 
-    $label_step_across ||= $printable_page_width  / $num_across || $label_height + $label_top_margin + $label_bottom_margin;
-    $label_step_down   ||= $printable_page_height / $num_down   || $label_width  + $label_left_margin + $label_right_margin;
+    $label_step_across ||= $printable_page_width  / $labels_across || $label_height + $label_top_margin + $label_bottom_margin;
+    $label_step_down   ||= $printable_page_height / $labels_down   || $label_width  + $label_left_margin + $label_right_margin;
 
     $label_height ||= $label_step_down   -  $label_top_margin - $label_bottom_margin;
     $label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
-
-    my $font      = $pdf->corefont('Helvetica');
-    my $bold_font = $pdf->corefont('Helvetica-Bold');
-    my $text      = $page->text();
-    $text->fillcolor('black');
-    my $label_on_page = 0;
-    my $page_num = 1;
 
     warn sprintf "First Page\n"
                . "page size: %.2fmm x %.2fmm (%s)\n"
@@ -320,25 +393,24 @@ sub process_file($$) {
                . "label size: %.2fmm x %.2fmm\n"
                . "label step: %.2fmm x %.2fmm\n"
                ,
-                $page_width/mm, $page_height/mm, $media_box,
+                $page_width/mm, $page_height/mm, $page_size,
                 $printable_page_width/mm, $printable_page_height/mm,
-                $num_across, $num_down,
+                $labels_across, $labels_down,
                 $label_width/mm, $label_height/mm,
                 $label_step_across/mm, $label_step_down/mm,
         if $verbose;
+    }
+
+    my $font      = $pq->corefont('Helvetica');
+    my $bold_font = $pq->corefont('Helvetica-Bold');
 
     for my $r ( @records ) {
-        if (!$page) {
-            warn "Next Page\n" if $verbose;
-            $page = $pdf->page();
-            $page->mediabox($media_box);
-            $text = $page->text();
-            $text->fillcolor('black');
-            ++$page_num;
-            $label_on_page = 0;
-        }
-        my $col  = $label_on_page % $num_across;
-        my $row  = ($label_on_page-$col) / $num_across;
+        my $text = $pq->text;
+
+        my $label_on_page = $pq->{page_item_num}++;
+
+        my $col  = $label_on_page % $labels_across;
+        my $row  = ($label_on_page-$col) / $labels_across;
         my $top  = $page_height - $y_start - $label_step_down * $row;
         my $left =                $x_start + $label_step_across * $col;
 
@@ -362,30 +434,35 @@ sub process_file($$) {
         } else {
             $text->fillcolor('black');
         }
-
         $text->font( $font, $active_fontsize );
-       #my ($maxw) = map { $text->advance_width($_); } @lines;
-       #if ($maxw > $label_width ) {
-       #    $active_fontsize *= $label_width / $maxw;
-       #    $text->font( $font, $active_fontsize );
-       #}
         for (0 .. $#lines) {
             $text->translate( $left, $top - ($nlines - $#lines + $_)*$active_fontsize*$line_spacing );
             $text->text($lines[$_]);
         }
-
         if (my $p = $r->{postcode}) {
             $text->font( $bold_font, $postcode_fontsize );
             $text->translate( $left + $label_width, $top - $label_height + $postcode_fontsize );
             $text->text_right($p);
         }
 
-        warn sprintf "Page %u row %u column %u: lines=%u font=%.2fmm (%.2fpt)\n", $page_num, $row, $col, $nlines, $active_fontsize/mm, $active_fontsize if $verbose > 1;
-        if (++$label_on_page >= $num_across * $num_down) {
-            undef $page;
+        warn sprintf "Page %u label %u row %u/%u column %u/%u: lines=%u font=%.2fmm (%.2fpt)\n",
+                $pq->pages,
+                $label_on_page,
+                $row, $labels_across, $col, $labels_down,
+                $nlines, $active_fontsize/mm, $active_fontsize if $verbose > 1;
+        if ($label_on_page+1 >= $labels_across * $labels_down) {
+            warn "Throwpage\n" if $verbose > 1;
+            $pq->closepage;
         }
     }
-    print {$outfile} $pdf->stringify;
+
+    if (!ref $outfile) {
+        ! -e $outfile or $force_overwrite or die "Destination file $outfile already exists (when processing $inname)!\n";
+        $pq->write_into($outfile) or die "Couldn't save to '$outfile'; $!\n";
+    } else {
+        print {$outfile} $pq->stringify;
+        flush $outfile or die "Error while writing to stdout; $!\n";
+    }
 }
 
 process_file *STDIN{IO}, *STDOUT{IO} if !@ARGV;
