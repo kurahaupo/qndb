@@ -1,13 +1,10 @@
 #!/usr/bin/perl
 
 use 5.010;
-#use 5.014;  # so push/pop/etc work on scalars (experimental)
-
 use strict;
 use warnings;
 use utf8;
 
-use Fcntl qw( SEEK_SET );
 use POSIX qw(strftime);
 use Data::Dumper;
 
@@ -21,8 +18,6 @@ use constant now => [ localtime $^T ];
 use constant this_year => strftime "%Y", localtime $^T;
 use constant this_date => strftime "%Y%m%d", localtime $^T;
 use constant sixteen_this_date => strftime "%Y%m%d", localtime $^T - 504921600;
-
-use constant CHECK_ARGS => 1;
 
 my $debug = 0;
 my $verbose = 1;
@@ -39,81 +34,11 @@ my %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
     'NT - Northern',
     'PN - Palmerston North',
     'WG - Whanganui Taranaki',
-  # 'WK - Waikato Hauraki',
+    'WK - Waikato Hauraki',
     'WN - Wellington',
-    'YF - Young Friends',
-    'NO - not in any meeting',
 ;
 
-my @mm_order = qw( NT MNI WG PN KP WN CH DN NO );
-
-my @wg_order = (
-
-    'NT - Kaitaia',
-    'NT - Bay of Islands',
-    'NT - Whangarei',
-    'NT - North Shore',
-    'NT - Mt Eden',
-    'NT - West Auckland',
-    'NT - Howick',
-    'NT - Waiheke',
-    'NT - elsewhere',
-    'NT - overseas',
-
-    'MNI - Thames & Coromandel',
-   #'MNI - Thames',
-    'MNI - Waikato',
-    'MNI - Tauranga',
-   #'MNI - Rotorua',
-    'MNI - Rotorua-Taupo',
-    'MNI - Whakatane',
-    'MNI - elsewhere',
-    'MNI - overseas',
-
-    'PN - Palmerston North',
-    'PN - Hawkes Bay',
-    'PN - Levin',
-    'PN - elsewhere',
-    'PN - overseas',
-
-    'WG - Whanganui',
-    'WG - Taranaki',
-    'WG - elsewhere',
-    'WG - overseas',
-
-    'KP - Kapiti',
-    'KP - elsewhere',
-    'KP - overseas',
-
-    'WN - Wellington',
-    'WN - Wairarapa',
-    'WN - elsewhere',
-    'WN - overseas',
-
-    'CH - Golden Bay',
-    'CH - Marlborough',
-    'CH - Nelson',
-    'CH - Canterbury',
-    'CH - South Canterbury',
-    'CH - Westland',
-    'CH - elsewhere',
-    'CH - overseas',
-
-    'DN - Otago',
-    'DN - Southland',
-    'DN - elsewhere',
-    'DN - overseas',
-
-    'YF',
-    'YF - overseas',
-
-    'NO - not in any worship group',
-
-);
-
 my $mm_keys_re = eval sprintf "qr/\\b(?:%s)\\b/o", join '|', keys %mm_names;
-
-my %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) } keys %mm_names;
 
 # The rule of thumb is to map towards the ambiguous abbreviations, rather than
 # away from them, so that we don't get silly things like "1 Scenic Doctor" or
@@ -129,7 +54,6 @@ my %address_designators = (
     Dve       => 'Dr',
     Drive     => 'Dr',
     Grove     => 'Gr',
-    Highway   => 'Hwy',
     Mount     => 'Mt',
     Place     => 'Pl',
     Point     => 'Pt',
@@ -149,10 +73,9 @@ my %country_map = qw(
      43 China
     143 NZ
     154 PNG
-    201 Tonga
     211 UK
     212 USA
-);
+    );
 
 # Generic spelling fixes to apply to all "English" fields
 my %spelling_fixes = (
@@ -161,103 +84,53 @@ my %spelling_fixes = (
 
 ################################################################################
 
-{
-package export;
-BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ } # Fake things so that when "use" does "require FILE", it thinks it's already loaded
-sub import {
-    my $self = shift;
-    my $exportable = \@_;
-    my $cpkg = caller;
-    # Create an import method for the target package
-    my $im = sub {
-        my $self = shift;
-        my $pkg = caller;
-        for my $n (@_ ? @_ : @$exportable) {
-            no strict 'refs';
-            my $f = UNIVERSAL::can($self,$n) or die "$self does not export $n\n";
-            *{"${pkg}::$n"} = $f;
-        }
-    };
-    { no strict 'refs'; *{"${cpkg}::import"} = $im; };
-    # Fake things so that when "use" does "require FILE", it thinks it's already loaded
-    $cpkg =~ s#::#/#g;
-    $cpkg .= '.pm';
-    $INC{$cpkg} = __FILE__;
-}
-}
-
-{
-package list_functions;
-use export qw( min max sum uniq first near flatten );
 sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
 sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
 sub sum(@) { my $r = shift; $r += $_ for @_; $r }
 sub uniq(@) { my %seen; grep { ! $seen{$_}++ } @_ }
 sub first(@) { @_ ? shift : () }
 sub near($$;$) { my ($a,$b) = @_; my $s = max(abs($a),abs($b)); abs($a-$b) < $s / ($_[2]||1000) }
-sub flatten(@) { map { ref $_ ? @$_ : $_ || () } @_ }
-}
-
-{
-package math_constants;
-use constant PHI => (sqrt(5)+1)/2;
-use constant PI => atan2(0,-1);
-use constant degrees_to_radians => PI/180;
-use export qw( PI degrees_to_radians PHI );
-}
-
-use list_functions;
-
-sub normalize_phone($);
-
 sub sort_by_surname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
-    return sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
-               || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_
+    return sort { $a->{composite_name}->{sort_by_surname} cmp $b->{composite_name}->{sort_by_givenname} } @_
 }
 sub sort_by_givenname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
-    return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
-               || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_
+    return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_
 }
-sub preferred_sort(@) {
+sub sort_by(@) {
     goto &sort_by_givenname;
 }
 
 ########################################
 # scale factors for sizes for PDF files
 
-{
-package scale_factors;
 use constant pt => 1;
 use constant px => 2/3;
 use constant in => 72;
 use constant mm => 72 / 25.4;
-sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( pt px in mm )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
-BEGIN { $INC{"scale_factors.pm"} = __FILE__ }
-}
-use scale_factors;
 
 ################################################################################
 #
-# Manage the PDF pagination separately from the list-rendering
-#
-# (the text cursor is per-page, so make sure we get a fresh one for each page)
+# manage the pdf pagination outside the main loop; the text cursor is per-page,
+# so make sure we get a fresh one when there's a new page
 #
 
 {
 package PDF_paginator;
 
-use scale_factors;
+use constant pt => ::pt;
+use constant px => ::px;
+use constant in => ::in;
+use constant mm => ::mm;
 
 sub new {
     my $class = shift;
-    my $p = bless { @_ }, $class;
+    my $p = bless { page_size => \@_ }, $class;
     warn "Next Page\n" if $verbose;
     $p->_startpage;
-    $p->pdf->preferences(-twocolumnright => 1);
     return $p;
 }
 
@@ -274,23 +147,6 @@ sub _startpage {
     $page->mediabox(@{ $p->{page_size} });
     ( undef, undef, $p->{page_width}, $p->{page_height} ) = $page->get_mediabox();
     $p->{page_item_num} = 0;
-    if (my $cb = $p->{upon_start_page}) {
-        my $pagenum = $pdf->pages || 0;
-        if (ref $cb eq 'CODE') {
-            $cb->($p, $pagenum);
-        } else {
-            for my $cc (@$cb) {
-                $cc->($p, $pagenum);
-            }
-        }
-    }
-}
-
-sub pagenum {
-    my $p = shift;
-    $p->_startpage if ! $p->{page};
-    my $pdf = $p->pdf;
-    $pdf->pages || 0;
 }
 
 # get the current page (starting a new page if necessary)
@@ -303,20 +159,9 @@ sub page {
 # close the current page, so that the next call to "page" will start a new page
 sub closepage {
     my $p = shift;
-    $p->{page} or return;  # no current page
-    if (my $cb = $p->{upon_end_page}) {
-        my $pagenum = $p->pdf->pages || 0;
-        if (ref $cb eq 'CODE') {
-            $cb->($p, $pagenum);
-        } else {
-            for my $cc (@$cb) {
-                $cc->($p, $pagenum);
-            }
-        }
-    }
+    #$p->{page} or return;  # no current page
     delete $p->{text};
     delete $p->{page};
-    delete $p->{pagedata};
 }
 
 # get the "text" attribute of the current page (starting a new page if necessary)
@@ -340,328 +185,129 @@ sub font {
 
 sub pages {
     my $p = shift;
-    $p->pdf->pages || 0
+    $p->{pdf} && $p->{pdf}->pages || 0
 }
 
 sub stringify {
     my $p = shift;
-    my $pdf = $p->{pdf} or return;
+    $p->{pdf} or return;
     $p->closepage;
-    my $r = $pdf->stringify;
+    my $r = $p->{pdf}->stringify;
     %$p = ();
-    return $r;
+    $r;
 }
 
-#sub write_into {
-#    my $p = shift;
-#    my $filename = shift;
-#    my $pdf = $p->{pdf} or return;
-#    $p->closepage;
-#    my $r = $pdf->saveas($filename);
-#    %$p = ();
-#    return $r;
-#}
-
-#
-# Assuming no height bound, how much space would a given chunk of text take,
-# if it were given to text_flow (below)?
-#
-
-sub _qm($) {
-    my $v = $_[0];
-    state $qm = {
-            map { ( eval("\"\\$_\"") => "\\$_" ) }
-                qw{ \ " ' 0 a b e f l n o r t u z } # also: \cC \x{} \N{} \Q..\E \L..\E \U..\E
-        };
-    $v =~ s{[\\\n\t'"]}{$qm->{$&} // sprintf '\\x%.02x', ord($&)}egr;
+sub write_into {
+    my $p = shift;
+    my $filename = shift;
+    my $pdf = $p->{pdf} or return;
+    $pdf->saveas($filename);
+    %$p = ();
 }
 
-my @font_variants = ( '', '-Bold', '-Oblique', '-BoldOblique', );
-
-use constant TN     => "\x{fe10}";
-use constant TB     => "\x{fe11}";
-use constant TI     => "\x{fe12}";
-use constant TBI    => "\x{fe13}"; use constant TIB => TBI;
-use constant TU     => "\x{fe14}";
-use constant TBU    => "\x{fe15}"; use constant TUB => TBU;
-use constant TIU    => "\x{fe16}"; use constant TUI => TIU;
-use constant TBIU   => "\x{fe17}"; use constant { TBUI => TBIU, TIBU => TBIU, TIUB => TBIU, TUBI => TBIU, TUIB => TBIU };
+#
+# Assuming no bounds, or only a width bound, how much space would a given chunk
+# of text take?
+#
 
 sub text_size($$$$$;$) {
     my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit) = @_;
     my $lineheight = $fontsize*$line_spacing;
+    warn sprintf "SIZE [%s] @%.3fmm font ", quotemeta $str, $fontsize/mm if $verbose;
     $str or do {
-        warn sprintf "TEXTSIZE text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (1 empty line)\n",
-                    _qm $str, $fontsize/mm,
-                    0, $lineheight/mm,
-            if $verbose > 3;
-        return 0, $lineheight, 0, 0;
-    };
-    flush STDERR;
-    my $fontstyle = 0;
-    my $text = $pq->text;
-    my $lines = 1;
-    my $width = 0;
-    my $col = 0;
-    $pq->font( $fontname.$font_variants[$fontstyle], $fontsize );
-    PART: for ( my @parts = split /([\n\x{fe10}-\x{fe1f}])/, $str ; @parts ;) {
-        my $part = shift @parts;
-        $part eq '' and next PART;
-        if ( $part eq "\n" ) {
-            warn sprintf "TEXTSIZE newline ending line %u at column %.2fmm\n", $lines, $col/mm if $verbose > 3;
-            $width >= $col or $width = $col;
-            ++$lines;
-            $col = 0;
-            next PART;
-        }
-        if ( $part =~ /^[\x{fe10}-\x{fe1f}]$/ ) {
-            $fontstyle = (ord($part) - 0xfe10) % @font_variants;
-            $pq->font( $fontname.$font_variants[$fontstyle], $fontsize );
-            warn sprintf "TEXTSIZE fontstyle %x=%s [%s]\n", $fontstyle, join('-', unpack 'b4', $fontstyle), $fontname.$font_variants[$fontstyle] if $verbose > 3;
-            next PART;
-        }
-        my $part_width = $text->advancewidth($part);
-        if ($width_limit) {
-            my $t = $part;
-            warn sprintf "TEXTSIZE linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
-                if $verbose > 3 && $part_width > $width_limit-$col;
-            while ( $part_width > $width_limit-$col ) {
-                $t =~ s#\s+\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
-                $part_width = $text->advancewidth($t);
-            }
-            if ($t ne '' || $col > 0) {
-                (my $u = substr($part, length($t))) =~ s#^\s+##;
-                warn sprintf "TEXTSIZE wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
-                    if $verbose > 3 && $u ne '';
-                unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
-            }
-            else {
-                warn sprintf "TEXTSIZE cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
-            }
-        }
-        $col += $part_width;
-    }
-    $width >= $col or $width = $col;
-    my $height = $lines * $lineheight;
-    warn sprintf "TEXTSIZE text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (%u lines) return=(↔%.2fmm,↕%.2fmm)\n",
-            _qm $str, $fontsize/mm,
-            $width/mm, $lines * $lineheight/mm, $lines,
-            $col/mm, ($height - $lineheight)/mm,
-        if $verbose > 3;
-    return $width, $height, $col, $height - $lineheight;
-}
-
-#
-# Flow lines of text into a box; returns the width & height (same as text_size)
-#
-
-sub text_flow($$$$$$$$;$) {
-    my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit, $top, $left) = @_;
-    $#_ == 7 or ::croak "text_flow: wrong number of args";
-    my $lineheight = $fontsize*$line_spacing;
-    $str or do {
-        warn sprintf "TEXTFLOW text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (1 empty line)\n",
-                    _qm $str, $fontsize/mm,
-                    0, $lineheight/mm,
-            if $verbose > 3;
+        warn "-> [empty]\n";
         return 0, $lineheight;
     };
     flush STDERR;
-    my $fontstyle = 0;
-    my $underline = 0;
+    my $boldstate = 0;
+    my @fontnames = ($fontname, $fontname.'-Bold');
     my $text = $pq->text;
     my $lines = 1;
-    my $ypos = $top - $lineheight;
     my $width = my $col = 0;
-    $pq->font( $fontname.$font_variants[$fontstyle], $fontsize );
-    warn sprintf "TEXTFLOW position  →%.2fmm,↑%.2fmm\n",
-            $left/mm, $ypos/mm,
-        if $verbose > 3;
-    $text->translate( $left, $ypos );
-
+    $pq->font( $fontnames[$boldstate], $fontsize );
     PART: for ( my @parts = split /([\n\x{fe10}-\x{fe1f}])/, $str ; @parts ;) {
         my $part = shift @parts;
         $part eq '' and next PART;
         if ( $part eq "\n" ) {
-            warn sprintf "TEXTFLOW newline ending line %u at column %.2fmm\n", $lines, $col/mm if $verbose > 3;
             $width >= $col or $width = $col;
-            ++$lines;
-            $ypos -= $lineheight;
             $col = 0;
-            warn sprintf "TEXTFLOW position →%.2fmm,↑%.2fmm\n",
-                    $left/mm, ($ypos)/mm,
-                if $verbose > 3;
-            $text->translate( $left, $ypos );
+            ++$lines;
             next PART;
         }
         if ( $part =~ /^[\x{fe10}-\x{fe1f}]$/ ) {
-            $fontstyle = (ord($part) - 0xfe10);
-            $underline = $fontstyle & 4;
-            $fontstyle %= @font_variants;
-            my $xfontname = $fontname.$font_variants[$fontstyle];
-            $pq->font( $xfontname, $fontsize );
-            warn sprintf "TEXTFLOW fontstyle %x=%s [%s]\n", $fontstyle, join('-', unpack 'b4', $fontstyle), $xfontname if $verbose > 3;
+            $boldstate = (ord($&) - 0xfe10);
+            $pq->font( $fontnames[$boldstate], $fontsize );
             next PART;
         }
         my $part_width = $text->advancewidth($part);
         if ($width_limit) {
             my $t = $part;
-            warn sprintf "TEXTFLOW linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
-                if $verbose > 3 && $part_width > $width_limit-$col;
-            while ( $part_width > $width_limit-$col ) {
-                $t =~ s#\s+\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
+            while ( $col+$part_width > $width_limit ) {
+                $t =~ s#\s+\S*$## or $t =~ s#.$## or last;
                 $part_width = $text->advancewidth($t);
             }
-            if ($t ne '' || $col > 0) {
-                (my $u = substr($part, length($t))) =~ s#^\s+##;
-                warn sprintf "TEXTFLOW wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
-                    if $verbose > 3 && $u ne '';
-                unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
-                $part = $t;
-            }
-            else {
-                warn sprintf "TEXTFLOW cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
-            }
+            (my $u = substr($part, length($t))) =~ s#^\s+##;
+            unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
         }
-        $text->text($part, $underline ? ( -underline => 'auto' ) : (),
-                   );
         $col += $part_width;
     }
     $width >= $col or $width = $col;
-    warn sprintf "TEXTFLOW text=[%s] font=%.2fmm pos=(→%.2fmm,↑%.2fmm) -> size=(↔%.2fmm,↕%.2fmm) (%u lines) return=(↔%.2fmm,↕%.2fmm)\n",
-                _qm $str, $fontsize/mm,
-                $left/mm, $top/mm,
-                $width/mm, ($ypos - $top)/mm,
-                $lines,
-                $col/mm, ($lines > 1 && $top - $ypos - $lineheight)/mm,
-        if $verbose > 3;
-    return $width, $top - $ypos, $col, $lines > 1 && $top - $ypos - $lineheight;
+    warn sprintf "-> [%.3fmm × %.3fmm] (%u lines)\n", $width/mm, $lines * $lineheight/mm, $lines;
+    return $width, $lines * $lineheight;
 }
 
 #
-# $pq->text_rotate($fname,$fsize, "some text",
-# Write a single line of text with full control, including box alignment, orientation, font style
-# (attempt to arrange so that the top/left is not overlapped -- hopefully)
-# Rotation is anticlockwise
-# Assumes a stand-alone fixed-position line of text, so does not give you repositioning info
+# Flow lines of text into a box; returns the width & height (same text_size)
 #
 
-use math_constants 'PI';
-use list_functions qw{ min max sum };
-
-sub text_rotate($$$$$$$;$) {
-    my ($pq, $fontname, $fontsize, $str, $top, $left, $rotation, $fontstyle) = @_;
-    $#_ >= 6 && $#_ <= 7 or ::croak 'Wrong number of args; expecting pq->text_rotate( fontname, fontsize, str, top, left, rotation, [fontstyle,] )';
-    @_ = ( $pq, $str, {
-            y           => $top,
-            x           => $left,
-            fontname    => $fontname,
-            fontsize    => $fontsize,
-            fontstyle   => $fontstyle,
-            deg_rotation => $rotation,
-          # halign      => 0,  # left
-          # valign      => 0,  # top
-        });
-    goto &text_at;
-}
-
-#my @styleopts = qw{ bold italic };
-sub text_at($$%) {
-    my $pq = shift;
-    my $str = shift;
-    my $opts = @_ == 1 && ref $_[0] ? shift @_ : { @_ };
-
-    $str =~ /[\n\x{fe10}-\x{fe1f}]/ and ::croak "text_at and text_rotate do not support multiline or multifont text";
-
-    defined $str && $str ne '' or do {
-        warn sprintf "TEXT_AT (empty)\n" if $verbose > 3;
-        return;
+sub text_flow($$$$$$$$) {
+    my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit, $top, $left) = @_;
+    my $lineheight = $fontsize*$line_spacing;
+    warn sprintf "FLOW [%s] @%.3fmm font ", quotemeta $str, $fontsize/mm;
+    $str or do {
+        warn "-> [empty]\n";
+        return 0, $lineheight;
     };
-
-    my $xpoint      = $opts->{x}                // ::croak "Missing x";
-    my $ypoint      = $opts->{y}                // ::croak "Missing y";
-    my $fontname    = $opts->{fontname}         //
-                      $opts->{fn}               //
-                        ::croak "Missing fontname";
-    my $fontsize    = $opts->{fontsize}         //
-                      $opts->{fs}               //
-                        ::croak "Missing fontsize";
-    my $fontstyle   = $opts->{fontstyle}        //
-                        ( $opts->{bold} ? 1 : 0 ) | ( $opts->{italic} ? 2 : 0 );
-                                          ## sum map { 1 << $_ } grep { $opts->{$styleopts[$_]} } 0 .. $#styleopts;
-                                          ## unpack "C", pack "b*", pack "C*", map { exists $opts->{$_} } qw{ bold italic };
-    my $underline   = $opts->{underline} //
-                        ($fontstyle >> 2 & 1);
-    $fontstyle &= 3;
-
-    my $halign      = $opts->{halign}           // 0;   # default to left (all parts of the text must be right of the specified position)
-    my $valign      = $opts->{valign}           // 0;   # default to top (all parts of the text must be below the specified position)
-
-    my $rotation    = $opts->{pi_rotation}      //      # rotation in radians [0..2π]
-                      $opts->{rr}               //
-                      ( $opts->{quad_rotation}  //      # rotation in quadrants [0..4]
-                        $opts->{r}              //
-                        ( $opts->{'r°'}         //
-                          $opts->{deg_rotation} //      # rotation in degrees [0..360]
-                          0                             # default to standard orientation
-                        ) / 90                          # convert degrees to quadrants
-                      ) / 2 * PI;                       # convert quadrants to radians
-
-    # benchmarking (on an Intel x86_64 T7200) indicates that a ?: is around 5
-    # times faster than trig, so this is usually a win
-    my $sin = $rotation ? sin($rotation) : 0;
-    my $cos = $rotation ? cos($rotation) : 1;
-
-#   flush STDERR;
-    $fontstyle //= 0;
-    $fontname .= $font_variants[$fontstyle];
-    $pq->font( $fontname, $fontsize );
-
+    flush STDERR;
+    my $boldstate = 0;
+    my @fontnames = ($fontname, $fontname.'-Bold');
     my $text = $pq->text;
-    my $width = $text->advancewidth($str);
-    my $height = $fontsize;
-
-    my $bl_x_off = 0;
-    my $bl_y_off = 0;
-    my $tl_x_off = $height * -$sin;
-    my $tl_y_off = $height *  $cos;
-    my $br_x_off = $width  *  $cos;
-    my $br_y_off = $width  *  $sin;
-    my $tr_x_off = $tl_x_off + $br_x_off;
-    my $tr_y_off = $tl_y_off + $br_y_off;
-
-    my $l_off = min $bl_x_off, $br_x_off, $tl_x_off, $tr_x_off;
-    my $r_off = max $bl_x_off, $br_x_off, $tl_x_off, $tr_x_off;
-    my $t_off = max $bl_y_off, $br_y_off, $tl_y_off, $tr_y_off;
-    my $b_off = min $bl_y_off, $br_y_off, $tl_y_off, $tr_y_off;
-
-    my $xpos = $xpoint - ( $halign == 0 ? $l_off : $halign == 2 ? $r_off : ($l_off+$r_off)/2 );
-    my $ypos = $ypoint - ( $valign == 0 ? $t_off : $valign == 2 ? $b_off : ($t_off+$b_off)/2 );
-
-    warn sprintf "TEXT_AT text=[%s] font=(size=%.2fmm,style=%u) :: refpoint=(→%.2fmm,↑%.2fmm) rotation=%.0f° align=(%s) -> origin=(→%.2fmm,↑%.2fmm) bound=(t=%.2fmm,b=%.2fmm,l=%.2ffm,r=%.2fmm)\n",
-                _qm $str,
-                $fontsize/mm, $fontstyle,
-                $xpoint/mm, $ypoint/mm,
-                $rotation / PI * 180,
-                [['┌','┬','┐'],
-                 ['├','┼','┤'],
-                 ['└','┴','┘'],]->[$valign][$halign],   #substr('╔╦╗╠╬╣╚╩╝', $valign*3+$halign, 1),
-                $xpos/mm, $ypos/mm,
-                $ypoint-$t_off, $ypoint-$b_off,
-                $xpoint-$l_off, $xpoint-$r_off,
-                ($ypos - $ypoint)/mm,
-        if $verbose > 3;
-
-    $text->transform(
-        -translate => [$xpos, $ypos],
-        -rotate    => $rotation / PI * 180,
-      # -scale     => [$sx, $sy],
-      # -skew      => [$sa, $sb],
-    );
-
-    $text->text($str, $underline ? (-underline => 'auto') : ());
-
-    return ();
+    my $width = my $col = 0;
+    my $lines = 1;
+    $pq->font( $fontnames[$boldstate], $fontsize );
+    $text->translate( $left, $top - $lines * $lineheight );
+    PART: for ( my @parts = split /([\n\x{fe00}-\x{fe0f}])/, $str ; @parts ;) {
+        my $part = shift @parts;
+        $part eq '' and next PART;
+        if ( $part eq "\n" ) {
+            $width >= $col or $width = $col;
+            ++$lines;
+            $col = 0;
+            $text->translate( $left, $top - $lines * $lineheight );
+            next PART;
+        }
+        if ( $part =~ /^[\x{fe00}-\x{fe0f}]$/ ) {
+            $boldstate = (ord($part) & 0xff);
+            $pq->font( $fontnames[$boldstate], $fontsize );
+            next PART;
+        }
+        my $part_width = $text->advancewidth($part);
+        if ($width_limit) {
+            my $t = $part;
+            while ( $col+$part_width > $width_limit ) {
+                $t =~ s#\s+\S*$## || $t =~ s#.$## or last;
+                $part_width = $text->advancewidth($t);
+            }
+            (my $u = substr($part, length($t))) =~ s#^\s+##;
+            unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
+            $part = $t;
+        }
+        $text->text($part);
+        $col += $part_width;
+    }
+    $width >= $col or $width = $col;
+    warn sprintf "-> [%.3fmm × %.3fmm] (%u lines)\n", $width/mm, $lines * $lineheight/mm, $lines;
+    return $width, $lines * $lineheight;
 }
 
 #sub DESTROY { }
@@ -684,19 +330,19 @@ use overload '""' => sub {
 };
 
 use overload 'eq' => sub {
-    my ($r1, $r2) = @_;
-    defined $r1 && defined $r2 || return 0;
-    !ref $r1   && return $r1              eq $r2->{formatted};
-    !ref   $r2 && return $r1->{formatted} eq $r2;
-                  return $r1->{formatted} eq $r2->{formatted}
+    my $r1 = shift;
+    my $r2 = shift;
+    !$r1 && !$r2 && return 1;
+    !$r1 != !$r2 && return 0;
+    $r1->{formatted} eq $r2->{formatted};
 };
 
 use overload 'ne' => sub {
-    my ($r1, $r2) = @_;
-    defined $r1 && defined $r2 || return 1;
-    !ref $r1   && return $r1              ne $r2->{formatted};
-    !ref   $r2 && return $r1->{formatted} ne $r2;
-                  return $r1->{formatted} ne $r2->{formatted}
+    my $r1 = shift;
+    my $r2 = shift;
+    !$r1 && !$r2 && return 0;
+    !$r1 != !$r2 && return 1;
+    $r1->{formatted} ne $r2->{formatted};
 };
 }
 
@@ -706,13 +352,13 @@ use overload 'ne' => sub {
 
 {
 package CSV::Common;
+use Carp 'croak';
 
 our $canon_address = 0;
 our $use_care_of = 1;
-our $only_explicitly_shared_email = 1;
 
 sub new($\@\@) {
-    $#_ == 2 or ::croak "Wrong number of parameters to CSV::Common::new";
+    $#_ == 2 or croak "Wrong number of parameters to CSV::Common::new";
     my ($class, $headers, $ra) = @_;
     $#$ra == $#$headers or die "Line $. has $#$ra fields, but headers had $#$headers\n[@$ra] vs [@$headers]\n";
 
@@ -788,27 +434,29 @@ sub _list($$) {
     return $r->{$k} // ();
 }
 
-#sub fix_addr($) { my $z = shift; $z =~ s#,\s*#\n#sgo; return $z; }
+#sub fix_addr($) {
+#    my $_ = shift;
+#    s#,\s*#\n#sgo;
+#    return $_;
+#}
 
 sub _canon_address($$$) {
-    my ($r, $z, $c) = @_;
-    for ($z) {
-        s#,\s*#\n#sgo;
-        s#\s*\r*\n#\n#g;
-        s#^?:c/[-o]\s+##;
-        s#^#c/- # if $use_care_of && $c;
-        if ( $canon_address ) {
-            state $ax = do {
-                            my $r = join '|', reverse sort keys %address_designators;
-                            my $q = eval "qr/\\b(?:$r)\\b/";
-                            warn "Initialized designators re=$q\n" if $verbose > 1;
-                            $q;
-                        };
-            s#$ax#$address_designators{$&}#g;
-            s#\nNZ\z##;
-        }
-        return $_;
+    my ($r, $_, $c) = @_;
+    s#,\s*#\n#sgo;
+    s#\s*\r*\n#\n#g;
+    s#^?:c/[-o]\s+##;
+    s#^#c/- # if $use_care_of && $c;
+    if ( $canon_address ) {
+        state $ax = do {
+                        my $r = join '|', reverse sort keys %address_designators;
+                        my $q = eval "qr/\\b(?:$r)\\b/";
+                        warn "Initialized designators re=$q\n" if $verbose > 1;
+                        $q;
+                    };
+        s#$ax#$address_designators{$&}#g;
+        s#\nNZ\z##;
     }
+    return $_;
 }
 
 sub name {
@@ -822,7 +470,7 @@ sub name {
 
 sub uid($) {
     my $r = shift;
-    return "GEN".(0+$r)."-default";
+    return "GEN".(0+$r);
 }
 
 sub uid_of_children_under_16 { () }     # not supported by all record types
@@ -892,21 +540,14 @@ Name,Given Name,Additional Name,Family Name,Yomi Name,Given Name Yomi,Additional
 
 {
 package CSV::gmail;
-use parent -norequire => CSV::Common::;
+our @ISA = CSV::Common::;
 
-use list_functions;
+use Carp 'carp';
 
-#
-# Preference order for extracting fields; only use 'c/-' & 'parents' for
-# function elements, not for display elements
-#
-# NB: 'c/-' presents as 'c_'
-#     'G+' (GooglePlus) gets split into 'g'+(empty) and so presents as just 'g'
-#
-my @key_prefs = qw{ personal g work home home1 home2 shared post listing other };
+my @key_prefs = qw{ personal g g_ work home home1 home2 shared post listing c_ parents other };  # g is for 'G+', which gets split to 'g' + (empty)
 
 my %patch_types = (
-    phone => \&::normalize_phone,
+    phone => \&::fix_phone,
 );
 
 # GMail list
@@ -927,9 +568,8 @@ sub fix_one($) {
     state $care_of = {  c_      => 3,
                         shared  => 1,
                         parents => 2, };
-    state $min_care_of = 2;
+    state $min_care_of = 3;
     state $address_parts = [qw{ formatted street city po_box region postal_code country extended_address }];
-
     ADDRESS: for (my $n = 1; exists $r->{"address_${n}_type"}; ++$n) {
         my $types = $r->{"address_${n}_type"} || 'UNSPEC';
         $types =~ s#^\*\s*##;
@@ -970,7 +610,7 @@ sub fix_one($) {
             }
         }
     }
-    KIND: for my $kind (qw(phone e_mail im relation website custom_field)) {
+    DATUM: for my $kind (qw(phone e_mail im relation website custom_field)) {
         my $patch = $patch_types{$kind};
         ATTEMPT: for (my $n = 1, my $m = 4 ;; ++$n) {
             my $types = delete $r->{"${kind}_${n}_type"} // do { --$m or last; next ATTEMPT; };
@@ -1001,8 +641,8 @@ sub fix_one($) {
     $r->{home_phone} ||= '';
     $r->{mobile_phone} ||= '';
 
-    $r->name or do { warn "Ignoring line#$r->{__source_line} ".($r->uid || '(unnumbered)')." nameless record" if $why_not; return 0 };  # ignore records without names
-    $r->gtags('explanatory texts') and do { warn "Ignoring line#$r->{__source_line} explanatory text ".($r->name) if $why_not; return 0 };
+    $r->name or do { warn "ignoring #$r->{__source_line} ".($r->uid || '(unnumbered)')." nameless record" if $why_not; return 0 };  # ignore records without names
+    $r->gtags('explanatory texts') and do { warn "ignoring #$r->{__source_line} explanatory text ".($r->name) if $why_not; return 0 };
     1;
 }
 
@@ -1039,7 +679,7 @@ sub uid($) {
     my $r = shift;
     $r->{qdb_custom_field} ||= do {
         my ($x) = $r->_list('qdb_custom_field');
-        $x || "GEN".(0+$r).'-gmail';
+        $x || "GEN".(0+$r).'g';
     };
 }
 
@@ -1057,27 +697,18 @@ sub uid_of_children_under_16($) {
 sub listed_email($) {
     my $r = shift;
     my $e = $r->_map('e_mail');
-    return sort uniq
-            flatten
-             map { $e->{$_} }
+    return ::uniq
+            map { @$_ }
+             map { $e->{$_} || () }
               'listing', @key_prefs; #, keys %$e
-}
-
-sub listed_phone($) {
-    my $r = shift;
-    my $e = $r->_map('phone');
-    return uniq
-            flatten
-             map { $e->{$_} }
-              'listing', 'mobile', @key_prefs; #, keys %$e
 }
 
 sub all_addresses($) {
     my $r = shift;
     my $e = $r->_map('address');
-    return uniq
-            flatten
-             map { $e->{$_} }
+    return ::uniq
+            map { @$_ }
+             map { $e->{$_} || () }
               grep { ! /^old$|unlisted/ }
                @key_prefs, keys %$e
 }
@@ -1085,9 +716,9 @@ sub all_addresses($) {
 sub listed_address($) {
     my $r = shift;
     my $e = $r->_map('address');
-    return first
-            flatten
-              first
+    return ::first
+            map { @$_ }
+              ::first
                 map { $e->{$_} || () }
                   'listing', @key_prefs;
 }
@@ -1095,10 +726,10 @@ sub listed_address($) {
 sub postal_address($) {
     my $r = shift;
     my $e = $r->_map('address');
-    return first
-            flatten
-              map { $e->{$_} }
-                'post', @key_prefs, 'c_', 'parents'; #, keys %$e;
+    return ::first
+            map { @$_ }
+              map { $e->{$_} || () }
+                'post', @key_prefs; #, keys %$e;
 }
 
 sub birthdate($) {
@@ -1120,12 +751,12 @@ sub gtags {
     my $r = shift;
     if (@_ && ref $_[0] eq 'Regexp') {
         my $re = shift @_;
-        @_ and ::carp "gtags called with spurious args after RegEx";
+        @_ and carp "gtags called with spurious args after RegEx";
         return map { /$re/ ? $+ // $& : () } _gtags_list($r);
     }
     else {
         return _gtags_list($r) if ! @_ && wantarray;
-        ::carp "gtags called in scalar context with no args\n" if ! @_;
+        carp "gtags called in scalar context with no args\n" if ! @_;
         my $m = _gtags_set($r);
         # run grep in scalar/list context from caller
         return grep { $m->{$_} } @_;
@@ -1135,16 +766,16 @@ sub gtags {
 sub monthly_meeting_area($) {
     my $r = shift;
     sort
-        map { s/ - overseas/ - Members overseas/;
-              s/ - elsewhere/ - Members in other areas/;
-              $_; }
-            grep { !/YF/ }
-                $r->gtags( qr/^listing[- ]*(.*)/ );
+    map { s/ - overseas/ - Members overseas/;
+          s/ - elsewhere/ - Members in other areas/;
+          $_; }
+        grep { !/YF/ }
+            $r->gtags( qr/^listing[- ]*(.*)/ );
 }
 
 sub formal_membership($) {
     my $r = shift;
-    return                           $r->gtags('members of overseas meetings') ? '* Overseas'  : (),
+    return                           $r->gtags('members of overseas meetings') ? '* Overseas'  : (), 
             map { $mm_names{uc $_} } $r->gtags( qr/^member - ($mm_keys_re)/ );
 }
 
@@ -1155,7 +786,7 @@ sub inactive($) {
 
 sub phone_number($) {
     my $r = shift;
-    uniq map { $r->_list($_.'_phone') } 'listing', @key_prefs;
+    map { $r->_list($_.'_phone') } 'listing', @key_prefs;
 }
 
 sub mobile_number($) {
@@ -1175,7 +806,7 @@ sub show_me_in_young_friends_listing($) {
 
 sub website_url($) {
     my $r = shift;
-    flatten values %{$r->{'MAP_website'}};
+    map { @$_ } values %{$r->{'MAP_website'}};
 }
 
 sub nz_friends_by_post($) {
@@ -1185,12 +816,12 @@ sub nz_friends_by_post($) {
 
 sub receive_local_newsletter_by_post($) {
     my $r = shift;
-    return uniq map { $mm_names{uc $_} } $r->gtags( qr/^post ($mm_keys_re)\s+[Nn]ews/ );
+    return ::uniq map { $mm_names{uc $_} } $r->gtags( qr/^post ($mm_keys_re)\s+[Nn]ews/ );
 }
 
 sub receive_local_newsletter_by_email($) {
     my $r = shift;
-    return uniq map { $mm_names{uc $_} } $r->gtags( qr/^send ($mm_keys_re)\s+[Nn]ews/ );
+    return ::uniq map { $mm_names{uc $_} } $r->gtags( qr/^send ($mm_keys_re)\s+[Nn]ews/ );
 }
 }
 
@@ -1213,13 +844,13 @@ uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_u
 
 {
 package CSV::qndb;
-use parent -norequire => CSV::Common::;
+our @ISA = CSV::Common::;
 
 sub _hash_uid($) {
-    my $z = shift;
+    my $_ = shift;
     state $modulus = 0x7ffff;  # 2**19-1
-    $z =~ /\D/ and $z = unpack( "%32L*", "$z\x00$z\x00\x00$z\x00\x00\x00" ) % $modulus;
-    return $z;
+    /\D/ and $_ = unpack( "%32L*", "$_\x00$_\x00\x00$_\x00\x00\x00" ) % $modulus;
+    return $_;
 }
 
 sub fix_one($) {
@@ -1240,9 +871,9 @@ sub fix_one($) {
             uid_of_spouse               => \&_hash_uid,
             uids_of_parents             => \&_hash_uid,
             uid                         => \&_hash_uid,
-            fax                         => \&::normalize_phone,  # CSV::qndb
-            mobile_number               => \&::normalize_phone,  # CSV::qndb
-            phone_number                => \&::normalize_phone,  # CSV::qndb
+            fax                         => \&::fix_phone,  # CSV::qndb
+            mobile_number               => \&::fix_phone,  # CSV::qndb
+            phone_number                => \&::fix_phone,  # CSV::qndb
         };
     FIELD: for my $f (keys %$r) {
         $split_fields->{$f} or next FIELD;
@@ -1298,13 +929,12 @@ sub fix_one($) {
                         city            => $suburb || $city,
                         postcode        => $postcode,
                         country         => $country;
-            }
-            else {
+            } else {
                 ($po_box, my @lines) = split /\s*,\s*/, $po_box;
-                my $xcountry = @lines > 1 && $lines[-1] !~ /\d$/ ? pop @lines : $country;
+                my $xcountry = @lines > 1 && pop @lines || $country;
                 my $xpostcode = @lines && $lines[-1] =~ s/\s+([- 0-9]{3,9}\d)$// ? $1 : $postcode;
                 my $xcity = pop @lines || $suburb || $city;
-                my $fulladdr = join "\n", grep {$_} $care_of, $po_box, @lines, $xcity;
+                my $fulladdr = join "\n", grep {$_} $care_of, $po_box, $xcity;
                 $fulladdr .= ' '.$xpostcode if $xpostcode;
                 $fulladdr .= "\n".$xcountry if $xcountry;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -1336,8 +966,7 @@ sub fix_one($) {
                         city          => $suburb || $city,
                         postcode      => $postcode,
                         country       => $country;
-            }
-            else {
+            } else {
                 ($rd_no, my @lines) = split /\s*,\s*/, $rd_no;
                 my $xcountry = @lines > 1 && pop @lines || $country;
                 my $xpostcode = @lines && $lines[-1] =~ s/\s+([- 0-9]{3,9}\d)$// ? $1 : $postcode;
@@ -1359,25 +988,6 @@ sub fix_one($) {
         }
 
         if ( $street || ! $po_box && ! $rd_no ) {
-            if ($street =~ s/^\(([^()]*)\)$/$1/) {
-                warn "Unwrapping bracketed street [$street]\n" if $verbose;
-                if ($street =~ s/\s*\n\s*(.*)$//) {
-                    $city = $1;
-                    $postcode = $suburb = undef;
-                    if ($city =~ s/\s+(\d\d\d\d)\s*$//) {
-                        $postcode = $1;
-                    }
-                    if ($street =~ s/\s*\n\s*(.*)$//) {
-                        $suburb = $1;
-                    }
-                }
-                warn sprintf "Unwrapped bracketed street street=[%s], suburb=[%s], city=[%s], postcode=[%s]\n",
-                        $street // '(none)',
-                        $suburb // '(none)',
-                        $city // '(none)',
-                        $postcode // '(none)',
-                    if $verbose;
-            }
             my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $street, $suburb, $city;
             if ($postcode) {
                 if ($postcode =~ /^[A-Za-z]+\b/ || !$fulladdr) {
@@ -1417,7 +1027,7 @@ sub _list($$) {
 
 sub uid {
     my $r = shift;
-    return $r->{'uid'} ||= "GEN".(0+$r).'-qdb';
+    $r->{'uid'} ||= (0+$r)." but false";
 }
 
 sub uid_of_spouse {
@@ -1460,12 +1070,9 @@ sub _spouse_and_parents {
     return $r->{XREF_spouse} || (), $r->{XREF_parents} ? @{$r->{XREF_parents}} : ();
 }
 
-use list_functions 'uniq';
-
 sub monthly_meeting_area {
     my $r = shift;
     my @x = $r->{monthly_meeting_area} || ();
-    s/Thames and Coromandel/Thames \& Coromandel/ for @x;
     (my $xmma = $x[0] || '') =~ s/\s.*//;
     for my $rr ( $r, $r->_spouse_and_parents ) {
         my $m = $rr->{formal_membership} or next;
@@ -1477,7 +1084,7 @@ sub monthly_meeting_area {
       #     ;
       # }
     }
-    return sort uniq @x;
+    return ::uniq sort @x;
 }
 
 sub nz_friends_by_post {
@@ -1494,7 +1101,7 @@ sub nz_friends_by_post {
       #     ;
       # }
     }
-    return sort uniq @x;
+    return ::uniq sort @x;
 }
 
 sub listed_email($) {
@@ -1510,45 +1117,32 @@ sub listed_email($) {
                 m{ ^$
                  | ^ \S+\.list     \+\S+ \@ quaker\.org\.nz $
 
-               # | ^ alanreynolds7 \+\S+ \@ gmail\.com      $
-               # | ^ anpjmacgregor \+\S+ \@ xtra\.co\.nz    $
-               # | ^ cmckeogh      \+\S+ \@ waikato\.ac\.nz $
-               # | ^ derek         \+\S+ \@ carver\.net\.nz $
-               # | ^ distrodude    \+\S+ \@ gmail\.com      $
-               # | ^ hall          \+\S+ \@ netmail\.co\.nz $
-               # | ^ janderson351  \+\S+ \@ yahoo\.co\.nz   $
-               # | ^ ken\.couchman \+\S+ \@ clear\.net\.nz  $
-               # | ^ martin\.p     \+\S+ \@ clear\.net\.nz  $
-               # | ^ pbiet         \+\S+ \@ clear\.net\.nz  $
+                 | ^ alanreynolds7 \+\S+ \@ gmail\.com      $
+                 | ^ anpjmacgregor \+\S+ \@ xtra\.co\.nz    $
+                 | ^ cmckeogh      \+\S+ \@ waikato\.ac\.nz $
+                 | ^ derek         \+\S+ \@ carver\.net\.nz $
+                 | ^ distrodude    \+\S+ \@ gmail\.com      $
+                 | ^ hall          \+\S+ \@ netmail\.co\.nz $
+                 | ^ janderson351  \+\S+ \@ yahoo\.co\.nz   $
+                 | ^ ken\.couchman \+\S+ \@ clear\.net\.nz  $
+                 | ^ martin\.p     \+\S+ \@ clear\.net\.nz  $
+                 | ^ pbiet         \+\S+ \@ clear\.net\.nz  $
 
                  | ^ judezed       \+\S+ \@ hotmail\.com    $
-
-                 |                 \+ \S*hidden\S* \@
-                 |                 \+ \S*spouse\S* \@
-                 |                 \+ \S*parent\S* \@
-                 |                 \+ \S*child\S* \@
-                 |                 \+ \S*unlist\S* \@
                  }iox;
             } @a;
-    @a = grep {
-                ! m{ \+\S*\@ }iox || m{ \+ \S*shared\S* \@ }iox;
-            } @a
-        if $CSV::Common::only_explicitly_shared_email;
     if ( $CSV::Common::use_care_of ) {
-        # Any addresses marked "shared" are NOT care-of ...
-        s#^([^@]*)\+\S*shared\S*(\@.*)$#$1$2# for @a;
-        # ... but any other marked addresses ARE care-of
-        s#^([^@]*)\+\S*(\@.*)$#c/- $1$2# for @a;
+        s#^([^@]*)\+\S*(\@.*)$#c/- $1$2# for @a
     }
     else {
-        s#^([^@]*)\+\S*(\@.*)$#$1$2# for @a;
+        s#^([^@]*)\+\S*(\@.*)$#$1$2# for @a
     }
-    return sort uniq @a;
+    return ::uniq @a;
 }
 
 sub all_addresses($) {
     my $r = shift;
-    return uniq grep {$_}
+    return ::uniq grep {$_}
         $r->{X_home_address},
         $r->{X_po_box_address},
         $r->{X_rd_address},
@@ -1601,7 +1195,7 @@ inserts,country,postcode,name,care-of,address1,address2,address3,address4,addres
 
 {
 package LabelCSV;
-use parent -norequire => CSV::Common::;
+our @ISA = CSV::Common::;
 
 sub fix_one {
     my $r = shift;
@@ -1614,15 +1208,15 @@ sub fix_one {
 =head 3
 
 A second ad-hoc file, basically taking a Word doc from Derek Carver, folding
-up each entry onto a single line; tab-delimited
+up each entry onto a single line
 
 =cut
 
 {
-package WordDocTxt;
+package WordDocCSV;
+use Carp 'croak';
 
-use parent -norequire => CSV::Common::;
-use list_functions 'uniq';
+our @ISA = CSV::Common::;
 
 sub new($\@\@) {
     my ($class, $headers, $ra) = @_;
@@ -1633,12 +1227,12 @@ sub new($\@\@) {
 
     if ($ra->[0] =~ s/^%//) {
         $headers{lc $ra->[0]} = $ra->[1];
-        warn "STATE ".::Dumper(\%headers) if $verbose > 4;
+        warn "STATE ".::Dumper(\%headers) if $verbose > 1;
         return ();
     }
 
     my $yf = 'No';
-    my $wg = $headers{wg} || ::croak "Data record before first '%wg' record\n".::Dumper(\%headers);
+    my $wg = $headers{wg} || croak "Data record before first '%wg' record\n".::Dumper(\%headers);
     if ( $wg eq 'YF' ) { undef $wg; $yf = 'Yes' }
     my %family = (
                 __source_line => $. - 1,
@@ -1650,20 +1244,12 @@ sub new($\@\@) {
     my $part = \%family;
     my @parents;
     my @children;
-
-    my $xdebug = 0 && grep {/Armstrong/} @$ra;
-    warn ::Dumper($ra) if $xdebug;
-
     for my $f (@$ra) {
         if ( $f =~ /^\-?$/ ) { next }  # ignore dash and empty
 
-        warn "PARSE PART [$f]\n" if $xdebug;
-
         if ( $f =~ /^(\w+):$/ ) {
             # persistent tag, for all following
-            my $k = lc $1;
-            $part = $members{$k} ||= {};
-            warn "PARSE persistent tag [$k] selected part:".::Dumper($part) if $xdebug;
+            $part = $members{lc $f} ||= {};
             next;
         }
 
@@ -1672,99 +1258,45 @@ sub new($\@\@) {
             # tag just this one item;
             # NB whitespace needed to distinguish from URI type
             $tag = lc $1;
-            warn "PARSE emphemeral tag [$tag]\n" if $xdebug;
         }
 
         if ( (my $n = $f =~ s/[- ]//gr) =~ /^[0+]\d{7,}$/ ) {
             # it's (very probably) a phone number
             my $type = 'phone_number';
-            $n = ::normalize_phone($n);
-            if ($tag) {
-                if ($tag eq 'fax') {
-                    $type = 'fax_number';
-                    $n .= '^';
-                    undef $tag;
-                }
-                elsif ($tag eq 'mobile' || $tag eq 'mob' || $tag eq 'cell' || $tag eq 'txt' || $tag eq 'sms') {
+            $n =~ s/[^+0-9]//g;
+            $n =~ s/^00/+/ or $n =~ s/^0/+64/;
+            if ($tag && $tag eq 'fax') { 
+                $type = 'fax_number';
+                undef $tag;
+            } else {
+                if ($n =~ /^\+642|\+614|\+447/) {
+                    # cellphone
                     $type = 'mobile_number';
-                    undef $tag;
                 }
-                elsif ($tag eq 'freephone') {
-                    #$type = 'freephone_number';
-                    $type = 'phone_number';
-                    undef $tag;
-                }
-            }
-            if ($n =~ /^\+642|^\+614|^\+447/) {
-                # mobile area code, so ignore tag
-                $type = 'mobile_number';
             }
             $family{primary_phone} ||= $n;
             if ($tag) {
                 push @{$members{$tag}{$type}}, $n;
-            }
-            else {
+            } else {
                 push @{$part->{$type}}, $n;
             }
-            warn "PARSE phone number [$n] type=$type\n" if $xdebug;
             next;
         }
 
-        my $cp = $tag && ($members{$tag} || do { warn "Tag '$tag' in #$family{__source_line} doesn't refer to a person\n" if $verbose; (); }) || $part;
+        my $cp = $tag && ($members{$tag}||do { warn "Tag '$tag' in #$family{__source_line} doesn't refer to a person\n"; ()}) || $part;
 
         if ( $f =~ /^\S+\@\S+$/ ) {
             push @{$cp->{listed_email}}, $f;
-            warn "PARSE email [$f]\n" if $xdebug;
             next;
         }
 
-        if ( $f =~ m{^(?:https?://|www\.)\w+(?:\.\w+)+(?:/\S*|$)|^skype:\S+$} ) {
+        if ( $f =~ m{^(?:https?://|www\.)\w+(?:\.\w+)+(?:/\S*)$} ) {
             push @{$cp->{website_url}}, $f;
-            warn "PARSE url [$f]\n" if $xdebug;
-            next;
-        }
-
-        # inclusion of bracketed date is assumed to imply name and birthdate of child
-        if ( (my $n = $f) =~ s{\s*\((xx|\d\d)/(xx|\d\d)/(\d\d\d\d|\d\d)\)\s*(.*)}{}x ) {
-            my ($d,$m,$y,$q) = ($1,$2,$3,$4);
-            warn "CHILD [$f] -> name=[$n] date=$1/$2/$3 extra=[$4]\n" if $xdebug;
-            $y += int(::this_year/100)*100 if $y < 100;
-            $y -= 100 if $y > ::this_year;  # born in previous century
-            my @np = split /\s*\+\s*/, $n, -1;
-            @np = split /\s+/, $n if @np < 2;
-            my $sn;
-            $sn = pop @np if @np > 1;
-            my $n0 = lc($np[0] || '');
-            my %fm;
-            push @children, \%fm;
-            $members{$n0} and die sprintf( "Household [%s] already has child [%s]\n", $family{sn}, $n0 ) . ::Dumper($ra,$f,\@np,\@parents,\@children,\%members);
-            $members{$n0} ||= \%fm;
-            $fm{gn} = "@np";
-            $fm{sn} = $sn if $sn;
-            $fm{birthdate} = "$y-$m-$d";
-            $fm{inactive} = 'No';
-            my @q = grep { /\#/ } split /[, ]+/, $q;
-            warn "Info about child: $f => n='$n', q='$q' => [@q]\n" if $xdebug;
-            if (@q) {
-                my %q = map { split /\#/,$_,2 } @q;
-                $fm{uid} = $q{uid} if exists $q{uid};
-            }
-            warn "PARSE child [$f]\n".::Dumper(\%fm) if $xdebug;
-            next;
-        }
-
-        if ( (my $k = $f) =~ s/\#(.*)$// ) {
-            my $v = $1;
-            $k =~ s/\W+/_/g;
-            $k = lc $k;
-            $cp->{$k} = $v;
-            warn "PARSE key#value field key=$k value=[$v]\n" if $xdebug;
             next;
         }
 
         if ( !$seen_name++ ) {
             # First non-specific element is the person's or couple's name(s)
-            $f =~ s/’/'/g;
             my @p = $f;
             if    ($p[0] =~ s/\s*\(\&\s*([^()]*)\)\s*$//) { push @p, $1 . ' (INACTIVE)' }
             elsif ($p[0] =~ s/\s*\&\s*(.*)//)             { push @p, $1                 }
@@ -1791,14 +1323,12 @@ sub new($\@\@) {
                             $name_middle = $name_suffix;
                             $name_suffix = undef;
                         }
-                    }
-                    else {
+                    } else {
                         $sn = pop @np;
                     }
                 }
                 $family{sn} ||= $sn;
                 my $n0 = lc($np[0] || '');
-                $n0 =~ s/[- ].*//;
                 my %fm;
                 push @parents, \%fm;
                 $members{$n0} and warn sprintf "Household [%s] already has parent [%s]\n", $family{sn}, $n0;
@@ -1811,24 +1341,45 @@ sub new($\@\@) {
                 $fm{formal_membership} = $member_of;
                 $fm{inactive} = $inactive;
             }
-            warn "PARSE name [$f]\n".::Dumper(\@parents) if $xdebug;
+            next;
+        }
+
+        # name and birthdate of child
+        if ((my $n = $f) =~ s#\s*\((xx|\d\d)/(xx|\d\d)/((:?19\d|20[01]|\d)\d)\)$##) {
+            my ($d,$m,$y) = ($1,$2,$3);
+            $y += int(::this_year/100)*100 if $y < 100;
+            $y -= 100 if $y > ::this_year;  # born in previous century
+            my @np = split /\s*\+\s*/, $n, -1;
+            @np = split /\s+/, $n if @np < 2;
+            my $sn;
+            $sn = pop @np if @np > 1;
+            my $n0 = lc($np[0] || '');
+            my %fm;
+            push @children, \%fm;
+            $members{$n0} and die sprintf( "Household [%s] already has child [%s]\n", $family{sn}, $n0 ) . ::Dumper($ra,$f,\@np,\@parents,\@children,\%members);
+            $members{$n0} ||= \%fm;
+            $fm{gn} = "@np";
+            $fm{sn} = $sn if $sn;
+            $fm{birthdate} = "$y-$m-$d";
+            $fm{inactive} = 'No';
             next;
         }
 
         # Assume anything else is an address
-        my $t = 'listed_address';
-        if ($tag && ($tag eq 'post' || $tag eq 'postal')) {
-            $t = 'postal_address'
-        }
-        elsif ($tag && $tag eq 'street') {
-            $t = 'street_address'
-        }
-        !$family{$t} || @{$family{$t}} == 0 or warn sprintf "MULTIPLE ADDRESSES at [%s] in [%s]\n", $f, "@$ra";
-
         (my $a = $f) =~ s/\s*,\s*/\n/g;
         $a = $class->_canon_address($a);
-        warn "PARSE address [$f] type=$t structure=".::Dumper($a) if $xdebug;
-        push @{$family{$t}}, $a;
+
+        #warn "Fixed address to [$a]";
+
+        if ($tag && ($tag eq 'post' || $tag eq 'postal')) {
+            push @{$family{postal_address}}, $a;
+        }
+        elsif ($tag && $tag eq 'street') {
+            push @{$family{street_address}}, $a;
+        }
+        else {
+            push @{$family{listed_address}}, $a;
+        }
     }
     for my $m (@parents, @children) {
         bless $m, ref $class || $class;
@@ -1859,109 +1410,165 @@ sub new($\@\@) {
             push @{$c->{ZREF_parents}}, $p;
         }
     }
-    print "parsed WordDoc line:\n", ::Dumper({ A_line => $., B_data => $ra, C_parents => \@parents, D_children => \@children, E_family => \%family, E_members => \%members }) if $verbose > 3;
+    print "parsed WordDoc line:\n", ::Dumper({ A_line => $., B_data => $ra, C_parents => \@parents, D_children => \@children}) if $verbose > 1;
     return @parents, @children;
 }
-
-use constant is_word_doc => 1;
 
 sub birthdate { return shift->{birthdate} }
 
 sub _phones($$) {
     my ($r, $k) = @_;
     my $p = $r->{$k} || return;
-    return                             uniq @$p;
-  # return map { ::localize_phone $_ } uniq @$p;
+    return map {
+            my $a = $_;
+            $a =~ s/^\+ (?: 1\d\d\d
+                          | 7\d\d\d2*
+                          | 441?\d\d\d
+                          | 614\d\d
+                          | 61\d
+                          | 64800
+                          | 642?\d
+                        )/$& /x;
+            $a =~ s/^\+ (?: [17]
+                          | 44
+                          | 61
+                          | 64
+                        )/$& /x;
+            $a;
+        } @$p;
 }
 
-sub fax             { $_[1] = 'fax_number';    goto &_phones; }
-sub phone_number    { $_[1] = 'phone_number';  goto &_phones; }
-sub mobile_number   { $_[1] = 'mobile_number'; goto &_phones; }
+sub fax             { push @_, 'fax_number';    goto &_phones; }
+sub phone_number    { push @_, 'phone_number';  goto &_phones; }
+sub mobile_number   { push @_, 'mobile_number'; goto &_phones; }
 sub show_me_in_young_friends_listing { return shift->{show_me_in_young_friends_listing} }
-sub listed_address  { my $r = shift; return my ($a) = map { s/\nRD \d+\n/\n/r } map { $r->{$_} ? @{$r->{$_}} : () } qw{ street_address listed_address postal_address } }
+sub listed_address  { my $r = shift; return my ($a) = map { $r->{$_} ? @{$r->{$_}} : () } qw{ street_address listed_address postal_address } }
 sub postal_address  { my $r = shift; return my ($a) = map { $r->{$_} ? @{$r->{$_}} : () } qw{ postal_address listed_address street_address } }
-sub all_addresses   { my $r = shift; return uniq      map { $r->{$_} ? @{$r->{$_}} : () } qw{ listed_address street_address postal_address } }
-sub listed_email    { my $r = shift; return sort @{$r->{listed_email}} if $r->{listed_email} }
+sub all_addresses   { my $r = shift; return ::uniq    map { $r->{$_} ? @{$r->{$_}} : () } qw{ listed_address street_address postal_address } }
+sub listed_email    { my $r = shift; return @{$r->{listed_email}} if $r->{listed_email} }
 sub formal_membership { my $r = shift; return $r->{formal_membership} || (); }
 
-sub uid {
-    my $r = shift;
-    $r->{'uid'} ||= 'GEN'.(0+$r).'-wdt';
-}
-
-sub uid_of_spouse            { my $r = shift; map { $_->uid } grep {$_} $r && $r->{XREF_spouse}   }
-sub uids_of_parents          { my $r = shift; map { $_->uid }   flatten $r && $r->{ZREF_parents}  }
-sub uid_of_children_under_16 { my $r = shift; map { $_->uid }   flatten $r && $r->{ZREF_children} }
-
-sub receive_local_newsletter_by_post { () }
-#sub nz_friends_by_email { 'No' }
-sub nz_friends_by_post { 'No' }
+sub uid_of_spouse            { my $r = shift; map { $_->uid }             grep {$_} $r && $r->{XREF_spouse}   }
+sub uids_of_parents          { my $r = shift; map { $_->uid } map { @$_ } grep {$_} $r && $r->{ZREF_parents}  }
+sub uid_of_children_under_16 { my $r = shift; map { $_->uid } map { @$_ } grep {$_} $r && $r->{ZREF_children} }
 
 }
 
 ################################################################################
 
-sub normalize_phone($) {
-    my $oo = my $z = shift @_;
-    for ($z) {
-        s/fa?x?(?!\w)(.*)/$1^/i;
-       #s/(?:cell|mob)\D*(.*)/$1^/i;
-        s/x/;/g;
-        s/[^+0-9;^]//g;
-        s/^00/+/ or
-        s/^0/+64/;
-        warn "NORMALIZED phone '$oo' -> '$_'\n" if $oo ne $_ && $verbose > 3;
-        return $_;
-    }
+=head 3
+
+Label records
+
+=cut
+
+{
+package CommonLabel;
 }
 
-my $nbsp = "\x{a0}";  # non-breaking space, for spacing out phone numbers
-
-sub localize_phone($) {
-    my $o = shift @_;
-    my $oo = my $z = normalize_phone $o;
-    for ($z) {
-        s/^\+1      # NANP
-         |^\+27     # ZA
-         |^\+4\d    # GB+EU
-         |^\+6[145] # Oceania
-         |^\+7      # СССР
-         |^\+86     # CH
-         |^\+91     # IN
-         |^\+\d\d\d
-         /$& /x;
-        s/^\+1\s\d\d\d
-         |^\+27\s1\d\d
-         |^\+44\s1\d\d\d
-         |^\+44\s[2389]\d\d
-         |^\+61\s1\d00
-         |^\+61\s[23478]
-         |^\+64\s2\d
-         |^\+64\s508
-         |^\+64\s800
-         |^\+64\s83
-         |^\+64\s[34679]
-         |^\+7\s\d\d\d2*
-         |^\+\d\+\s\d\d
-         /$& /x;
-        s/^\+64\s*/0/;
-        s/\s/$nbsp/g;
-        s/;/ ext /;
-        s/\^/ (fax)/;
-        1 while
-        s/(?<=\d{3})(?=\d{6})/$nbsp/g;
-        s/(?<=\d{-3,4})(?=\d{3,4})/$nbsp/g;
-        warn "LOCALIZED phone '$o' -> '$oo' -> '$_'\n" if ($o ne $_ || $oo ne $_) && $verbose > 3;
-        return $_;
-    }
+{
+package BlankLabel;
+our @ISA = CommonLabel::;
+sub one { state $x = bless { lines => [] }, shift }
 }
 
-#sub unquote($) { my $z = shift; $z =~ s/""/"/g; $z }
+{
+package ItemCountLabel;
+our @ISA = CommonLabel::;
+sub new {
+    my $class = shift;
+    my ($inclusions, $count) = @_;
+    bless {
+        page_info => sprintf( "next %u", $count),
+        count => $count,
+        lines => [ split /,\s*/, $inclusions ],
+    }, $class;
+}
+}
+
+{
+package TotalCountLabel;
+our @ISA = CommonLabel::;
+sub new {
+    my $class = shift;
+    my ($inclusion_labels, $counts) = @_;
+    bless {
+        page_info => "Totals",
+        lines => [ map { sprintf "%3u× %s", $counts->[$_], $inclusion_labels->[$_] } grep { $counts->[$_] } 0..$#$inclusion_labels ],
+    }, $class;
+}
+}
+
+{
+package HouseHoldLabel;
+our @ISA = CommonLabel::;
+
+sub new {
+    my $class = shift;
+    my ($inclusions, $postcode, @lines) = @_;
+    bless {
+            inclusions => $inclusions,
+            lines    => \@lines,
+            postcode => $postcode,
+        }, $class;
+}
+}
+
+{
+package InfoLabel;
+our @ISA = CommonLabel::;
+sub fix_one {
+    my $r = shift;
+    $r->SUPER::fix_one(@_);
+    my @inserts = sort split /\s*,\s*/, $r->{inserts} // '';
+    $r->{inserts} = join ',', @inserts;
+    $r->{LIST_insert} = \@inserts;
+    $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
+    1;
+}
+}
+
+################################################################################
+
+sub fix_phone($) {
+    my $_ = shift;
+    my $o = $_;
+    my $f = s/fax//;
+    s/x/;/g;
+    s/[^+0-9;]//g;
+    s/^00/+/ or
+    s/^0/+64/;
+    s/^\+1
+     |^\+4\d
+     |^\+6[145]
+     |^\+86
+     |^\+91
+     |^\+\d\d\d
+     /$& /x;
+    s/^\+1\s\d\d\d
+     |^\+44\s1\d\d\d
+     |^\+44\s2\d\d
+     |^\+61\s1\d00
+     |^\+61\s[23478]
+     |^\+64\s2\d
+     |^\+64\s508
+     |^\+64\s800
+     |^\+64\s83
+     |^\+64\s[34679]
+     |^\+\d\+\s\d\d
+     /$& /x;
+    s/;/ ext /;
+    $_ .= " (fax)" if $f;
+    warn "FIXED phone '$o' -> '$_'\n" if $o ne $_ && $verbose > 3;
+    return $_;
+}
+
+#sub unquote($) { my $_ = shift; s/""/"/g; $_ }
 
 use POSIX 'strftime';
 
 sub show_date($) {
-    for ( my $z = shift ) {
+    my $_ = shift;
     s/T\d\d.*//;
     if (my @ymd = m/^(19\d\d|20[01]\d)\W*([012]\d)\W*(\d\d)$/) {
         warn "Date '$_' with year, ymd=[@ymd]" if $verbose > 3;
@@ -1987,7 +1594,6 @@ sub show_date($) {
 #   }
     warn "FIXED date $_" if $verbose > 3;
     return $_;
-    }
 }
 
 sub show_qonu($) { $_[0] =~ /^GEN/ and return ''; return sprintf "http://quaker.org.nz/user/%s/edit/profile", shift }
@@ -1999,6 +1605,125 @@ my %show_fields = (
   # uid_of_spouse               => \&show_qonu,   # CSV::qndb
   # uids_of_parents             => \&show_qonu,   # CSV::qndb
 );
+
+################################################################################
+#
+# Process command-line options
+#
+
+########################################
+# Decoding & parsing input files
+
+my $csv_fs_char;
+my $csv_quote_char;
+my $csv_escape_char;
+my $force_decoding;
+my $presume_decoding;
+my $use_encoding;
+
+if (my $lang = $ENV{LANG}) {
+    $presume_decoding =
+    $use_encoding = 'UTF-8' if $lang =~ /\.UTF-8$/;
+}
+
+########################################
+# How are records selected (these affect various modes in DWIM ways...)
+
+my $need_region = 1;
+my $skip_archived = 1;
+my $skip_deceased = 1;
+my $skip_meetings = 1;
+my $skip_unsub = 1;
+my @inclusion_labels;
+my @inclusion_tags;
+my @restrict_regions;
+my @selection_tags;
+
+########################################
+# Output selections
+
+my $do_book;
+my $do_book_index_all;
+my $do_book_index_by_mm;
+my $do_book_index_by_wg;
+my $do_book_listing_all;
+my $do_book_listing_by_mm;
+my $do_book_listing_by_wg;
+my $do_diff;
+my $do_diffable_dump;
+my $do_labels;
+my $do_qdb_map;
+
+my $output_name;
+my $force_overwrite;
+
+########################################
+# Book formatting options
+my $sort_book_by_givenname;  # } will output BOTH lists if both these are selected
+my $sort_book_by_surname;    # }
+
+########################################
+# Dump formatting options
+
+my $names_only = 0;
+my $output_bom = 0;
+my $output_crlf;
+my $show_relationships = 1;
+my $show_uid;
+my $suppress_adult_birthdays = 1;
+my $suppress_send_by_post = 0;
+my $suppress_send_by_email = 1;
+my $suppress_status = 0;
+my $suppress_yf_listing = 0;
+my $show_hyperlinks = 1;
+
+########################################
+# Generic PDF output options
+
+my $page_size = 'a4';  # this is shared with book generation
+my $page_height = 297.302*mm;
+my $page_width  = 210.224*mm;
+
+my $page_left_margin = 0;
+my $page_right_margin = 0;
+my $page_bottom_margin = 14*mm;
+my $page_top_margin = 14*mm;
+
+########################################
+# Book output options
+
+#my $item_left_margin  = 5*mm;
+#my $item_right_margin = 5*mm;
+my $intercolumn_margin = 10*mm;     # $item_left_margin + $item_right_margin;
+                                    # ::min 20*mm, $page_left_margin, $page_right_margin;
+
+########################################
+# Label formatting options
+
+my $show_tiny_labels = 1;
+my $use_cropbox = 0;
+my $evenly_squash_to_fit = 0;
+
+my $label_left_margin = 1*mm;
+my $label_right_margin = 1*mm;
+my $label_bottom_margin = 4*mm;
+my $label_top_margin = 4*mm;
+
+my $line_spacing = 1.25;
+
+my $label_width;
+my $label_height;
+my $label_step_across;
+my $label_step_down;
+my $num_labels_across = 2;
+my $num_labels_down = 4;
+my $labels_ordered_in = 'columns';
+
+my $postcode_fontsize = 14;
+
+my $banner_scale = 1.61803398874989484820;
+my $fontsize = 12*pt;
+my $instruction_colour = 'orange';
 
 ########################################
 
@@ -2027,6 +1752,45 @@ my $paper_sizes = {
         # DL envelope size, landscape
         dl => [ 110*mm, 220*mm ],
     };
+
+sub use_preset {
+    my $pt = pop;
+
+    state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
+
+    state $label_product = {
+        ( map { ( $_     => { page_size => $_,     page_height => $paper_sizes->{$_}->[0], page_width => $paper_sizes->{$_}->[1], num_labels_across => 2, num_labels_down => 3, } ) } keys %$paper_sizes ),
+        ( map { ( $_.'R' => { page_size => $_.'R', page_height => $paper_sizes->{$_}->[1], page_width => $paper_sizes->{$_}->[0], num_labels_across => 3, num_labels_down => 2, } ) } keys %$paper_sizes ),
+
+        'avery-l7160' => {
+                page_size            => 'a4',
+                page_height          => 297.302*mm,
+                page_width           => 210.224*mm,
+                num_across           => 3,
+                num_down             => 7,
+                page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
+                page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
+                page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
+                page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
+                ordered_in           => 'columns',
+            },
+        };
+
+    state $y = warn Dumper($label_product) if $verbose > 4 && $debug;
+
+    my $p = $label_product->{$pt} || die "Unknown label product '$pt'\nAvailable presets are @{[sort keys %$label_product]}\n";
+    (
+        $page_size, $page_height, $page_width,
+        $num_labels_across, $num_labels_down, $labels_ordered_in,
+        $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
+        $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
+    ) = @$p{qw{
+        page_size page_height page_width
+        num_across num_down ordered_in
+        page_top_margin page_bottom_margin page_left_margin page_right_margin
+        label_top_margin label_bottom_margin label_left_margin label_right_margin
+    }};
+}
 
 ########################################
 # actual parsing of command-line
@@ -2059,188 +1823,6 @@ sub as_points($) {
     $v;
 }
 
-################################################################################
-#
-# Process command-line options
-#
-
-use math_constants 'PHI';   # used in several default calculations...
-
-########################################
-# Decoding & parsing input files
-
-my $csv_fs_char;
-my $csv_quote_char;
-my $csv_escape_char;
-my $force_decoding;
-my $presume_decoding;
-my $use_encoding;
-
-if (my $lang = $ENV{LANG}) {
-    $presume_decoding =
-    $use_encoding = 'UTF-8' if $lang =~ /\.UTF-8$/;
-}
-
-########################################
-# How are records selected (these affect various modes in DWIM ways...)
-
-my $need_region = 1;
-my $skip_archived = 1;
-my $skip_deceased = 1;
-my $skip_meetings = 1;
-my $skip_newsletters_only = undef;      # default to "yes" for do_book
-my $skip_suppressed_listing = undef;    # default to "yes" for do_book
-my $skip_suppressed_email = 0;
-my $skip_suppressed_post = undef;       # default to "yes" for do_labels
-my $skip_unsub = 1;
-my @inclusion_labels;
-my @inclusion_tags;
-my @restrict_regions;
-my @selection_tags;
-
-########################################
-# Output selections
-
-my $do_test = 0;
-my $do_book = 0;
-my $do_book_index_all;
-my $do_book_index_by_mm;
-my $do_book_index_by_wg;
-my $do_book_listing_all;
-my $do_book_listing_by_mm;
-my $do_book_listing_by_wg;
-my $do_diff = 0;
-my $do_diffable_dump = 0;
-my $do_labels = 0;
-my $do_qndb_map = 0;
-my $book_phones_first = 1;
-
-my $output_name;
-my $force_overwrite;
-
-########################################
-# Dump formatting options
-
-my $names_only = 0;
-my $output_bom = 0;
-my $output_crlf;
-my $show_relationships = 1;
-my $show_uid;
-my $suppress_adult_birthdays = 1;
-my $suppress_send_by_post = 0;
-my $suppress_send_by_email = 1;
-my $suppress_status = 0;
-my $suppress_yf_listing = 0;
-my $show_hyperlinks = 1;
-my $diff_by = 'uid';
-my $diff_ignore_file;
-my $diff_quietly = 0;
-
-########################################
-# Generic PDF output options (shared between labels and book generation)
-
-my $page_size = 'a4';
-my $page_height = 297.302*mm;
-my $page_width  = 210.224*mm;
-
-my $page_left_margin   = 18*mm;
-my $page_right_margin  = 18*mm;
-my $page_bottom_margin = 14*mm;
-my $page_top_margin    = 14*mm;
-
-my $line_spacing = 1.25;    # ratio of font-size to line-pitch
-
-my $extra_para_spacing = 0.25;  # used between records in book format
-
-########################################
-# Book formatting options
-
-#my $item_left_margin  = 5*mm;
-#my $item_right_margin = 5*mm;
-my $book_intercolumn_margin = 10*mm;     # $item_left_margin + $item_right_margin;
-                                    # min 10*mm, $page_left_margin, $page_right_margin;
-my $book_interdetail_spacing = 1.75*mm;
-
-my $book_sort_by_givenname;  # } will output BOTH lists if both these are selected
-my $book_sort_by_surname;    # }
-
-my $book_fontname  = 'Helvetica';
-my $book_fontsize = 12*pt;
-my $book_pagenumber_fontsize = $book_fontsize / PHI;
-my $book_margin_fontsize = $book_fontsize * PHI;
-my $use_page_numbers;
-
-########################################
-# Label formatting options
-
-my $show_tiny_labels = 1;
-my $use_cropbox = 0;
-my $evenly_squash_to_fit = 0;
-
-my $label_left_margin = 1*mm;
-my $label_right_margin = 1*mm;
-my $label_bottom_margin = 4*mm;
-my $label_top_margin = 4*mm;
-
-my $label_fontname = 'Helvetica';
-my $label_fontsize = 12*pt;
-my $label_postcode_fontsize = 14*pt;
-
-my $label_banner_font = 'Helvetica';
-my $label_banner_scale = PHI;
-my $label_banner_colour = 'orange';
-
-my $label_width;
-my $label_height;
-my $label_step_across;
-my $label_step_down;
-my $num_labels_across = 2;
-my $num_labels_down = 4;
-my $labels_ordered_in = 'columns';
-
-########################################
-
-    sub use_preset {
-        my $pt = pop;
-
-        state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
-
-        state $label_product = {
-            ( map { ( $_     => { page_size => $_,     page_height => $paper_sizes->{$_}->[0], page_width => $paper_sizes->{$_}->[1], num_labels_across => 2, num_labels_down => 3, } ) } keys %$paper_sizes ),
-            ( map { ( $_.'R' => { page_size => $_.'R', page_height => $paper_sizes->{$_}->[1], page_width => $paper_sizes->{$_}->[0], num_labels_across => 3, num_labels_down => 2, } ) } keys %$paper_sizes ),
-
-            'avery-l7160' => {
-                    page_size            => 'a4',
-                    page_height          => 297.302*mm,
-                    page_width           => 210.224*mm,
-                    num_across           => 3,
-                    num_down             => 7,
-                    page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
-                    page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
-                    page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
-                    page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
-                    ordered_in           => 'columns',
-                },
-            };
-
-        state $y = warn Dumper($label_product) if $verbose > 4 && $debug;
-
-        my $p = $label_product->{$pt} || die "Unknown label product '$pt'\nAvailable presets are @{[sort keys %$label_product]}\n";
-        (
-            $page_size, $page_height, $page_width,
-            $num_labels_across, $num_labels_down, $labels_ordered_in,
-            $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
-            $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
-        ) = @$p{qw{
-            page_size page_height page_width
-            num_across num_down ordered_in
-            page_top_margin page_bottom_margin page_left_margin page_right_margin
-            label_top_margin label_bottom_margin label_left_margin label_right_margin
-        }};
-    }
-
-my @ORIG_ARGV = @ARGV;
-
 sub M($) { my $r = \$_[0]; sub { $$r = as_points $_[-1] } }
 sub N($) { my $r = \$_[0]; sub { $$r = ! $_[1] } }
 GetOptions
@@ -2254,11 +1836,8 @@ GetOptions
     'book-listing-all'            => \$do_book_listing_all,
     'book-listing-by-mm'          => \$do_book_listing_by_mm,
     'book-listing-by-wg'          => \$do_book_listing_by_wg,
-    'book-names-first'            => N$book_phones_first,
-    'book-phones-first'           => \$book_phones_first,
     'canonical-addresses!'        => \$CSV::Common::canon_address,
     'care-of!'                    => \$CSV::Common::use_care_of,
-    'explicitly-shared!'          => \$CSV::Common::only_explicitly_shared_email,
     'csv'                         => sub { $csv_fs_char = ',' },
     'debug|x'                     => \$debug,
     'decode-octet|decode-byte|db' => sub { $presume_decoding = 'OCTET' },
@@ -2267,11 +1846,6 @@ GetOptions
     'decode-utf8|du8'             => sub { $presume_decoding = 'UTF-8' },
     'decoding=s'                  =>      \$presume_decoding,
     'diff'                        => \$do_diff,
-    'diff-quietly'                => \$diff_quietly,
-    'diff-by-any'                 => sub { $diff_by = '' },
-    'diff-by-name'                => sub { $diff_by = 'name' },
-    'diff-by-uid'                 => sub { $diff_by = 'uid' },
-    'diff-ignore-file=s'          => \$diff_ignore_file,
     'dump|diffable-dump'          => \$do_diffable_dump,
     'encode-octet|encode-byte|eb' => sub { $use_encoding = 'OCTET' },
     'encode-utf16be|eu16b'        => sub { $use_encoding = 'UTF-16BE' },
@@ -2297,40 +1871,36 @@ GetOptions
     'hide-uid!'                   => N$show_uid,
     'hide-yf-listing!'            => \$suppress_yf_listing,
     'include-archived!'           => N$skip_archived,
-    'include-deceased!'           => N$skip_deceased,
-    'include-meetings!'           => N$skip_meetings,
-    'include-newsletters-only!'   => N$skip_newsletters_only,
+    'include-deceased'            => N$skip_deceased,
+    'include-meetings'            => N$skip_meetings,
     'include-no-region!'          => N$need_region,
-    'include-suppressed-email!'   => N$skip_suppressed_email,
-    'include-suppressed-listing!' => N$skip_suppressed_listing,
-    'include-suppressed-post!'    => N$skip_suppressed_post,
     'include-unsubscribed'        => N$skip_unsub,
-    'instruction-color|instruction-colour=s' => \$label_banner_colour,
+    'instruction-color|instruction-colour=s' => \$instruction_colour,
     'label-height|lh=s'           => M$label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
     'label-step-down|lxh=s'       => M$label_step_down,
     'label-width|lw=s'            => M$label_width,
     'labels'                      => \$do_labels,
-    'labels-ordered-in-columns'   => sub { $labels_ordered_in = 'columns' },
-    'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
-    'labels-ordered-in=s'         => \$labels_ordered_in,
-    'names-only!'                 => \$names_only,
-    'need-region!'                => \$need_region,
     'num-labels-across|nla=i'     => \$num_labels_across,
     'num-labels-down|nld=i'       => \$num_labels_down,
+    'labels-ordered-in=s'         => \$labels_ordered_in,
+    'labels-ordered-in-columns'   => sub { $labels_ordered_in = 'columns' },
+    'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
+    'names-only!'                 => \$names_only,
+    'need-region!'                => \$need_region,
     'octet|byte|b'                => sub { $presume_decoding = $use_encoding = 'OCTET' },
     'optional-include=s'          => II {                              push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
     'output-bom|bom!'             => \$output_bom,
     'output-crlf|crlf!'           => \$output_crlf,
     'output|o=s'                  => \$output_name,
     'page-height|ph=s'            => sub { $page_size = undef; $page_height = as_points pop },
-    'page-numbering!'             => \$use_page_numbers,
     'page-size=s'                 => sub { $page_size = pop; $page_width = $page_height = undef },  #A4, B3, etc
     'page-width|pw=s'             => sub { $page_size = undef; $page_width  = as_points pop },
     'preset=s'                    => \&use_preset,
-    'qndb-map'                    => \$do_qndb_map,
+    'qdb-map'                     => \$do_qdb_map,
     'quiet|q'                     => N$verbose,
     'quote-char=s'                => \$csv_quote_char,
+    'raw-addresses!'              => N$CSV::Common::canon_address,
     'raw-addresses!'              => N$CSV::Common::canon_address,
     'region|only-region=s'        => sub { push @restrict_regions, split /[, ]+/, pop },
     'select-and-include=s'        => II { push @selection_tags, $_[1]; push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
@@ -2345,218 +1915,56 @@ GetOptions
     'show-uid!'                   => \$show_uid,
     'show-yf-listing!'            => N$suppress_yf_listing,
     'skip-archived!'              => \$skip_archived,
-    'skip-deceased!'              => \$skip_deceased,
-    'skip-meetings!'              => \$skip_meetings,
-    'skip-newsletters-only!'      => \$skip_newsletters_only,
-    'skip-suppressed-email!'      => \$skip_suppressed_email,
-    'skip-suppressed-listing!'    => \$skip_suppressed_listing,
-    'skip-suppressed-post!'       => \$skip_suppressed_post,
+    'skip-deceased'               => \$skip_deceased,
+    'skip-meetings'               => \$skip_meetings,
     'skip-unsubscribed'           => \$skip_unsub,
-    'sort-book-by-givenname'      => \$book_sort_by_givenname,
-    'sort-book-by-surname'        => \$book_sort_by_surname,
-    'test'                        => \$do_test,
+    'sort-book-by-givenname'      => \$sort_book_by_givenname,
+    'sort-book-by-surname'        => \$sort_book_by_surname,
     'tsv'                         => sub { $csv_fs_char = "\t"; $csv_escape_char = $csv_quote_char = ""; },
     'utf16be|u16b'                => sub { $presume_decoding = $use_encoding = 'UTF-16BE' },
     'utf16le|u16l'                => sub { $presume_decoding = $use_encoding = 'UTF-16LE' },
     'utf8|u8'                     => sub { $presume_decoding = $use_encoding = 'UTF-8' },
     'v+'                          => \$verbose,
     'verbose'                     => \$verbose,
-    'why-not|why-skipped'         => \$why_not,
 
-    'help|h'                      => sub { print <<EndOfHelp ; exit 0 },
-$0 --book-{index|listing}-{all|by-{mm|wg}} [book-options|pdf-output-options|generic-options]...
-$0 --labels [label-options|pdf-output-options|generic-options]...
-$0 --diff [diff-options|dump-options|text-output-options|generic-options]...
-$0 --dump [dump-options|text-output-options|generic-options]...
-$0 --qndb-map [qndb-map-options|text-output-options|generic-options]...
+    'help|h'                      => sub { print <<EndOfHelp } or exit 64;
+$0 --book-{index|listing}-{all|by-{mm|wg}} [book-options|generic-options]...
+$0 --diff [diff-options|text-options|generic-options]...
+$0 --labels [label-options|generic-options]...
+$0 --qdb-map [qdb-map-options|text-options|generic-options]...
 
-For additional options see:
-    $0 --help-book
-    $0 --help-diff
-    $0 --help-dump
-    $0 --help-labels
-    $0 --help-qndb
-
-    $0 --help-generic
-
-    $0 --help-input
-    $0 --help-selection
-    $0 --help-tuning
-
-    $0 --help-output
-    $0 --help-pdf
-EndOfHelp
-
-    'help-diff'                   => sub { print <<EndOfHelp; exit 0 },
-diff-options:
-    --names-only
-    --names-only
-    --diff-quietly
-    --diff-by-any
-    --diff-by-name
-    --diff-by-uid
-    (plus dump-options)
-
-See:
-    $0 --help-dump
-    $0 --help-output
-    $0 --help-generic
-EndOfHelp
-
-    'help-dump'                   => sub { print <<EndOfHelp; exit 0 },
-dump-options:
-    --[no-]names-only
-    --[no-]{show|hide}-adult-birthdays
-    --[no-]{show|hide}-hyperlinks
-    --[no-]{show|hide}-relationships
-    --[no-]{show|hide}-send
-    --[no-]{show|hide}-send-by-email
-    --[no-]{show|hide}-send-by-post
-    --[no-]{show|hide}-uid
-    --[no-]{show|hide}-status
-    --[no-]{show|hide}-yf-listing
-    (plus text-output-options)
-
-See also:
-    $0 --help-output
-    $0 --help-generic
-EndOfHelp
-
-    'help-qndb'                   => sub { print <<EndOfHelp; exit 0 },
-qndb-map-options (with --qndb-map):
-    (none yet)
-    (plus text-output-options)
-
-See:
-    $0 --help-output
-    $0 --help-generic
-EndOfHelp
-
-    'help-book'                   => sub { print <<EndOfHelp; exit 0 },
-book-options:
-    --book-index-all
-    --book-index-by-mm
-    --book-index-by-wg
-    --book-listing-all
-    --book-listing-by-mm
-    --book-listing-by-wg
-    --book-names-first          tabulate main list as: name, phone, address
-    --book-phones-first         tabulate main list as: phone, name, address
-    --sort-book-by-{surname|givenname}  NB: will output BOTH lists if both these are selected
-    (plus pdf-output-options)
-
-See:
-    $0 --help-pdf
-    $0 --help-generic
-EndOfHelp
-
-    'help-labels'                 => sub { print <<EndOfHelp; exit 0 },
-label-options (with --labels):
-    --preset={avery-l7160|...}
-    --instruction-colour=COLOUR     colour of metadata labels
-    --label-height=LENGTH       --lh=LENGTH
-    --label-step-across=LENGTH  --lxw=LENGTH
-    --label-step-down=LENGTH    --lxh=LENGTH
-    --label-width=LENGTH        --lw=LENGTH
-    --labels-ordered-in={columns|rows}
-    --labels-ordered-in-{columns|rows}
-    --num-labels-across=NUM     --nla=NUM
-    --num-labels-down=NUM       --nld=NUM
-    (plus pdf-output-options)
-
-See:
-    $0 --help-pdf
-    $0 --help-generic
-EndOfHelp
-
-    'help-pdf'                    => sub { print <<EndOfHelp; exit 0 },
-pdf-output-options
-    --page-size={A0,A1,...,B0,B1,...}
-    -A{0...9}  -B{0...9}                ISO paper sizes
-    --page-height=LENGTH  --ph=LENGTH
-    --page-width=LENGTH  --pw=LENGTH
-EndOfHelp
-
-    'help-output'                 => sub { print <<EndOfHelp; exit 0 },
-text-output-options:
-    --[no-]output-bom       --[no-]bom
-    --[no-]output-crlf      --[no-]crlf
-    --encoding={OCTET|UTF-{8|16|16LE|16BE|32|32LE|32BE}}
-        --encode-octet --encode-byte    --eb        (--encoding=OCTET)
-        --encode-utf16be                --eu16b     (--encoding=UTF-16BE)
-        --encode-utf16le                --eu16l     (--encoding=UTF-16LE)
-        --encode-utf8                   --eu8       (--encoding=UTF-8)
-    --output=FILENAME -oFILENAME
-
-  * conjoint input & output text options
-        --octet  --byte  -b                         (--decoding=OCTET    --encoding=OCTET)
-        --utf8  --u8                                (--decoding=UTF-8    --encoding=UTF-8)
-        --utf16be  --u16b                           (--decoding=UTF-16BE --encoding=UTF-16BE)
-        --utf16le  --u16l                           (--decoding=UTF-16LE --encoding=UTF-16LE)
-EndOfHelp
-
-    'help-generic'                => sub { print <<EndOfHelp; exit 0 },
 generic-options:
     -v[v...] | --verbose | -q | --quiet
-    -x | --debug                    enable debugging output
-    --[no-]force-overwrite -f       clobber preexisting output files
-    (plus input-options)
-    (plus record-selection-options)
-    (plus record-tuning-options)
 
-See also:
-    $0 --help-input
-    $0 --help-selection
-    $0 --help-tuning
+diff-options:
+    --names-only
+    --names-only 
+    --only-region=REGION | --all-regions
+    --show-relationships
+    --show-uid
+    (plus text-options)
+ 
+book-options:
+    --paper-size=[ABC]{0..9}
+    --sort-book-by-{surname|givenname}
+    --sort_book_by_givenname;  # } will output BOTH lists if both these are selected
+    --sort_book_by_surname;    # }
+ 
+label-options:
+    --paper-size=[ABC]{0..9} | -[ABC]{0..9}
+    --preset={avery-l7160|...}
+ 
+qdb-map-options:
+    (none yet)
+    (plus text-options)
+
+text-options:
+    --output-bom
+    --output-crlf
 EndOfHelp
-
-    'help-input'                  => sub { print <<EndOfHelp; exit 0 },
- input-options:
-    --decoding                  assume input encoding if it cannot be deduced
-    --force-decoding            assume input encoding overriding any deduction
-    --decoding={OCTET|UTF-{8|16|16LE|16BE|32|32LE|32BE}}
-        --decode-octet --decode-byte    --db (--decode-octet)
-        --decode-utf16be                --du16b (--decode-utf16be)
-        --decode-utf16le                --du16l (--decode-utf16le)
-        --decode-utf8                   --du8 (--decode-utf-8)
-    --csv                       assume input is comma-separated
-    --tsv                       assume input is tab-separated
-    --fs-char=CHAR --sep-char=CHAR  field separating character
-    --quote-char=CHAR               quote character
-    --escape-char=CHAR              escape character
-EndOfHelp
-
-    'help-selection'              => sub { print <<EndOfHelp; exit 0 },
- record-selection-options:
-    --[only-]region=REGION[,REGION...]          exclude records not in any of the REGIONs
-    --all-regions           --any-region        include records with any region
-    --no-need-region --no-hide-no-region     --include-no-region include records without a region
-       --need-region    --hide-no-region  --no-include-no-region exclude records without a region
-    --[no-]include-archived --[no-]skip-archived
-    --include-deceased      --skip-deceased
-    --include-meetings      --skip-meetings
-    --include-unsubscribed  --skip-unsubscribed
-    --only-region=REGION
-    --select-and-include=TAG[,TAG...]
-    --select=TAG[,TAG...]
-    --optional-include=TAG[,TAG...]
-    --why-not  --why-skipped        [explain exclusion of each record]
-EndOfHelp
-
-    'help-tuning'                 => sub { print <<EndOfHelp; exit 0 },
- record-tuning-options:
-       --canonical-addresses --no-raw-addresses     convert address elements to canonical abbreviations (e.g. Street -> St)
-    --no-canonical-addresses    --raw-addresses     don't convert address elements to canonical abbreviations (e.g. Street -> St)
-       --care-of                                    include 'c/-' where it would be inferred from the "type" field
-    --no-care-of                                    omit 'c/-' where it would be inferred from the "type" field
-EndOfHelp
-
-    or exit 64;
 
 $verbose and *STDOUT{IO}->autoflush(1);
 $verbose and *STDERR{IO}->autoflush(1);
-
-$verbose and warn sprintf "RUN: %s\n", join ' ', map { ! m{[^0-9A-Za-z!#%+,-./:=@^_~]|^\#} ? $_ : ! m/['\\]/ ? "'$_'" : ! m/["\\\$]/ ? '"'.$_.'"' : s{[^0-9A-Za-z!#%+,-./:=@^_~]}{\\$&}gr } $0, @ORIG_ARGV;
 
 ########################################
 #
@@ -2571,14 +1979,7 @@ grep { $_ eq 'NONE' } @restrict_regions and $need_region = 0;
 
 $mm_names{$_} or die "Invalid region '$_'\n" for @restrict_regions;
 
-warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
-
 $do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all;
-
-# Default exclusions for different generation types
-$skip_suppressed_listing //= $do_book;
-$skip_newsletters_only   //= $do_book;
-$skip_suppressed_post    //= $do_labels;
 
 my @wr_binmode;
 my @wr_bom;
@@ -2591,7 +1992,7 @@ $output_crlf and push @wr_binmode, ":crlf";
 unshift @wr_binmode, ":raw" if @wr_binmode;
 warn "WRITE BINMODE=@wr_binmode\n" if $verbose > 1 && @wr_binmode;
 
-$book_sort_by_surname //= ! $book_sort_by_givenname;
+$sort_book_by_surname //= ! $sort_book_by_givenname;
 
 s/^\W*// for @selection_tags,
              @inclusion_tags;
@@ -2608,7 +2009,7 @@ s/^\W*// for @selection_tags,
 #  - CSV input for the interrim label generator
 #
 
-sub open_file_for_reading($) {
+sub parse_file($) {
     my $in_name = "(stdin)";
     my $in = shift;
 
@@ -2617,13 +2018,9 @@ sub open_file_for_reading($) {
     my $qchar = $csv_quote_char;
 
     if (!ref $in) {
-        # param is *not* a filehandle
         if (!$in || $in eq '-') {
-            # param is '' or '-', use stdin
             $in = *STDIN{IO};
-        }
-        else {
-            # param is filename, so open it
+        } else {
             $in_name = $in;
             $in = undef;
         }
@@ -2634,16 +2031,9 @@ sub open_file_for_reading($) {
     my @rd_binmode;
     my $rd_crlf = 1;
     if ($force_decoding) {
-        #
-        # we were told to expect a specific encoding; trust the user...
-        # (this might be necessary if the input is a pipe, so we can't rewind it)
-        #
         push @rd_binmode, ":encoding($force_decoding)" if $force_decoding ne 'OCTET';
     }
     else {
-        #
-        # deduce the encoding by reading the first 8KiB and looking for BOM and FS
-        #
         open $in, '<:raw', $in_name or die "Can't open $in_name; $!\n" if !$in;
         local $/ = \8192;
         my $s = <$in>;
@@ -2686,10 +2076,11 @@ sub open_file_for_reading($) {
             warn sprintf "Guessing %s for %s (no BOM)\n", $decoding || 'OCTET', $in_name;
         }
         push @rd_binmode, ":encoding($decoding)" if $decoding;
-        seek $in, $seek_to, SEEK_SET or die "Cannot seek within $in_name; $!\n(char-set auto-detection unavailable)\n";
+        seek $in, $seek_to, 0 or die "Cannot seek within $in_name; $!\n(char-set auto-detection unavailable)\n";
         $rd_crlf = $s =~ m{\r\n} ? 1 : 0;
     }
-    push @rd_binmode, ":crlf" if $rd_crlf;
+    $rd_crlf and push @rd_binmode, ":crlf";
+
     unshift @rd_binmode, ':raw' if @rd_binmode;
     warn "READ BINMODE=@rd_binmode\n" if $verbose > 1 && @rd_binmode;
     if (!$in) {
@@ -2698,12 +2089,6 @@ sub open_file_for_reading($) {
     else {
         binmode $in, "@rd_binmode" or die "Can't set binmode(@rd_binmode) on $in_name; $!\n" if @rd_binmode;
     }
-
-    return $in, $in_name, $fsep, $echar, $qchar;
-}
-
-sub parse_file($) {
-    my ( $in, $in_name, $fsep, $echar, $qchar ) = open_file_for_reading shift;
 
     my $filetype;
     $fsep ||= ',';
@@ -2719,7 +2104,7 @@ sub parse_file($) {
             $r0->[0] =~ s/^\x{feff}// and warn "Ignoring leading BoM in $in_name\n";            # ignore Byte-Order-Mark
             $r0->[0] =~ s/^!// and warn "Ignoring leading ! in $in_name\n";     # a leading "!" may be used to force headers to sort to beginning of file
             if ($r0->[0] =~ /^%/) {
-                $filetype = WordDocTxt::;
+                $filetype = WordDocCSV::;
                 # There is no "header row" as such, so the first row is actually structured data...
                 $filetype->new(undef, $r0);
             }
@@ -2739,13 +2124,11 @@ sub parse_file($) {
         };
     warn "Parsed headers: " . Dumper(\@headers) if $verbose > 4 && $debug;
 
-    my $num_lines = $. - 1;
     my @records;
     my %record_by_uid;
     $! = 0;
     RECORD: while ( my $ra = $csv->getline($in) ) {
-        $num_lines = $. - 1;
-        print "Read line#$num_lines: " . Dumper($ra) if $verbose > 5 && $debug;
+        print "Read line: " . Dumper($ra) if $verbose > 5 && $debug;
         my @r = $filetype->new(\@headers, $ra);
         push @records, @r;
         $record_by_uid{$_->uid} = $_ for @r;
@@ -2755,35 +2138,29 @@ sub parse_file($) {
   # warn sprintf "%s at position: %2\$u %2\$#x\n", $in_name, tell($in);
   # if ( defined(my $x = <$in>) ) {
   #     warn sprintf "next line of input from %s: %s\n", $in_name, $x;
-  # }
-  # else {
+  # } else {
   #     warn sprintf "reached end of file on %s\n", $in_name;
   # }
-    warn sprintf "READ: parsed %u records from %u lines in %s\n", scalar(@records), $num_lines, $in_name if $verbose;
+    warn sprintf "READ: parsed %u records from %s\n", scalar(@records), $in_name if $verbose > 1;
     warn sprintf "READ: file position now at %#x in %s\n", tell($in), $in_name if $verbose > 1;
     close $in or die "Error while reading $in_name; $!\n";
 
     RECORD: for my $r ( @records ) {
-        if ( $r->{ZREF_parents} || $r->{ZREF_children} ) {
-            $r->{XREF_parents}  = delete $r->{ZREF_parents};
-            $r->{XREF_children} = delete $r->{ZREF_children};
-        } else {
-            my $uid = $r->uid;
-            for my $uid_of_kid ($r->uid_of_children_under_16) {
-                my $k = $record_by_uid{$uid_of_kid} or next RECORD;
-                push @{$k->{LIST_uids_of_parents}}, $uid;
-                push @{$k->{XREF_parents}}, $r;
-                push @{$r->{XREF_children}}, $k;
-            }
-            if (my ($uid_of_spouse) = $r->uid_of_spouse) {
-                my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid#%s, who does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
-                $r->{XREF_spouse} = $s;
-                $s->isa(CSV::Common::) or die "Not a CSV::Common record\n".Dumper($s);
-                my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has no spouse\n", $uid, $r->name, $uid_of_spouse; next; };
-                $s2uid eq $uid or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has a different spouse with uid#%s\n", $uid, $r->name, $uid_of_spouse, $s2uid; next; };
-                $s->{XREF_spouse} = $r;
-               #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
-            }
+        my $uid = $r->uid;
+        for my $uid_of_kid ($r->uid_of_children_under_16) {
+            my $k = $record_by_uid{$uid_of_kid} or next RECORD;
+            push @{$k->{LIST_uids_of_parents}}, $uid;
+            push @{$k->{XREF_parents}}, $r;
+            push @{$r->{XREF_children}}, $k;
+        }
+        if (my ($uid_of_spouse) = $r->uid_of_spouse) {
+            my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid#%s, which does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
+            $r->{XREF_spouse} = $s;
+            $s->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($s);
+            my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has no spouse\n", $uid, $r->name, $uid_of_spouse; next; };
+            $s2uid eq $uid or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has a different spouse with uid#%s\n", $uid, $r->name, $uid_of_spouse, $s2uid; next; };
+            $s->{XREF_spouse} = $r;
+           #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
         }
     }
 
@@ -2799,7 +2176,7 @@ sub parse_file($) {
         my @bom     = $raw ? () : @wr_bom;
         flush STDOUT;
         flush STDERR;
-        if ($output && ! ref $output && $output ne '-') {
+        if (!ref $output && $output && $output ne '-') {
             $force_overwrite || ! -e $output or die "Output file '$output' already exists; use --force-overwrite\n";
             open my $outx, ">@binmode", $output or die "Can't create $output; $!\n";
             print $outx @bom if @bom;
@@ -2809,7 +2186,7 @@ sub parse_file($) {
             state %first;
             ref $output or $output = *STDOUT{IO};
             if ( !$first{$output}++ ) {
-                binmode $output, "@binmode" or warn "Can't set binmode on $output (@binmode); $!\n" if @binmode;
+                binmode $output, "@binmode" or warn "Can't set binmode(stdout,'@binmode'); $!\n" if @binmode;
                 print $output @bom if @bom;
             }
             return $output, '(stdout)';
@@ -2844,9 +2221,6 @@ sub parse_file($) {
                     my $rl = show_qonu($ru);
                     $v .= "  $rl";
                 }
-            }
-            if ($r->can("gtags") && $r->gtags("suppress listing")) {
-                $v .= "  [SUPPRESSED LISTING]";
             }
             printf $out "%s: %s\n", "name", $v;
             printf $out "%s: %s\n", "sort-by-surname", $r->{composite_name}->{sort_by_surname};
@@ -2906,7 +2280,7 @@ sub parse_file($) {
                 printf $out "%s: %s\n", "spouse", $v;
             }
             if (my $pp = $r->{XREF_parents}) {
-                for my $p ( preferred_sort @$pp ) {
+                for my $p ( sort_by @$pp ) {
                     #$p->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($p);
                     my $v = $p->name || '(unknown)';
                     if ($show_hyperlinks and my $pu = $p->uid) {
@@ -2917,7 +2291,7 @@ sub parse_file($) {
                 }
             }
             if (my $cc = $r->{XREF_children}) {
-                for my $c ( preferred_sort @$cc ) {
+                for my $c ( sort_by @$cc ) {
                     #$c->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($c);
                     my $v = $c->name || '(unknown)';
                     if ($show_hyperlinks and my $cu = $c->uid) {
@@ -2975,7 +2349,7 @@ sub parse_file($) {
                 for (; $i <= $e ;++$i) {
                     if ( $cmp->($l1->[$i], $l2->[$i+$o]) ) {
                         my ($z) = grep { !$cmp->($l1->[$_], $l2->[$_+$o]) } $i .. $e;  # index of next non-matching element
-                        $z //= $e+1;            # if all the rest match, then there is no "next non-matching element"
+                        $z //= $e+1;            # if all the rest match, then there is no "next non-matching element" 
                         if ($len < $z-$i) {
                             # found a new longest subset
                             $len = $z-$i;
@@ -2991,13 +2365,11 @@ sub parse_file($) {
                 #warn sprintf "COMMON %u at LIST1[%u..%u] and at LIST2[%u..%u]\n", $len, $pos, $pos+$len-1, $pos+$off, $pos+$off+$len-1 if $verbose;
                 push @stack, [ $s1,       $pos-1, $s2,            $pos+$off-1 ],
                              [ $pos+$len, $e1,    $pos+$off+$len, $e2         ];
-            }
-            else {
+            } else {
                 #warn sprintf "ALLDIFF\n" if $verbose;
                 if ($d<0) {
                     splice @$l1, $e1+1, 0, (undef) x -$d;
-                }
-                else {
+                } else {
                     splice @$l2, $e2+1, 0, (undef) x $d;
                 }
             }
@@ -3007,24 +2379,22 @@ sub parse_file($) {
 
     sub _skip_restricted_record($) {
         my $r = shift;
-
         if (@restrict_regions) {
             my $skip = 0;
             if ( $r->can('gtags') ) {
                 $r->isa(CSV::qndb::) and die "gtags shouldn't work on QNDB record; method=".$r->can('gtags');
               # if ( my @mt = map { m{^(?:member|listing|send|post)[- ]+($mm_keys_re)\s} ? $1 : () } $r->gtags ) { ... }
-                if ( my @mt = $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
+                if ( my @mt = $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re)\s/ ) ) {
                     grep { my $reg = $_; grep { $_ eq $reg } @mt } @restrict_regions
                     or $skip = 1;
-                }
-                elsif ($need_region) {
+                } elsif ($need_region) {
                     $skip = 2;
                 }
             }
             else {
                 if ( my @mt = map {
                                     my $a = $r->{$_} || '';
-                                    $a =~ m{^($mm_keys_re|YF)\b} ? $1 : ()
+                                    $a =~ m{^($mm_keys_re)\b} ? $1 : ()
                                 } qw{   formal_membership
                                         monthly_meeting_area
                                        } ) {
@@ -3042,7 +2412,7 @@ sub parse_file($) {
                 }
             }
             if ($skip) {
-                warn sprintf "Skipping line#%s cause=%s name=%s, mm=%s fm=%s\n",
+                warn sprintf "Skipping #%s cause=%s name=%s, mm=%s fm=%s\n",
                             $r->{__source_line}, $skip, $r->{composite_name},
                             ref $r->{monthly_meeting_area} ? join ',', @{$r->{monthly_meeting_area}} : $r->{monthly_meeting_area} || '(none)',
                             $r->{formal_membership} || '(none)',
@@ -3052,14 +2422,14 @@ sub parse_file($) {
         }
         if ( $r->can('gtags') ) {
             if ($need_region) {
-                if ( ! $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
-                    warn sprintf "Skipping line#%s uid#%s name=%s NO LISTING\n", $r->{__source_line}, $r->uid, $r->name if $why_not;
+                if ( ! $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re)\s/ ) ) {
+                    warn "Skipping #$r->{__source_line} ".$r->name." NO LISTING" if $why_not;
                     return 1;
                 }
             }
             if ($skip_archived) {
                 if ( my @s = $r->gtags( qr/^archive - (.*)/ ) ) {
-                    warn "Skipping line#$r->{__source_line} ".$r->name." ARCHIVE @s\n" if $why_not;
+                    warn "Skipping #$r->{__source_line} ".$r->name." ARCHIVE @s\n" if $why_not;
                     return 1;
                 }
             }
@@ -3068,94 +2438,51 @@ sub parse_file($) {
                 push @skips, 'archive - deceased'     if $skip_deceased && !$skip_archived;
                 push @skips, 'archive - unsubscribed' if $skip_unsub    && !$skip_archived;
                 push @skips, 'meetings'               if $skip_meetings;
-                push @skips, 'suppress listing'       if $skip_suppressed_listing;
-                push @skips, 'newsletters-only'       if $skip_newsletters_only;
-                push @skips, 'suppress email'         if $skip_suppressed_email;
-                push @skips, 'suppress post'          if $skip_suppressed_post;
                 \@skips;
             };
             if ( @$skips && $r->gtags(@$skips) ) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." because found [@$skips]\n" if $why_not;
+                warn "Skipping #$r->{__source_line} ".$r->name." because Skipping [@$skips]\n" if $why_not;
                 return 1;
             }
-        }
-      # elsif ( UNIVERSAL::isa($r, WordDocTxt::) ) {
-      #     return 0;
-      # }
-        else {
-            if ($skip_meetings && (! $r->{monthly_meeting_area} &&
-            ! $r->{formal_membership} &&
-            ! ( $r->{show_me_in_young_friends_listing}
-             && $r->{show_me_in_young_friends_listing} eq 'Yes' ))) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." because [no mm area, no formal membership, and no yf listing]\n" if $why_not;
-                return 1;
-                #$r->name =~ /Bakke/ and die Dumper($r);
-            }
-        }
-        if ( $diff_ignore_file ) {
-            state $things_to_ignore = do {
-                my %ignore_uid;
-                my %ignore_name;
-
-                my ( $in, $in_name ) = open_file_for_reading $diff_ignore_file;
-
-                my @f = <$in>;
-                close $in or die "Couldn't read '$in_name'; $!\n";
-                for my $f (@f) {
-                    chomp $f;
-                    $f =~ s/\#.*//;
-                    $f =~ s/\s+$//;
-                    next if !$f;
-                    if ($f =~ /^\d/) {
-                        $ignore_uid{$f} = 1;
-                    } else {
-                        $ignore_name{lc $f} = 1;
-                    }
-                }
-                warn "Loading ignorance table, ".(0+%ignore_uid)." uids and ".(0+%ignore_name)." names\n" if $verbose;
-                warn Dumper( \%ignore_uid, \%ignore_name ) if $verbose > 2;
-                [ \%ignore_uid, \%ignore_name ]
-            };
-            if ($things_to_ignore->[0]{$r->uid}) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring uid]\n" if $why_not;
-                return 1;
-            }
-            if ($things_to_ignore->[1]{lc $r->name}) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring name]\n" if $why_not;
-                return 1;
-            }
+        } else {
+            ! $r->{monthly_meeting_area} &&
+            ! $r->{formal_membership} and return 1;
+            #$r->name =~ /Bakke/ and die Dumper($r);
         }
         return 0;
     }
 
-    sub show_one_diff($$$$) {
-        my ($out, $r1, $r2, $ofields) = @_;
-        state $fmt = "%-18.18s %-32s %-3.3s %s";
-        my $said_title;
-        if ($r1) {
-            my $name1 = $r1->name;
-            my $uid1  = $r1->uid;
-            my $suid1 = show_qonu($uid1);
-            if ($r2) {
-                my $name2 = $r2->name;
-                my $uid2  = $r2->uid;
-                my $suid2 = show_qonu($uid2);
-                if ( $name1 ne $name2) {
-                    #printf $out "\n$fmt\n", 'RENAME', $name1, '===', $name2, $suid1 || $suid2;
-                    printf $out "\nRENAME #%-8s %s === %s  %s\n", $uid2 || $uid1, $name1, $name2, $suid1 || $suid2;
-                    $said_title++;
-                    if ( $suid1 && $suid2 && $uid1 ne $uid2 ) {
-                        printf $out "$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
-                    }
-                    else {
-                    }
+
+sub generate_diff(*$$$$) {
+    my ($out, $rr1, $in1, $rr2, $in2 ) = @_;
+    $in1 ||= '-';
+
+    my @ofields = _choose_ofields;
+
+    my @rr1 = sort_by grep { !_skip_restricted_record $_ } @$rr1;
+    my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
+    my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
+
+    my @rr2 = sort_by grep { !_skip_restricted_record $_} @$rr2;
+    my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
+    my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
+
+    ( $out, my $out_name ) = _open_output $out;
+
+    for my $uid ( ::uniq @u2, @u1 ) {
+        if (defined( my $i1 = $ku1{$uid} )) {
+            my $r1 = $rr1[$i1];
+            $r1->uid eq $uid or die "A Missed UID $uid in ".Dumper($r1)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
+            if (defined( my $i2 = $ku2{$uid} )) {
+                # same UID in both
+                my $r2 = $rr2[$i2];
+                $r2->uid eq $uid or die "B Missed UID $uid in ".Dumper($r2)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
+                my $said_name;
+                if ( $r1->name ne $r2->name) {
+                    printf $out "\nRENAME  #%-8s  %-32s ==> %s  %s\n", $uid, $r1->name, $r2->name, show_qonu($uid);
+                    $said_name++
                 }
-                elsif ( $suid1 && $suid2 && $uid1 ne $uid2 ) {
-                    printf $out "\nMODIFY #%-8s %s %s\n", $uid2, $name2, $suid2;
-                    $said_title++;
-                    printf $out "$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
-                }
-                FIELD: for my $f ( @$ofields ) {
+                FIELD: for my $f ( @ofields ) {
                     my (@v1, @v2);
                     for my $z ( [$r1, \@v1], [$r2, \@v2] ) {
                         my $r = $z->[0];
@@ -3175,94 +2502,32 @@ sub parse_file($) {
                         @{ $z->[1] } = map { split /\n/, $_ } grep { defined $_ && "$_" ne '' } @v;
                     }
                     if ( $#v1 != $#v2 || grep { $v1[$_] ne $v2[$_] } 0..$#v1 ) {
-                        if (!$said_title++) {
-                            printf $out "\nMODIFY #%-8s %s  %s\n", $uid2, $name2, $suid2;
+                        if (!$said_name++) {
+                            printf $out "\nMODIFY  #%-8s  %s  %s\n", $uid, $r2->name, show_qonu($uid);
                         }
                         my $said_label;
                         _diff_align { $_[0] ne '' && $_[0] eq $_[1] } @v1, @v2;
                         for my $i ( 0 .. ::max $#v1, $#v2 ) {
                             my $vl1 = $v1[$i] || '';
                             my $vl2 = $v2[$i] || '';
-                            next if $diff_quietly && $vl1 eq $vl2;
-                            my $cmp = ( $vl1 eq '' ? '-' : '=' ) . ( $vl1 eq $vl2 ? '=' : '!' ) . ( $vl2 eq '' ? '-' : '=' );
-                            printf "$fmt\n", $said_label++ ? '' : "$f", $vl1 || ' (add)', $cmp, $vl2 || ' (del)';
+                            my $cmp = $vl1 eq $vl2 ? ' = ' : '==>';
+                            printf "%-18.18s %-32.32s %-3.3s %s\n", $said_label++ ? '' : "$f", $vl1, $cmp, $vl2;
                         }
                     }
                 }
-            }
-            else {
+            } else {
                 # deletion
-                printf $out "\nDELETE #%-8s %s  %s\n", $uid1, $name1, $suid1;
+                printf $out "\nDELETE #%-8s  %s  %s\n", $uid, $r1->name, show_qonu($uid);
             }
-        }
-        else {
-            if ($r2) {
-                my $name2 = $r2->name;
-                my $uid2  = $r2->uid;
-                my $suid2 = show_qonu($uid2);
-                printf $out "\nINSERT #%-8s %s  %s\n", $uid2, $name2, $suid2;
-                _dump_one $out, $r2, $ofields;
-            }
-            else {
-                printf $out "\nBROKEN: double null records\n";
+        } else {
+            if (defined( my $i2 = $ku2{$uid} )) {
+                # addition
+                my $r2 = $rr2[$i2];
+                printf $out "\nADD NEW #%-8s  %s  %s\n", $uid, $r2->name, show_qonu($uid);
+                _dump_one $out, $r2, \@ofields;
+            } else {
                 die "NOTREACHED";
             }
-        }
-    }
-
-sub generate_diff($$$$$) {
-    my ($out, $rr1, $in1, $rr2, $in2 ) = @_;
-    $in1 ||= '(stdin)';
-    $in2 ||= '(stdin)';
-
-    warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if $verbose;
-    my @ofields = _choose_ofields;
-
-    my @rr1 = preferred_sort grep { !_skip_restricted_record $_ } @$rr1;
-    my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
-    my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
-
-    my @rr2 = preferred_sort grep { !_skip_restricted_record $_} @$rr2;
-    my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
-    my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
-
-    my $can_map_uid  = $diff_by ne 'name' && ! grep { ! $_ } @n1, @n2;
-    my $can_map_name = $diff_by ne 'uid'  && ! grep { ! $_ } @u1, @u2;
-
-    $can_map_uid or $can_map_name or die "Can map by neither UID nor Name, due to missing values of both\n";
-
-    ( $out, my $out_name ) = _open_output $out;
-
-    if ($can_map_uid) {
-        for my $uid ( ::uniq @u2, @u1 ) {
-            my $suid = show_qonu($uid);
-            my $i1 = $ku1{$uid};
-            my $r1 = defined $i1 && $rr1[$i1];
-            my $i2 = $ku2{$uid};
-            my $r2 = defined $i2 && $rr2[$i2];
-            if ($r1) {
-                $r1->uid eq $uid or die "A Missed UID #$uid in ".Dumper($r1)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
-            }
-            if ($r2) {
-                $r2->uid eq $uid or die "B Missed UID #$uid in ".Dumper($r2)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
-            }
-            show_one_diff $out, $r1, $r2, \@ofields;
-        }
-    }
-    elsif ($can_map_name) {
-        for my $name ( ::uniq @n2, @n1 ) {
-            my $i1 = $kn1{$name};
-            my $r1 = defined $i1 && $rr1[$i1];
-            my $i2 = $kn2{$name};
-            my $r2 = defined $i2 && $rr2[$i2];
-
-            if ($r1) {
-                $r1->name eq $name or die "A Missed name '$name' in ".Dumper($r1)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
-            }
-            if ($r2) {
-                $r2->name eq $name or die "A Missed name '$name' in ".Dumper($r2)."\n".Dumper([\%ku1, \%kn1, \@rr1, \%ku2, \%kn2, \@rr2,]);
-            }
-            show_one_diff $out, $r1, $r2, \@ofields;
         }
     }
 }
@@ -3281,19 +2546,14 @@ sub diffably_dump_records($$;$) {
     my $rr = shift;
     my $in_name = shift || '(stdin)';
 
-    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
-
     ( $out, my $out_name ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
     #print Dumper(\@records);
-    @records = preferred_sort @records;
+    @records = sort_by @records;
     #print Dumper(\@records);
     RECORD: for my $r (@records) {
-        _skip_restricted_record $r and do {
-            warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if $verbose > 2;
-            next RECORD;
-        };
+        _skip_restricted_record $r and next RECORD;
         print $out "\n";
         _dump_one $out, $r, \@ofields;;
     }
@@ -3308,18 +2568,18 @@ sub diffably_dump_records($$;$) {
 #
 
     sub notno($) {
-        (my $z) = @_;
-        return defined $z && $z =~ /^[Yy1]$|^yes$/i;
+        my ($_)=@_;
+        return defined $_ && /^[Yy1]$|^yes$/i;
     }
 
-sub generate_qndb_map($$;$) {
+sub generate_qdb_map($$;$) {
     my $out = shift;
     my $rr = shift;
     my $in_name = shift || '(stdin)';
     ( $out, my $out_name ) = _open_output $out;
     my %rr = map { ( $_->uid => $_ ) } @$rr;
     print $out "Name,Group Membership,Custom Field 1 - Type,Custom Field 1 - Value,Custom Field 2 - Type,Custom Field 2 - Value,Custom Field 3 - Type,Custom Field 3 - Value\n";
-    my @records = preferred_sort @$rr;
+    my @records = sort_by @$rr;
     RECORD: for my $r (@records) {
         my $fullname = $r->name || next RECORD; #die "Missing name\n".Dumper($r);
         my $qdb = $r->uid || die "missing uid\n".Dumper($r);
@@ -3376,246 +2636,8 @@ sub generate_qndb_map($$;$) {
 # change of tag-set
 #
 
-################################################################################
-
-=head 3
-
-Label records
-
-=cut
-
-    {
-    package CommonLabel;
-
-    use scale_factors;
-
-    sub new {
-        my $class = shift;
-        bless { @_ }, $class;
-    }
-
-    use constant colour => 'black';
-
-    sub draw_label {
-        my ($r, $pq, $top, $left, $label_on_page) = @_;
-        my $text = $pq->text;
-        $text->fillcolor($r->colour);
-
-        my @lines = @{$r->{lines}};
-        my $banner = $r->{banner};
-
-        @lines || $banner || return;
-
-        my $active_fontsize = $label_fontsize;
-        my $current_fontsize = $label_fontsize;
-
-        $pq->font( $label_fontname, $active_fontsize );
-
-        if ($evenly_squash_to_fit) {
-            # squash up when too many lines
-            # evenly squash up ALL lines when any line is too wide
-            my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-            my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-            $active_fontsize *= ::min 1,
-                                      $printable_label_height / ( @lines + ($banner && $label_banner_scale || 0) ) / ( $line_spacing * $active_fontsize ),
-                                      $printable_label_width / ::max 1,
-                                                                     $banner && $text->advancewidth($banner)*$label_banner_scale || 0,
-                                                                     map { $text->advancewidth($_) } @lines;
-        }
-
-        if (my $p = $r->{banner}) {
-            if (my @v = $p =~ m/\%\{(\w+)\}/g) {
-                warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
-                $p =~ s/\%\{(\w+)\}/%/g;
-                $p = sprintf $p, @$r{@v};
-            }
-            $active_fontsize = ::min $active_fontsize,
-                                     $label_height / ($label_banner_scale * $line_spacing + @lines * $line_spacing);
-
-            my $banner_fontsize = $active_fontsize*$label_banner_scale;
-            $pq->font( $label_banner_font, $current_fontsize = $banner_fontsize ) if $banner_fontsize != $current_fontsize;
-            $text->translate( $left, $top -= $banner_fontsize*$line_spacing );
-            $text->text($p);
-        }
-
-        if (@lines) {
-            for (0 .. $#lines) {
-                $pq->font( $label_fontname, $current_fontsize = $active_fontsize ) if $active_fontsize != $current_fontsize;
-                my $rescale = $label_width / $text->advancewidth($_);
-                if ( $rescale < 1 ) {
-                    # squeeze up to make room...
-                    $pq->font( $label_fontname, $current_fontsize = $active_fontsize * $rescale );
-                }
-                $text->translate( $left, $top - (@lines - $#lines + $_)*$active_fontsize*$line_spacing );
-                $text->text($lines[$_]);
-            }
-        }
-
-        if (my $p = $r->{postcode}) {
-            $pq->font( $label_fontname, $label_postcode_fontsize );
-            $text->translate( $left + $label_width, $top - $label_height + $label_postcode_fontsize );
-            $text->text_right($p);
-        }
-
-        warn sprintf "Page %u label %u -> lines=%u font=%.2fmm (%.2fpt)\n",
-                    $pq->pages,
-                    $label_on_page,
-                    0+@lines,
-                    $active_fontsize/mm, $active_fontsize/pt
-            if $verbose > 1;
-    }
-    }
-
-    {
-    package BlankLabel;
-    use parent -norequire => CommonLabel::;
-    sub one { state $x = bless {}, shift }
-    sub new { die }
-    sub draw_label {}   # do nothing
-    }
-
-    {
-    package ItemCountLabel;
-    use parent -norequire => CommonLabel::;
-
-    sub colour { $label_banner_colour }
-
-    use scale_factors;
-
-    sub new {
-        my $class = shift;
-        my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
-        $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
-        $class->SUPER::new(
-            banner          => sprintf( "%u", $last_label_on_page-$first_label_on_page+1, ),
-            lines           => $inclusions,
-            first_on_page   => $first_label_on_page,
-            last_on_page    => $last_label_on_page,
-            total_count     => $total_count,
-            @_
-        );
-    }
-    sub draw_label {
-        my ($r, $pq, $top, $left, $label_on_page) = @_;
-        my $text = $pq->text;
-        my $first_label_on_page = $r->{first_on_page};
-        my $last_label_on_page = $r->{last_on_page};
-        warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page if $verbose > 1;
-        my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-        my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-        my $labels_per_page = $num_labels_across * $num_labels_down;
-
-        my $tiny_label_step_across = $printable_label_width / 3 / $num_labels_across;
-        my $tiny_label_step_down   = $printable_label_height / $num_labels_down;
-        my $tiny_fontsize = $tiny_label_step_down / $line_spacing;
-        warn sprintf "Tiny labels fontsize=%.2fmm (%.2fpt), step-across=%.2fmm, step-down=%.2fmm ",
-                    $tiny_fontsize/mm, $tiny_fontsize/pt,
-                    $tiny_label_step_across/mm,
-                    $tiny_label_step_down/mm
-            if $verbose > 2;
-        $pq->font( $label_fontname, $tiny_fontsize );
-        for my $tiny_l ( 0 .. $labels_per_page-1 ) {
-            my $tiny_col;
-            my $tiny_row;
-            if ($labels_ordered_in eq 'columns') {
-                $tiny_row  = $tiny_l             % $num_labels_down;
-                $tiny_col  = ($tiny_l-$tiny_row) / $num_labels_down;
-            }
-            else {
-                $tiny_col  = $tiny_l             % $num_labels_across;
-                $tiny_row  = ($tiny_l-$tiny_col) / $num_labels_across;
-            }
-            my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
-            my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
-            warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm if $verbose > 2;
-            $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
-            if ( $tiny_l == $label_on_page ) {
-                $text->fillcolor($label_banner_colour);
-                $text->text_right("O");
-            }
-            elsif ( $tiny_l >= $first_label_on_page && $tiny_l <= $last_label_on_page ) {
-                $text->fillcolor('black');
-                $text->text_right("X");
-            }
-            else {
-                $text->fillcolor('black');
-                $text->text_right("-");
-            }
-        }
-        $r->SUPER::draw_label($pq, $top, $left, $label_on_page);
-    }
-    }
-
-    {
-    package TotalCountLabel;
-    use parent -norequire => CommonLabel::;
-    sub new {
-        my $class = shift;
-        my ($inclusion_labels, $counts) = @_;
-        bless {
-            banner => "Totals",
-            lines => [ map { sprintf "%3u× %s", $counts->[$_], $inclusion_labels->[$_] } grep { $counts->[$_] } 0..$#$inclusion_labels ],
-        }, $class;
-    }
-    }
-
-    {
-    package HouseHoldLabel;
-    use parent -norequire => CommonLabel::;
-
-    sub new {
-        my $class = shift;
-        my ($inclusions, $postcode, @lines) = @_;
-        bless {
-                inclusions => $inclusions,
-                lines    => \@lines,
-                postcode => $postcode,
-            }, $class;
-    }
-
-    use constant colour => 'black';
-
-    }
-
-##  {
-##  package InfoLabel;
-##  use parent -norequire => CommonLabel::;
-##  sub fix_one {
-##      my $r = shift;
-##      $r->SUPER::fix_one(@_);
-##      my @inserts = sort split /\s*,\s*/, $r->{inserts} // '';
-##      $r->{inserts} = join ',', @inserts;
-##      $r->{LIST_insert} = \@inserts;
-##      $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
-##      1;
-##  }
-##  }
-
-
-    sub suppress_unwanted_records($) {
-        my $rr = shift;
-        if ( @$rr && $rr->[0]->isa(CSV::gmail::) ) {
-            my @rr = @$rr;
-            my @skips;
-            push @skips, 'archive - deceased'     if $skip_deceased;
-            push @skips, 'archive - unsubscribed' if $skip_unsub;
-            push @skips, 'meetings'               if $skip_meetings;
-            push @skips, 'suppress listing'       if $skip_suppressed_listing;
-            push @skips, 'newsletters-only'       if $skip_newsletters_only;
-            push @skips, 'suppress email'         if $skip_suppressed_email;
-            push @skips, 'suppress post'          if $skip_suppressed_post;
-            push @skips, 'explanatory texts';
-            @rr = grep { ! $_->gtags(@skips) } @rr if @skips;
-            @rr = grep { ! $_->gtags(qr/^archive - /) } @rr if $skip_archived;
-            $rr = \@rr;
-        }
-        return $rr;
-    }
-
     sub group_people_into_households($) {
         my $rr = shift;
-        $rr = suppress_unwanted_records $rr;
-        @$rr or return [];
         if ( 1 || $rr->[0]->can('uid') ) {
             my @households;
             my $unique_id = 0;
@@ -3633,7 +2655,15 @@ Label records
         }
         elsif ( $rr->[0]->isa(CSV::gmail::) ) {
             my %households;
+            my @skips;
+            push @skips, 'archive - deceased'     if $skip_deceased;
+            push @skips, 'archive - unsubscribed' if $skip_unsub;
+            push @skips, 'meetings'               if $skip_meetings;
+            push @skips, 'explanatory texts';
             for my $r (@$rr) {
+                # Make extra sure we don't include deceased people in "households"
+                $r->gtags(@skips) and next if @skips;
+                $r->gtags(qr/^archive - /) and next if $skip_archived;  # recapitulation not needed...
                 my $a = $r->postal_address or next;
                 push @{$households{$a}}, $r;
             }
@@ -3652,12 +2682,12 @@ sub generate_labels($$;$) {
     # Make family groups or households
     my $households = group_people_into_households $rr;
 
-    warn sprintf "grouped-households: %u\n", 0+@$households if $verbose;
+    warn sprintf "grouped-households: %u\n", 0+@$households,
 
     # Select households which have any member wanting any of the offered
     # inclusions
 
-    @$households = grep { grep { $_->gtags(@selection_tags) } @$_; } @$households if @selection_tags;
+    @$households = grep { grep { $_->gtags(@selection_tags) } @$_; } @$households;
 
     # Group households by which inclusions they want, and remove members of
     # households who want nothing
@@ -3668,16 +2698,14 @@ sub generate_labels($$;$) {
             0+@$households,
             join('; ', @selection_tags),
             join('; ', @inclusion_tags),
-            join('; ', @inclusion_labels)
+            join('; ', @inclusion_labels) 
         if $verbose;
 
     my %inclusion_counts;
     my %households_by_inclusions;
     HOUSEHOLD: for my $hh (@$households) {
         # Which members of household are requesting at least one item?
-        my @hh = @$hh;
-        @hh = grep { $_->gtags(@selection_tags) } @hh if @selection_tags;
-        @hh or next HOUSEHOLD;
+        my @hh = grep { $_->gtags(@selection_tags) } @$hh or next HOUSEHOLD;
         # Which inclusions for this household?
         my @inclusions = map { $inclusion_label{$_} }
                             grep { my $t = $_; grep { $_->gtags($t) } @hh; }
@@ -3720,13 +2748,12 @@ sub generate_labels($$;$) {
     # generate the lines to be put on each household's label, and
     # create inclusion labels
     my @labels;
-    for my $inclusions ( sort { @{$households_by_inclusions{$b}} <=> @{$households_by_inclusions{$a}} } keys %households_by_inclusions ) {
+    for my $inclusions ( sort keys %households_by_inclusions ) {
         my @households = @{$households_by_inclusions{$inclusions}};
         for my $hi ( 0..$#households ) {
             my $hh = $households[$hi];
             if ($use_item_count_labels and $hi == 0 || @labels % $labels_per_page == 0) {
-                my $first_label_on_page = (@labels+1) % $labels_per_page;
-                if ( $first_label_on_page == 0 ) {
+                if ( (@labels+1) % $labels_per_page == 0 ) {
                     # No point putting a count-label in last position on page,
                     # where its count would be zero, so put the summary totals
                     # label here, or otherwise just leave it blank.
@@ -3738,12 +2765,8 @@ sub generate_labels($$;$) {
                         push @labels, one BlankLabel::;
                     }
                 }
-                my $last_label_on_page = ::min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
-                push @labels, new ItemCountLabel::
-                                    $inclusions,
-                                    scalar @labels,
-                                    $first_label_on_page,
-                                    $last_label_on_page;
+                push @labels, new ItemCountLabel:: $inclusions,
+                            ::min( @households-$hi, $labels_per_page - (@labels+1) % $labels_per_page);
             }
             my @hh = @$hh;
             if (@hh > 2) {
@@ -3789,8 +2812,7 @@ sub generate_labels($$;$) {
             s/ (?:ex|née*) .*// for @names;
             my $names = join ' & ', @names;
             my $postal_address = $hh[0]->postal_address;
-            my $postcode = $postal_address->{postcode} || (UNIVERSAL::can($hh[0],'postcode') && $hh[0]->postcode || $hh[0]->{postcode})
-                or warn sprintf "WARNING: missing postcode on %s at %s\n", $names[0], $postal_address;
+            my $postcode = $postal_address->{postcode} || (UNIVERSAL::can($hh[0],'postcode') && $hh[0]->postcode || $hh[0]->{postcode}) or warn sprintf "Missing postcode on %s at %s\n", $names[0], $postal_address;
             $postal_address =~ s/(.*\S)\s*\b$postcode\b/$1/ if $postcode;
             my @lines = grep {$_}
                             $names,
@@ -3805,7 +2827,7 @@ sub generate_labels($$;$) {
 
     #print "LABELS:\n", Dumper(\@labels) if $verbose > 4 && $debug;
 
-    my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
+    my $pq = new PDF_paginator:: ($page_size || ($page_width, $page_height));
     $page_width = $pq->{page_width};
     $page_height = $pq->{page_height};
     ($page_size) = (
@@ -3831,12 +2853,12 @@ sub generate_labels($$;$) {
     $label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
 
     warn sprintf "First Page\n"
-               . " page size: %.2fmm × %.2fmm (w×h) (%s)\n"
-               . " printable: %.2fmm × %.2fmm (w×h)\n"
-               . " labels/page: %d × %d (a×d)\n"
-               . " label size: %.2fmm × %.2fmm (w×h)\n"
-               . " label step: %.2fmm × %.2fmm (a×d)\n"
-               . " offset: %.2fmm × %.2fmm (a×d)\n"
+               . "page size: %.2fmm × %.2fmm (w×h) (%s)\n"
+               . "printable page size: %.2fmm × %.2fmm (w×h)\n"
+               . "labels/page: %s × %s (a×d)\n"
+               . "label size: %.2fmm × %.2fmm (w×h)\n"
+               . "label step: %.2fmm × %.2fmm (a×d)\n"
+               . "offset: %.2fmm × %.2fmm (a×d)\n"
                ,
                 $page_width/mm, $page_height/mm, $page_size,
                 $printable_page_width/mm, $printable_page_height/mm,
@@ -3847,8 +2869,21 @@ sub generate_labels($$;$) {
         if $verbose;
     }
 
+    my $banner_font =
+    my $postcode_font = #$pq->corefont('Helvetica-Bold');
+    my $normal_font = 'Helvetica';
+
     my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
     my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
+
+    my $tiny_label_step_across = $printable_label_width / 3 / $num_labels_across;
+    my $tiny_label_step_down   = $printable_label_height / $num_labels_down;
+    my $tiny_fontsize = $tiny_label_step_down / $line_spacing;
+    warn sprintf "Tiny labels fontsize=%.3fmm, step-across=%.3fmm, step-down=%.3fmm ",
+                $tiny_fontsize/mm,
+                $tiny_label_step_across/mm,
+                $tiny_label_step_down/mm
+        if $verbose;
 
     for my $r ( @labels ) {
         my $text = $pq->text;
@@ -3873,12 +2908,97 @@ sub generate_labels($$;$) {
             $pq->pdf->cropbox($left, $bottom, $right, $top);
         }
 
-        warn sprintf "Page %u label %u -> row %u/%u column %u/%u\n",
-                    $pq->pages,
-                    $label_on_page,
-                    $row, $num_labels_across, $col, $num_labels_down if $verbose > 1;
+        my @lines = @{$r->{lines}};
 
-        $r->draw_label($pq, $top, $left, $label_on_page);
+        if (@lines) {
+            my $active_fontsize = $fontsize;
+            $pq->font( $normal_font, $fontsize );
+            if ($evenly_squash_to_fit) {
+                # evenly squash up ALL lines when any line is too wide
+                $active_fontsize = min $active_fontsize, $fontsize * $label_width / max 0.01, map { $text->advancewidth($_) } @lines;
+            }
+            # squash up when too many lines
+            $active_fontsize = min $active_fontsize, $label_height / ( @lines * $line_spacing );
+            $pq->font( $normal_font, $active_fontsize ) if $active_fontsize != $fontsize;
+            if (my $p = $r->{page_info}) {
+                if (my @v = $p =~ m/\%\{(\w+)\}/g) {
+                    warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
+                    $p =~ s/\%\{(\w+)\}/%/g;
+                    $p = sprintf $p, @$r{@v};
+                }
+                $active_fontsize = min $active_fontsize,
+                                       $label_height / ($banner_scale * $line_spacing + @lines * $line_spacing);
+
+                if ($show_tiny_labels && $r->isa(ItemCountLabel::)) {
+                    my $last_label_on_page = $label_on_page + $r->{count};
+                    warn sprintf "Printing tiny labels #%u..%u", $label_on_page, $last_label_on_page
+                        if $verbose > 1;
+                    $pq->font( $normal_font, $tiny_fontsize );
+                    for my $tiny_l ( 0 .. $labels_per_page-1 ) {
+                        my $tiny_col;
+                        my $tiny_row;
+                        if ($labels_ordered_in eq 'columns') {
+                            $tiny_row  = $tiny_l             % $num_labels_down;
+                            $tiny_col  = ($tiny_l-$tiny_row) / $num_labels_down;
+                        }
+                        else {
+                            $tiny_col  = $tiny_l             % $num_labels_across;
+                            $tiny_row  = ($tiny_l-$tiny_col) / $num_labels_across;
+                        }
+                        my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
+                        my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
+                        warn sprintf "Printing tiny label #%s top=%u left=%u", $tiny_l, $tiny_top, $tiny_right
+                            if $verbose > 2;
+                        $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
+                        if ( $tiny_l == $label_on_page ) {
+                            $text->fillcolor($instruction_colour);
+                            $text->text_right("O");
+                        }
+                        elsif ( $tiny_l > $label_on_page && $tiny_l <= $last_label_on_page ) {
+                            $text->fillcolor('black');
+                            $text->text_right("X");
+                        }
+                        else {
+                            $text->fillcolor('black');
+                            $text->text_right("-");
+                        }
+                    }
+                }
+
+                my $banner_fontsize = $active_fontsize*$banner_scale;
+                $pq->font( $banner_font, $banner_fontsize );
+                $text->fillcolor($instruction_colour);
+                $text->translate( $left, $top -= $banner_fontsize*$line_spacing );
+                $text->text($p);
+                $pq->font( $normal_font, $active_fontsize );
+            }
+            else {
+                $text->fillcolor('black');
+                #$text->fillcolor('green') if $active_fontsize != $fontsize && $debug;
+            }
+            for (0 .. $#lines) {
+                $pq->font( $normal_font, $active_fontsize );
+                my $rescale = $label_width / $text->advancewidth($_);
+                if ( $rescale < 1 ) {
+                    # squeeze up to make room...
+                    $pq->font( $normal_font, $active_fontsize * $rescale );
+                    $text->fillcolor('green') if $debug;
+                }
+                $text->translate( $left, $top - (@lines - $#lines + $_)*$active_fontsize*$line_spacing );
+                $text->text($lines[$_]);
+                $text->fillcolor('black') if $rescale < 1;
+            }
+            if (my $p = $r->{postcode}) {
+                $pq->font( $postcode_font, $postcode_fontsize );
+                $text->translate( $left + $label_width, $top - $label_height + $postcode_fontsize );
+                $text->text_right($p);
+            }
+            warn sprintf "Page %u label %u row %u/%u column %u/%u: lines=%u font=%.2fmm (%.2fpt)\n",
+                        $pq->pages,
+                        $label_on_page,
+                        $row, $num_labels_across, $col, $num_labels_down,
+                        0+@lines, $active_fontsize/mm, $active_fontsize if $verbose > 1;
+        }
 
         if ($label_on_page+1 >= $num_labels_across * $num_labels_down) {
             warn "Throwpage\n" if $verbose > 1;
@@ -3894,84 +3014,36 @@ sub generate_labels($$;$) {
 
 ################################################################################
 
-    sub is_code($) { UNIVERSAL::isa($_[0], 'CODE') }
-    sub is_hash($) { UNIVERSAL::isa($_[0], 'HASH') }
-    sub is_regex($) { UNIVERSAL::isa($_[0], 'Regexp') }
-    sub is_array($) { UNIVERSAL::isa($_[0], 'ARRAY') }
-    sub is_array_of($$;$) {
-        my ($array,$chk,$all) = @_;
-        is_array($array) or return 0;
-        my $c = $_[1] || return 1;
-        for my $elem ( @$array ) {
-          # defined $elem or next;
-            $c->validate($elem)       or return 0 if UNIVERSAL::can($c, 'validate');
-            $c->($elem)               or return 0 if is_code($c);
-            $elem =~ $c               or return 0 if is_regex($c);
-            UNIVERSAL::isa($elem, $c) or return 0;
-        } continue {
-            $_[2] || last;
+    sub is_code($) { ref $_[0] eq 'CODE' }
+    sub is_bool($) { my $_ = $_[0]; !ref && m{^[01]$}  }
+    sub is_number($) { my $_ = $_[0]; !ref && m{^\-?\d+(?:\.\d+|)$} }
+
+    sub render_da_list($$$$$$;$) {
+        my ( $pq, $render_one, $rr, $items_across, $printable_page_width, $lineheight, $visible ) = @_;
+        $visible //= 1;
+        if (1) {
+            @_ == 6 || @_ == 7 or croak "Wrong number of args";
+            ref $pq eq PDF_paginator:: or croak "First arg is not a PDF_paginator ref";
+            is_code $render_one or croak "arg is not a sub";
+            ref $rr eq 'ARRAY' or croak "Third arg is not an array (of records)";
+            is_number $items_across or croak "Fourth arg is not a number (items_across)";
+            is_number $items_across or croak "Fourth arg is not a number (items_across)";
+            is_bool $visible or croak "Fifth arg is not a bool (visibility)";
         }
-        return 1;
-    }
-    sub is_bool($)   { my $z = $_[0]; !ref $z && $z =~ m{^[01]$} }
-    sub is_number($) { my $z = $_[0]; !ref $z && $z =~ m{^\-?\d+(?:\.\d+|)$} }
-
-    sub yn($) { $_[0] ? 'yes' : 'no' }
-
-    #
-    # some simple manglers to provide recognizably distinct data
-    #
-    sub rot13($)   { $_[0] =~ tr{ A-M N-Z a-m n-z 0-4 5-9 }
-                                { N-Z A-M n-z a-m 5-9 0-4 }r }
-    sub phoneme($) { $_[0] =~ tr{ AE OU IY BP DT FV GK SZ LR MN CQ HJ WX ao eu iy bp dt fv gk sz lr mn cq hx jw 0123456789 }
-                                { EA UO YI PB TD VF KG ZS RL NM QC JH XW oa ue yi pb td vf kg zs rl nm qc xh wj 9876543210 }r }
-    sub bitflip($) { $_[0] =~ s{\w}{ pack "U", (ord($&)-2^1)+1 }er }
-    sub backwards($) { scalar reverse $_[0] }
-
-    #
-    # render a list in columns, with pagination
-    #
-    sub render_columnated_list($$$$$;$$$) {
-        my ( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top ) = @_;
-        $col //= -1;    # start at top of first column
-        $top //= 0;
-        if (CHECK_ARGS) {
-            @_ == 6 || @_ == 8 or ::croak "Wrong number of args";
-            UNIVERSAL::isa($pq, PDF_paginator::) or ::croak "arg 1 is not a PDF_paginator";
-            is_code $render_one or ::croak "arg 2 is not a sub";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_array    $rr               or ::croak         "arg 4 is not an array";
-          # is_array_of $rr, CSV::gmail:: or ::croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
-            is_number $items_across or ::croak "arg 5 is not a number (items-across)";
-            is_bool $visible or ::croak "arg 6 is not a bool (visible)";
-            is_number $col or ::croak "arg 7 is not a number (column number)";
-            is_number $top or ::croak "arg 8 is not a number (top-position)";
-        }
-        my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-        my $column_step = ($printable_page_width + $book_intercolumn_margin)  / $items_across;
-        my $column_width  = $column_step - $book_intercolumn_margin;
-
-        # running estimate of worst-case item height
-        my $height_limit = 0;
-        my $zi = 0;
+        my $column_step = ($printable_page_width + $intercolumn_margin)  / $items_across;
+        my $column_width  = $column_step - $intercolumn_margin;
+        my $col  = -1;
+        my $top  = 0;
         for my $r (@$rr) {
             my $item_height = 0;
-
-            # Compute exact item height in advance if either (a) not visible
-            # (dimensions are all that are wanted), or (b) we're getting close
-            # to the bottom of the column; otherwise use an estimate based on
-            # 4× the current worst-case.
-            my $item_height_estimate = $height_limit * 4;
+            my $item_height_estimate = $lineheight * 8;
             if ( $top - $item_height_estimate < $page_bottom_margin || ! $visible ) {
-                $item_height =
-                $item_height_estimate = $render_one->( $pq, $r, $render_context, $column_width, 0 ); # INVISIBLE: only compute size
+                $item_height = 
+                $item_height_estimate = $render_one->( $pq, $r, $column_width, 0 ); #( $pq, $r, $column_width, $visible, $top, $left )
             }
-
-            # Move to next column if there isn't enough room left for whole item
             if ( $top - $item_height_estimate < $page_bottom_margin || $col < 0 ) {
                 $top  = $page_height - $page_top_margin;
                 ++$col;
-                # Move to next page if this page is full
                 if ($col >= $items_across) {
                     warn "Throwpage\n" if $verbose > 1;
                     $pq->closepage if $visible;
@@ -3982,165 +3054,60 @@ sub generate_labels($$;$) {
                 my $text = $pq->text;
                 $text->fillcolor('black');
                 my $left = $page_left_margin + $column_step * $col;
-                (my $item_width, $item_height) = $render_one->( $pq, $r, $render_context, $column_width, 1, $top, $left ); # VISIBLE
-                warn sprintf "COLUMNATION: item #%d ↑%.2fmm →%.2fmm ↕%.2fmm ↔%.2fmm\n", $zi++, $top/mm, $left/mm, $item_height/mm, $item_width/mm if $verbose > 2;
+                $item_height = $render_one->( $pq, $r, $column_width, 1, $top, $left ); #( $pq, $r, $column_width, $visible, $top, $left )
             }
             $top -= $item_height;
-            $height_limit >= $item_height or $height_limit = $item_height;
         }
-        return $col, $top;
+        $pq->closepage if $visible;
     }
 
-    #
-    # sort and render a list, possibly in multiple orders
-    #
-    sub render_sorted_columnated_list($$$$$;$$$) {
-        my ( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top ) = @_;
+    sub render_sorted_da_list($$$$$$;$) {
+        my ( $pq, $render_one, $rr, $items_across, $printable_page_width, $lineheight, $visible ) = @_;
         $visible //= 1;
-        if (CHECK_ARGS) {
-            @_ == 6 or @_ == 8 or ::croak "Wrong number of args";
-            UNIVERSAL::isa($pq, PDF_paginator::) or ::croak "arg 1 is not a PDF_paginator";
-            is_code $render_one or ::croak "arg 2 is not a sub";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_array_of($rr, CSV::gmail::) or ::croak "arg 4 is not an array (of GMail records)";
-            is_number $items_across or ::croak "arg 5 is not a number";
-            is_bool $visible or ::croak "arg 6 is not a flag (visible)";
-            is_number $col or ::croak "arg 7 is not a number (column number)" if @_ > 6;
-            is_number $top or ::croak "arg 8 is not a number (top-position)" if @_ > 6;
+        if (1) {
+            @_ == 6 or @_ == 7 or croak "Wrong number of args";
+            ref $pq eq PDF_paginator:: or croak "First arg is not a PDF_paginator ref";
+            is_code $render_one or croak "Second arg is not a sub";
+            ref $rr eq 'ARRAY' or croak "Third arg is not an array (of records)";
+            is_number $items_across or croak "Fourth arg is not a number";
+            is_number $printable_page_width or croak "Fifth arg is not a number";
+            is_number $lineheight or croak "Sixth arg is not a number";
+            is_bool $visible or croak "Seventh arg is not a flag (size-only)" if @_ > 6;
         }
-        if ($book_sort_by_surname) {
+        if ($sort_book_by_surname) {
             @$rr = sort_by_surname @$rr;
-            $render_context->{ORDER} = 'surname';
-            ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
+            render_da_list( $pq, $render_one, $rr, $items_across, $printable_page_width, $lineheight, $visible );
         }
-        if ($book_sort_by_givenname) {
+        if ($sort_book_by_givenname) {
             @$rr = sort_by_givenname @$rr;
-            $render_context->{ORDER} = 'given_name';
-            ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
+            render_da_list( $pq, $render_one, $rr, $items_across, $printable_page_width, $lineheight, $visible );
         }
-        delete $render_context->{ORDER};
-        return $col, $top;
-    }
-
-                             # prefer this one ─╮╭─╮╭─╮╭────╮╭─╮╭─╮╭────╮╭────────────────╮
-                             #  ╭───────────────┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼────────────────╯
-    my $mtg_abbrev_len = 5;  #  ╰───────────────╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯▽
-    my %short_meeting_name = (
-
-          # 'CHelsewhere'       => [ undef, 'M', 'ME', 'CHE', 'CH-E', 'CH-NZ', 'CH-els', 'CH-else', ],
-          # 'CHoverseas'        => [ undef, 'M', 'MO', 'CHO', 'CH-O', 'CH-OS', ],
-          # 'DNelsewhere'       => [ undef, 'M', 'ME', 'DNE', 'DN-E', 'DN-NZ', 'DN-els', 'DN-else', ],
-          # 'DNoverseas'        => [ undef, 'M', 'MO', 'DNO', 'DN-O', 'DN-OS', ],
-          # 'KPelsewhere'       => [ undef, 'M', 'ME', 'KPE', 'KP-E', 'KP-NZ', 'KP-els', 'KP-else', ],
-          # 'KPoverseas'        => [ undef, 'M', 'MO', 'KPO', 'KP-O', 'KP-OS', ],
-          # 'MNIelsewhere'      => [ undef, 'M', 'ME', 'MNE', 'MN-E', 'MN-NZ', 'MN-els', 'MN-else', ],
-          # 'MNIoverseas'       => [ undef, 'M', 'MO', 'MNO', 'MN-O', 'MN-OS', 'MNI-OS', ],
-          # 'NTelsewhere'       => [ undef, 'N', 'NE', 'NTE', 'NT-E', 'NT-NZ', 'NT-els', 'NT-else', ],
-          # 'NToverseas'        => [ undef, 'N', 'NO', 'NTO', 'NT-O', 'NT-OS', ],
-          # 'WGelsewhere'       => [ undef, 'M', 'ME', 'WGE', 'WG-E', 'WG-NZ', 'WG-els', 'WG-else', ],
-          # 'WGoverseas'        => [ undef, 'M', 'MO', 'WGO', 'WG-O', 'WG-OS', ],
-          # 'WNelsewhere'       => [ undef, 'M', 'ME', 'WNE', 'WN-E', 'WN-NZ', 'WN-els', 'WN-else', ],
-          # 'WNoverseas'        => [ undef, 'M', 'MO', 'WNO', 'WN-O', 'WN-OS', ],
-
-            'BayofIslands'      => [ undef, 'B', 'BI', 'BoI', 'BoIs', 'BofIs', 'BofIsl', 'BofIsld', 'BofIslnd', 'BofIsland', 'BayofIslnd', 'BayofIslnds', ], # MNI
-            'Canterbury'        => [ undef, 'C', 'Cn', 'Cnb', 'Cnby', 'Cntby', 'Cantby', 'Cantbry', 'Cantbury', 'Cantrbury' ], # CH
-            'GoldenBay'         => [ undef, 'G', 'GB', 'GoB', 'GldB', 'GldnB', 'GldnBy', 'GoldenB', 'GoldnBay' ], # CH
-            'HawkesBay'         => [ undef, 'Ḣ', 'HB', 'HkB', 'HwkB', 'HwkBy', 'HawkBy', 'HawksBy', 'HawkesBy' ], # PN
-            'Howick'            => [ undef, 'H', 'Hw', 'Hwk', 'Hwck', 'Howck' ], # NT
-            'Kaitaia'           => [ undef, 'K', 'Kt', 'Kta', 'Kait', 'Ktaia', 'Kataia' ], # NT
-            'Kapiti'            => [ undef, 'K', 'Kp', 'Kpt', 'Kapt', 'Kapti' ], # KP
-            'Levin'             => [ undef, 'L', 'Lv', 'Lvn', 'Levn' ], # PN
-            'Marlborough'       => [ undef, 'M', 'Mb', 'Mbr', 'Mbro', 'Mboro', 'Mlboro', 'Marlbor', 'Marlboro', 'Marlborou', 'Marlbrough' ], # CH
-            'MtEden'            => [ undef, 'Ṁ', 'ME', 'MtE', 'MtEd', 'MtEdn' ], # NT
-            'Nelson'            => [ undef, 'N', 'Nn', 'Nsn', 'Nlsn', 'Nelsn' ], # CH
-            'NorthShore'        => [ undef, 'Ṅ', 'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre' ], # NT
-            'Otago'             => [ undef, 'O', 'Ot', 'Otg', 'Otgo' ], # DN
-            'PalmerstonNorth'   => [ undef, 'P', 'PN', 'PmN', 'PNth', 'PmNth', 'PmtNth', 'PmstonN', 'PlmrstnN', 'PalmstonN', 'PalmstnNth', 'PalmstnNrth', ], # PN
-            'RotoruaTaupo'      => [ undef, 'R', 'RT', 'RrT', 'RrTp', 'RrTpo', 'RruTpo', 'RruaTpo', 'RtruaTpo', 'RruaTaupo', 'RotoruaTpo', 'RotoruaTaup', ], # MNI
-            'SouthCanterbury'   => [ undef, 'Ṡ', 'SC', 'SCt', 'SCtb', 'SCntb', 'SCntby', 'SthCnby', 'SthCntby', 'SthCantby', 'SthCantbry', 'SthCantbury', 'SthCantrbury', 'SthCanterbury', 'SouthCantrbury' ], # CH
-            'Southland'         => [ undef, 'S', 'Sl', 'Sld', 'Sthl', 'Sthld', 'Sthlnd', 'Sthland', 'Southlnd' ], # DN
-            'Taranaki'          => [ undef, 'T', 'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki' ], # WG
-            'Tauranga'          => [ undef, 'Ť', 'Tg', 'Tga', 'Tnga', 'Trnga', 'Tranga', 'Taurnga' ], # MNI
-            'ThamesCoromandel'  => [ undef, 'Ṫ', 'TC', 'ThC', 'TmCo', 'ThmCo', 'ThmCor', 'ThmCoro', 'ThamesCo', 'ThamesCor', 'ThamesCoro', 'ThamesCmndl', 'ThamesCrmndl', 'ThamesCormndl', 'ThamesCoromndl', 'ThamesCoromandl' ], # NT
-            'Waiheke'           => [ undef, 'Ẁ', 'Wk', 'Wke', 'Whke', 'Wheke', 'Waihke' ], # NT
-            'Wairarapa'         => [ undef, 'Ẅ', 'Wr', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa' ], # WN
-            'Wellington'        => [ undef, 'Ẃ', 'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton' ], # WN
-            'WestAuckland'      => [ undef, '×', 'WA', 'WAk', 'WstA', 'WstAk', 'WstAkl', 'WstAuck', 'WestAuck', 'WAuckland', 'WestAuckld', 'WestAucklnd' ], # NT
-            'Westland'          => [ undef, 'Ẇ', 'Wl', 'Wld', 'Wlnd', 'Wland', 'Westld', 'Westlnd' ], # CH
-            'Whanganui'         => [ undef, 'Ŵ', 'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui' ], # WG
-            'Whangarei'         => [ undef, 'Ẉ', 'Wr', 'Wgr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei' ], # NT
-            'elsewhere',        => [ undef, '+', 'nz', '+',   '(nz)', 'other', '+',      '+',       '+',        'elsewhere', ], # elsewhere in NZ
-            'overseas',         => [ undef, '*', 'os', 'o/s', '*',    '(o/s)', 'o/seas', 'ovrseas', 'overseas', ], # not in NZ
-        );
-
-    #
-    # You get listed in MM-elsewhere if
-    #  1, you're tagged for it; or
-    #  2, you're a member of the MM but *not* in any WG listing within that MM (including not MM-overseas)
-    #
-    sub elsewhere_filter($$) {
-        my ($rrr, $mm) = @_;
-        $rrr or return;
-        return [ grep { $_->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
-                   || ! $_->gtags( qr/^listing[- ]+$mm/ )
-                     && $_->gtags( qr/^member[- ]+$mm/ )
-                    } @$rrr ]; 
     }
 
 sub generate_book($$;$) {
     my $out = shift;
-    my $rr0 = shift;
+    my $rr = shift;
     my $in_name = shift || '(stdin)';
 
-    my $rr = suppress_unwanted_records $rr0;
-    @$rr = grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } @$rr;
+    my @wg_keys = do {
+        my %wg = map { ( $_ => 1 ) }
+                    map { $_->gtags( qr/^listing[- ]*(.*)/o ) }
+                        @$rr;
+        sort keys %wg;
+    };
 
-    my %by_mm;
-    my %by_wg;
-    for my $r (@$rr) {
-        if ( my @meetings = $r->gtags( qr/^listing[- ]+((?:$mm_keys_re|YF)\b.*)/ ) ) {
-            for my $m (@meetings) {
-                push @{$by_wg{$m}}, $r;
-            }
-        }
-        else {
-            push @{$by_wg{'NO - not in any worship group'}}, $r;
-        }
-        if ( my @meetings = $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ ) ) {
-            for my $m (@meetings) {
-                push @{$by_mm{$m}}, $r;
-            }
-        }
-        else {
-            push @{$by_mm{'NO - not in any meeting'}}, $r;
-        }
-    }
-    {
-        # Find meeting tags, make sure they're in the "@wg_order" list
-        my @wg = keys %by_wg;
-        my %w1 = map { ( $_ => 1 ) } @wg;
-        my %w2 = map { ( $_ => 1 ) } @wg_order;
-        delete @w1{ @wg_order };
-        delete @w2{ @wg };
-        ! %w1 or die sprintf "WG_ORDER is missing %s\n", join ",", sort keys %w1;
-        ! %w2 or warn sprintf "WG_ORDER has excess %s\n", join ",", sort keys %w2;
-    }
+    my @mm_keys = sort keys %mm_names;
 
-
-    my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
-
-    # if pagesize was given as eg "A5", convert that back to actual dimensions
+    my $pq = new PDF_paginator:: ($page_size || ($page_width, $page_height));
     $page_width = $pq->{page_width};
     $page_height = $pq->{page_height};
 
     my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-    my $fontname = $book_fontname;
-    my $fontsize = $book_fontsize;
-    my $small_fontsize = $book_fontsize; #*2/3;
-    my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
 
-    warn sprintf "Pagination info\n"
+    my $lineheight = $fontsize*$line_spacing;
+
+    warn sprintf "First Page\n"
                . "page size: %.2fmm × %.2fmm (%s)\n"
                . "printable page size: %.2fmm × %.2fmm\n"
                ,
@@ -4148,523 +3115,124 @@ sub generate_book($$;$) {
                 $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
 
-    my $render_column_heading = sub {
-        my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
-        if (CHECK_ARGS) {
-            if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
-            } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
-            }
-            UNIVERSAL::isa($pq, PDF_paginator::) or ::croak "arg 1 is not a PDF_paginator";
-            ! defined $r or ::croak "arg 2 should be undef but is not\n";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
-        }
-        if ($verbose) {
-            if ($visible) {
-                warn sprintf "RENDER heading ↔%.2fmm →%.2fmm ↑%.2fmm\n", $column_width/mm, $left/mm, $top/mm
-                    if $verbose > 2;
-            }
-            else {
-                warn sprintf "SIZING heading ↔%.2fmm\n", $column_width/mm
-                    if $verbose > 2;
-            }
-        }
-
-        my $heading_text = $render_context->{heading} or return 0, 0;
-        $render_context->{heading_bold} and $heading_text = $pq->TB . $heading_text;
-
-        my $heading_fontname = $render_context->{heading_font} || $fontname;
-        my $heading_fontsize = $render_context->{heading_size} || $fontsize;
-        my $heading_line_spacing = $render_context->{heading_spacing} || $line_spacing;
-        my $text = $pq->text;
-        my $item_height;
-
-        if ( $visible ) {
-            (undef, $item_height) = $pq->text_flow($heading_fontname, $heading_fontsize, $heading_line_spacing, $heading_text, $column_width, $top, $left);
-        } else {
-            (undef, $item_height) = $pq->text_size($heading_fontname, $heading_fontsize, $heading_line_spacing, $heading_text, $column_width);
-        }
-        warn sprintf "HEADING: ↑%.2fmm →%.2fmm ↕%.2fmm ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $column_width/mm if $verbose > 2;
-        return $column_width, $item_height;
-    };
-
-    # Page numbering
-    if ($use_page_numbers) {
-        # Number each page
-        push @{$pq->{upon_end_page}}, sub {
-            my ($pq, $pagenum) = @_;
-            my $right_page = $pagenum % 2;
-           #$pq->text_rotate($book_fontname, $book_pagenumber_fontsize, $pagenum, 1.5*$book_pagenumber_fontsize*$line_spacing, $page_width/2, 0);
-            $pq->text_at($pagenum, { fn => $book_fontname, fs => $book_pagenumber_fontsize, y => $page_bottom_margin/2, x => $page_width/2, halign => 1, valign => 1, italic => 1, });
-        };
-    }
-
-    # Margin stamping
-    push @{$pq->{upon_end_page}}, sub {
-            my ($pq, $pagenum) = @_;
-            my $page_data = $pq->{pagedata} or return;
-            my $margin_notes = $page_data->{margin_notes} or return;
-            my $right_page = $pagenum % 2;
-            my $mm_lh = $book_margin_fontsize*$line_spacing;
-            my $top =  $page_height - $page_top_margin - $mm_lh;
-           #my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
-           #my $rotation = $right_page ? -90 : 90;
-           #$pq->text_rotate($fontname, $book_margin_fontsize, $margin_notes, $top, $left, $rotation);
-            my $left = $right_page ? $page_width-$page_right_margin/2
-                                   : $page_left_margin/2;
-            $pq->text_at($margin_notes, {   fn => $fontname,
-                                            fs => $book_margin_fontsize,
-                                            y => $top,
-                                            x => $left,
-                                            r => $right_page ? 3 : 1,
-                                            valign => 0,
-                                            halign => 1,
-                                        } );
-        };
-
-    # Render the first letter of the surname of:
-    #   * the FIRST record in the top-left corner of a left page,
-    #   * the LAST record in the top-right corner of a right page
-    # Note that this will produce gibberish if you have (parts of) more than one list on a page
-    my $first_or_last_on_page = sub {
-        my ($pq, $pagenum) = @_;
-        my $page_data = $pq->{pagedata} or return;
-        my $right_page = $pagenum % 2;
-        my $mm_lh = $book_margin_fontsize*$line_spacing;
-        my $top = $page_height - $page_top_margin + $mm_lh;
-        my $left;
-        my $from_letter = $page_data->{first}{initial};
-        my $to_letter = $page_data->{last}{initial};
-        my $margin_notes = join '-', $from_letter, $to_letter eq $from_letter ? () : $to_letter;
-        if ($right_page) {
-           #$margin_notes = $page_data->{last}{initial} || '-' ; #'R'.$pq->pagenum;
-            $left = $page_width-$page_right_margin/2;
-        } else {
-           #$margin_notes = $page_data->{first}{initial} || '-' ; #'L'.$pq->pagenum;
-            $left = $page_left_margin/2;
-        }
-        $pq->text_at($margin_notes, { fn => $fontname, fs => $book_margin_fontsize, y => $top, x => $left, halign => 1, });
-        $pq->text_at($margin_notes, { fn => $fontname, fs => $book_margin_fontsize, y => $top, x => $left, halign => 1, });
-    };
-
-    my %detail_widths = (
-        phone   => 0.20,
-        name    => 0.30,
-        details => 0.50, );
-
-    my @detail_order = $book_phones_first ? qw( phone name details )
-                                          : qw( name phone details );
-
-    my @detail_offsets = (0, @detail_widths{@detail_order[0..$#detail_order-1]});
-    $detail_offsets[$_] += $detail_offsets[$_-1] for 1..$#detail_offsets;
-
-    my %detail_offsets; @detail_offsets{@detail_order} = @detail_offsets;
-
-    #my %detail_order = map { ( $detail_order[$_] => $_ ) } 0..$#detail_order;
-
-    my $render_person_details = sub {
-        my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
-        if (CHECK_ARGS) {
-            if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
-            } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
-            }
-            UNIVERSAL::isa($pq, PDF_paginator::) or ::croak "arg 1 is not a PDF_paginator ref";
-            UNIVERSAL::isa($r, CSV::gmail::) or ::croak "arg 2 is not a gmail record";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
-        }
-
-        my $inactive = $r->gtags('inactive','child');
-        my $ismember = $r->gtags('members');
-        my $name = $r->name;
-        my $family_name = $name->{family_name};
-        $name = "$name";
-        $name =~ s/\([^()]*\)//g;
-
-        my $page_data = $pq->{pagedata} ||= {};
-
-        # add to margin notes
-        if ( my $margin_note = $render_context->{margin_note} ) {
-            if ( ! $page_data->{seen_margin_note}{$margin_note}++ ) {
-                my $mn = $page_data->{margin_notes_list} ||= [];
-                push @$mn, $margin_note;
-                $page_data->{margin_notes} = join ', ', @$mn;
-            }
-        }
-
-        my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
-        my $order_initial = substr $order_name, 0, 1;
-
-        # record full name & family name of last entry on page
-        $page_data->{last} = {  initial     => $order_initial,
-                                oname       => $order_name,
-                                full_name   => $name,
-                                family_name => $family_name, };
-        # record full name & family name of first entry on page
-        $page_data->{first} ||= $page_data->{last};
-
-        if ($name) {
-            my $B = $ismember ? $inactive ? $pq->TBIU : $pq->TBU
-                              : $inactive ? $pq->TBI : $pq->TB;
-            $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $ismember ? $inactive ? $pq->TIU : $pq->TU
-                              : $inactive ? $pq->TI  : '';
-            $name = $N.$name;
-        }
-
-        my $phones = join "\n", map { s/(?<=\d) (?=\d)/$nbsp/gr } map { localize_phone $_ } $r->listed_phone, $r->listed_email;
-        my $addresses = join "\n", map { s/\n/, /gr } $r->listed_address;
-
-        my @subcolumn_offset = map { $_ * ($column_width + $book_interdetail_spacing) } @detail_offsets{qw( phone name details )}, 1;
-        my @subcolumn_width  = map { $_ * ($column_width + $book_interdetail_spacing) - $book_interdetail_spacing } @detail_widths{qw( phone name details )};
-        my ($h1,$h2,$h3);
-        if ($visible) {
-            (undef, $h1) = $pq->text_flow($fontname, $fontsize, $line_spacing, $phones,    $subcolumn_width[0], $top, $left + $subcolumn_offset[0]);
-            (undef, $h2) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name,      $subcolumn_width[1], $top, $left + $subcolumn_offset[1]);
-            (undef, $h3) = $pq->text_flow($fontname, $fontsize, $line_spacing, $addresses, $subcolumn_width[2], $top, $left + $subcolumn_offset[2]);
-        }
-        else {
-            (undef, $h1) = $pq->text_size($fontname, $fontsize, $line_spacing, $phones,    $subcolumn_width[0]);
-            (undef, $h2) = $pq->text_size($fontname, $fontsize, $line_spacing, $name,      $subcolumn_width[1]);
-            (undef, $h3) = $pq->text_size($fontname, $fontsize, $line_spacing, $addresses, $subcolumn_width[2]);
-        }
-        my $item_height = $lineheight*$extra_para_spacing + ::max $h1, $h2, $h3;
-        if ($verbose) {
-            my $fmt = $visible ? "RENDER details ↕%.2fmm=%.2f*%.2f*(%.2f,%.2f,%.2f) ↔%.2fmm ↑%.2fmm →%.2fmm"
-                               : "SIZING details ↕%.2fmm=%.2f*%.2f*(%.2f,%.2f,%.2f) ↔%.2fmm";
-            warn sprintf "$fmt\n", $item_height/mm, ($lineheight/mm, $extra_para_spacing, $h1, $h2, $h3),
-                                    $column_width/mm,
-                                    ($top//0)/mm, ($left//0)/mm
-                if $verbose > 2;
-        }
-        # create pagenum cross references for later use by indexing
-        push @{$r->{_page_xrefs}}, $pq->pagenum if $visible;
-        return $column_width, $item_height;
-    };
+    my $fontname  = 'Helvetica';
+    my $bold_font = 'Helvetica-Bold';
 
     my $render_person_index = sub {
-        my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
-        if (CHECK_ARGS) {
-            if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
-            } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
-            }
-            UNIVERSAL::isa($pq, PDF_paginator::) or ::croak "arg 1 is not a PDF_paginator ref";
-            UNIVERSAL::isa($r, CSV::gmail::) or ::croak "arg 2 is not a gmail record";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
+        my ( $pq, $r, $column_width, $visible, $top, $left ) = @_;
+        if (1) {
+            @_ == ( $visible ? 6 : 4 ) or croak "Wrong number of args";
+            UNIVERSAL::isa($r, CSV::gmail::) or croak "First arg is not a gmail record\n".Dumper(\@_);
+            is_bool $visible or croak "Second arg is not a flag (size-only)";
+            !ref $top or croak "Third arg is not a number (top-position)";
+            !ref $left or croak "Fourth arg is not a number (left-position)";
+            !ref $column_width or croak "Fifth arg is not a number (item-width)" if @_ > 4;
+            ref $pq eq PDF_paginator:: or croak "Sixth arg is not a PDF_paginator ref" if @_ > 5;
         }
-
-        # retrieve pagenum cross references
-        my @page_xrefs;
-        if ( $use_page_numbers ) {
-            @page_xrefs = @{$r->{_page_xrefs} ||= []};
-            if (@page_xrefs > 1) {
-                @page_xrefs = $pq->TI . sprintf "p.%u", @page_xrefs;
-            } elsif ( @page_xrefs == 1 ) {
-                @page_xrefs = $pq->TI . sprintf "pp.%s", join ",", @page_xrefs;
-            }
-        }
-
-        if ($verbose) {
-            if ($visible) {
-                warn sprintf "RENDER index ↔%.2fmm →%.2fmm ↑%.2fmm\n", $column_width/mm, $left/mm, $top/mm
-                    if $verbose > 2;
-            }
-            else {
-                warn sprintf "SIZING index ↔%.2fmm\n", $column_width/mm
-                    if $verbose > 2;
-            }
-        }
-
+        warn "RENDER index w=$column_width, v=$visible, t=$top, l=$left\n"; #.Dumper($r);
         my $text = $pq->text;
+        my $line_height = $fontsize*$line_spacing;
         my $width = 0;
-
-        my $inactive = $r->gtags('inactive','child');
-        my $ismember = $r->gtags('members');
-        my $name = $r->name;
-        my $family_name = $name->{family_name};
-        $name = "$name";
-        $name =~ s/\([^()]*\)//g;
-
-        my $page_data = $pq->{pagedata} ||= {};
-
-        # add to margin notes
-        if ( my $margin_note = $render_context->{margin_note} ) {
-            if ( ! $page_data->{seen_margin_note}{$margin_note}++ ) {
-                my $mn = $page_data->{margin_notes_list} ||= [];
-                push @$mn, $margin_note;
-                $page_data->{margin_notes} = join ', ', @$mn;
-            }
-        }
-
-        my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
-        my $order_initial = substr $order_name, 0, 1;
-
-        # record full name & family name of last entry on page
-        $page_data->{last} = {  initial     => $order_initial,
-                                oname       => $order_name,
-                                full_name   => $name,
-                                family_name => $family_name, };
-        # record full name & family name of first entry on page
-        $page_data->{first} ||= $page_data->{last};
-
-        if ($name) {
-            my $B = $inactive ? $pq->TBI : $pq->TB;
-            $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $inactive ? $pq->TI  : '';
-            $name = $N.$name;
-        }
-
-        my @listings = map { $short_meeting_name{$_} && ($short_meeting_name{$_}[$mtg_abbrev_len] || $short_meeting_name{$_}[-1]) || $_ } map { s/\W+//gr } $r->gtags(qr/^listing[- ]+(?:\w\w\w?[- ]+|)(.*)/);
-        my @memberships = map { $pq->TB . $_ . $pq->TN } $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
-
-        my @phones = map { localize_phone $_ } $r->listed_phone;
-        my @emails = $r->listed_email;
-        my ($w1, $h1, $c1, $t1);
+        my @subcolumn_offset = map { $_ * ($column_width + 3*mm) } 0, 0.75, 1;
+        my @subcolumn_width = map { $subcolumn_offset[$_] - $subcolumn_offset[$_-1] - 3*mm } 1 .. $#subcolumn_offset;
         if ( $visible ) {
-            ($w1, $h1, $c1, $t1) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $column_width, $top, $left);
-        } else {
-            ($w1, $h1, $c1, $t1) = $pq->text_size($fontname, $fontsize, $line_spacing, $name, $column_width);
+            my $name = $r->name;
+            my $family_name = $name->{family_name};
+            $name = "$name";
+            $name =~ s/\([^()]*\)//g;
+            $name =~ s/(.*)\b($family_name)\b/$1\x{fe11}$2\x{fe10}/ if $family_name;
+            my @listings = $r->gtags(qr/^listing[- ]+(.*)/);
+            my ($phone) = $r->listed_phone;
+            my $info = join "\n", $phone, @listings;
+            (undef, my $h1) = $pq->text_flow($fontname, $fontsize,   $line_spacing, $name, $subcolumn_width[0], $top, $left + $subcolumn_offset[0]);
+            (undef, my $h2) = $pq->text_flow($fontname, $fontsize/2, $line_spacing, $info, $subcolumn_width[1], $top, $left + $subcolumn_offset[1]);
+            return $column_width, ::max $h1, $h2;
         }
-        for my $s (@page_xrefs, @memberships, @listings, @phones, @emails) {
-            my ($w, $h) = $pq->text_size($fontname, $small_fontsize, $line_spacing, $s);
-            if ($t1 < $h1 && $c1 + $book_interdetail_spacing + $w > $column_width) {
-                # Skip to next blank line if it won't fit to the right
-                $c1 = 0;
-                $t1 = $h1;
-            }
-            $pq->text_flow($fontname, $small_fontsize, $line_spacing, $s, $w, $top-$t1, $left+$column_width-$w)
-                if $visible;
-            $t1 += $h;
+        else {
+            my $name = $r->name;
+            my $family_name = $name->{family_name};
+            $name = "$name";
+            $name =~ s/\([^()]*\)//g;
+            $name =~ s/(.*)\b($family_name)\b/$1\x{fe11}$2\x{fe10}/ if $family_name;
+            my @listings = $r->gtags( qr/^listing[- ]+(.*)/ );
+            my ($phone) = $r->listed_phone;
+            my $info = join "\n", @listings, $phone;
+            (undef, my $h1) = $pq->text_size($fontname, $fontsize,   $line_spacing, $name, $subcolumn_width[0]);      # $pq->text_size($fontname, $fontsize, $line_spacing, $str, $width_limit)
+            (undef, my $h2) = $pq->text_size($fontname, $fontsize/2, $line_spacing, $info, $subcolumn_width[1]);     # $pq->text_size($fontname, $fontsize, $line_spacing, $str, $width_limit)
+            return $column_width, ::max $h1, $h2;
         }
-
-        my $item_height = max $h1, $t1;
-        warn sprintf "ITEM: ↑%.2fmm →%.2fmm ↕%.2fmm=max((h1=%.2f),(t1=%.2f)) ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $h1/mm, $t1/mm, $column_width/mm if $verbose > 2;
-        return $column_width, $item_height;
     };
 
-    #@$rr = grep { ! $_->gtags( qr/^meeting/ ) } @$rr;       # only humans in main listing
+    my $render_person_details = sub {
+        my ( $pq, $r, $column_width, $visible, $top, $left ) = @_;
+        if (1) {
+            @_ == ( $visible ? 6 : 4 ) or croak "Wrong number of args";
+            UNIVERSAL::isa($r, CSV::gmail::) or croak "First arg is not a gmail record\n"; #.Dumper(\@_);
+            !ref $column_width or croak "Second arg is not a number (item-width)";
+            ref $pq eq PDF_paginator:: or croak "Third arg is not a PDF_paginator ref";
+            is_bool $visible or croak "Fourth arg is not a flag (size-only)";
+            !ref $top or croak "Fifth arg is not a number (top-position)" if @_ > 4;
+            !ref $left or croak "Sixth arg is not a number (left-position)" if @_ > 5;
+        }
+        warn "RENDER details w=$column_width, v=$visible, t=$top, l=$left\n"; #.Dumper($r);
+        my @subcolumn_offset = map { $_ * ($column_width + 3*mm) } 0, 0.25, 0.5, 1;
+        my @subcolumn_width = map { $subcolumn_offset[$_] - $subcolumn_offset[$_-1] - 3*mm } 1 .. $#subcolumn_offset;
+        if ($visible) {
+            my $name = $r->name;
+            my $family_name = $name->{family_name};
+            $name = "$name";
+            $name =~ s/\([^()]*\)//g;
+            $name =~ s/(.*)\b($family_name)\b/$1\x{fe11}$2\x{fe10}/ if $family_name;
+            (undef, my $h1) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $subcolumn_width[0], $top, $left + $subcolumn_offset[0]);
+            (undef, my $h2) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $subcolumn_width[1], $top, $left + $subcolumn_offset[1]);
+            (undef, my $h3) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $subcolumn_width[2], $top, $left + $subcolumn_offset[2]);
+            return $column_width, ::max $h1, $h2, $h3;
+        }
+        else {
+            my $name = $r->name;
+            my $family_name = $name->{family_name};
+            $name = "$name";
+            $name =~ s/\([^()]*\)//g;
+            $name =~ s/(.*)\b($family_name)\b/$1\x{fe11}$2\x{fe10}/ if $family_name;
+            my ($phone) = $r->listed_phone;
+            my ($addr) = $r->listed_address;
+            (undef, my $h1) = $pq->text_size($fontname, $fontsize, $line_spacing, $phone, $subcolumn_width[0]);
+            (undef, my $h2) = $pq->text_size($fontname, $fontsize, $line_spacing, $name, $subcolumn_width[1]);
+            (undef, my $h3) = $pq->text_size($fontname, $fontsize, $line_spacing, $name, $subcolumn_width[2]);
+            return $column_width, ::max $h1, $h2, $h3;
+        }
+    };
+
     if ($do_book_listing_all) {
-        warn "doing book LISTING - all\n" if $verbose;
-        # Margin name index letters
-        my %render_context = (  margin_note     => "(full alphanetical listing)",
-                                heading         => "Everyone",
-                                heading_bold    => 1,
-                                heading_size    => $fontsize * PHI,
-                             );
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
-        my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
-        ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rr, 1, 1, $col, $top);
-        $pq->closepage;
-        pop @{$pq->{upon_end_page}};
+        render_sorted_da_list($pq, $render_person_details, $rr, 1, $printable_page_width, $lineheight);  #( $pq, $render_one, $items_across, $rr, $printable_page_width, $lineheight, $visible )
     }
 
     if ($do_book_listing_by_mm) {
-        warn "doing book LISTING - by MM\n" if $verbose;
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
-        for my $mm ( @mm_order ) {
-            my $rrr = $by_mm{$mm} or next;
-           #my $rrr = [grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr];
-            warn sprintf "doing book LISTING - for MM '%s'\n", $mm if $verbose;
-            my $heading = $mm_titles{$mm};
-            my %render_context = (  margin_note     => $heading,
-                                    heading         => $heading,
-                                    heading_bold    => 1,
-                                    heading_size    => $fontsize * PHI,
-                                 );
-            $pq->closepage;
-            my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
-            ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rrr, 1, 1, $col, $top);
-        }
-        $pq->closepage;
-        pop @{$pq->{upon_end_page}};
+        die "UNIMPLEMENTED";
     }
 
     if ($do_book_listing_by_wg) {
-        warn "doing book LISTING - by WG\n" if $verbose;
-        my $col;
-        my $top = 0;
-        for my $wg ( @wg_order ) {
-            $wg eq 'YF - overseas' and next;
-            my ($mm, $heading) = split /[- ]+/, $wg, 2;
-            my $margin_note = $heading;
-
-            my $rrr;
-            if ( $heading eq 'elsewhere' ) {
-                $rrr = elsewhere_filter $by_mm{$mm}, $mm or next;
-                $heading = sprintf "%s, in other parts of NZ", $mm_titles{$mm};
-                $margin_note = sprintf "%s MM in NZ", $mm;
-            } else {
-                $rrr = $by_wg{$wg} or next;
-                if ( $heading eq 'overseas' ) {
-                    $heading = sprintf "%s, overseas", $mm_titles{$mm};
-                    $margin_note = sprintf "%s MM overseas", $mm;
-                }
-            }
-
-            warn sprintf "doing book LISTING - for WG '%s'\n", $heading if $verbose;
-
-            my %render_context = (  margin_note     => $margin_note,
-                                    heading         => $heading,
-                                    heading_bold    => 1,
-                                    heading_size    => $fontsize * PHI,
-                                 );
-            if ( $top < $fontsize*$line_spacing*(6+@$rrr/2) ) { $top = 0 }    # skip to next column if not enough room for 6 lines or if the following list is "large"
-            else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
-            ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 1, 1, $col, $top);
-            ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rrr, 1, 1, $col, $top);
-
-          # $pq->closepage; $col = -1; $top = 0;
-        }
-        $pq->closepage;
+        die "UNIMPLEMENTED";
     }
 
     if ($do_book_index_all) {
-        warn "doing book INDEX - all\n" if $verbose;
-        # Margin name index letters
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
-        my %render_context = (  margin_note     => "full alphanetical index",
-                                heading         => "Everyone",
-                                heading_bold    => 1,
-                                heading_size    => $fontsize * PHI,
-                             );
-        my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
-        ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rr, 3, 1, $col, $top);
-        $pq->closepage;
-        pop @{$pq->{upon_end_page}};
+        render_sorted_da_list($pq, $render_person_index, $rr, 3, $printable_page_width, $lineheight);
     }
 
     if ($do_book_index_by_mm) {
-        warn "doing book INDEX - by MM\n" if $verbose;
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
-        for my $mm ( @mm_order ) {
-            warn sprintf "doing book INDEX - for MM '%s'\n", $mm if $verbose;
-            my $rrr = $by_mm{$mm} or next;
-            $pq->closepage;
-            my $h = $mm_titles{$mm};
-            my %render_context = (  margin_note     => $h,
-                                    heading         => $h,
-                                    heading_bold    => 1,
-                                    heading_size    => $fontsize * PHI,
-                                 );
-            my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
-            ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rrr, 3, 1, $col, $top);
-            $pq->closepage;
-        }
-        pop @{$pq->{upon_end_page}};
+        die "UNIMPLEMENTED";
     }
 
     if ($do_book_index_by_wg) {
-        warn "doing book INDEX - by WG\n" if $verbose;
-        my $col;
-        my $top = 0;
-        for my $wg ( @wg_order ) {
-            $wg eq 'YF - overseas' and next;
-            my ($mm, $heading) = split /[- ]+/, $wg, 2;
-            my $margin_note = $heading;
-
-            my $rrr;
-            if ( $heading eq 'elsewhere' ) {
-                $rrr = elsewhere_filter $by_mm{$mm}, $mm or next;
-                $heading = sprintf "%s, in other parts of NZ", $mm_titles{$mm};
-                $margin_note = sprintf "%s MM in NZ", $mm;
-            } else {
-                $rrr = $by_wg{$wg} or next;
-                if ( $heading eq 'overseas' ) {
-                    $heading = sprintf "%s, overseas", $mm_titles{$mm};
-                    $margin_note = sprintf "%s MM overseas", $mm;
-                }
-            }
-
-            warn sprintf "doing book INDEX - for WG '%s'\n", $heading if $verbose;
-
-            my %render_context = (  margin_note     => $margin_note,
-                                    heading         => $heading,
-                                    heading_bold    => 1,
-                                    heading_size    => $fontsize * PHI,
-                                 );
-            if ( $top < $fontsize*$line_spacing*(6+@$rrr/2) ) { $top = 0 }    # skip to next column if not enough room for 6 lines or if the following list is "large"
-            else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
-            ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 3, 1, $col, $top);
-            ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rrr, 3, 1, $col, $top);
-
-          # $pq->closepage; $col = -1; $top = 0;
-        }
-        $pq->closepage;
+        die "UNIMPLEMENTED";
     }
 
-    $pq->closepage;
-    delete $pq->{upon_end_page};
-
     ( $out, my $out_name ) = _open_output $out, 1;
-    print "Writing PDF to $out_name ($out)\n";
+    print "Writing PDF to $out_name\n";
     print {$out} $pq->stringify;
     close $out or die "Error while writing to $out_name; $!\n";
 }
 };
-
-sub generate_test($) {
-    my $out = shift;
-
-    my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
-
-    # if pagesize was given as eg "A5", convert that back to actual dimensions
-    $page_width = $pq->{page_width};
-    $page_height = $pq->{page_height};
-
-    my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
-    my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-    my $fontname = $book_fontname;
-    my $fontsize = $book_fontsize;
-    my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
-
-    warn sprintf "Pagination info\n"
-               . "page size: %.2fmm × %.2fmm (%s)\n"
-               . "printable page size: %.2fmm × %.2fmm\n"
-               ,
-                $page_width/mm, $page_height/mm, $page_size,
-                $printable_page_width/mm, $printable_page_height/mm,
-        if $verbose;
-
-    for my $v ( 0..2 ) {
-        for my $h ( 0..2 ) {
-            for my $r ( 0..3 ) {
-                $pq->text_at( sprintf('test text r=%s h=%s v=%s', $r, $h, $v),
-                              x => $page_width/2,
-                              y => $page_height/2,
-                              fn => $book_fontname,
-                              fs => 72*pt,
-                              r => $r+0.5,
-                              halign => $h,
-                              valign => $v,
-                            );
-            }
-    $pq->closepage;
-        }
-    }
-    $pq->closepage;
-    delete $pq->{upon_end_page};
-
-    ( $out, my $out_name ) = _open_output $out, 1;
-    print "Writing PDF to $out_name ($out)\n";
-    print {$out} $pq->stringify;
-    close $out or die "Error while writing to $out_name; $!\n";
-}
 
 ################################################################################
 
@@ -4672,25 +3240,21 @@ sub generate_test($) {
 # Sanity-check command-line args
 #
 
-$do_test || $do_book || $do_diff || $do_diffable_dump || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
+$do_book || $do_diff || $do_diffable_dump || $do_labels || $do_qdb_map or die "Need at least one of: --book-* --labels --diff --dump --qdb-map\n";
 
 #
 # Actual work...
 #
 
 if ($do_diff) {
-    $do_book || $do_diffable_dump || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
+    $do_book || $do_diffable_dump || $do_labels || $do_qdb_map and die "Can't combine --diff with anything else\n";
 
     my $f1 = shift @ARGV;
     my $f2 = shift @ARGV || '-';
     @ARGV == 0 or die "Need two files (or one file and stdin) with --diff\n";
     my $rr1 = parse_file $f1;
     my $rr2 = parse_file $f2;
-    generate_diff( $output_name, $rr1, $f1, $rr2, $f2 );
-}
-elsif ($do_test) {
-    my $o = $output_name || 'test.pdf';
-    generate_test( $o );
+    generate_diff( *STDOUT{IO}, $rr1, $f1, $rr2, $f2 );
 }
 else {
     if (!@ARGV) {
@@ -4698,16 +3262,16 @@ else {
         $output_name ||= '-';
     }
     ! $output_name or
-    $do_book + $do_labels + $do_diffable_dump + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
+    $do_book + $do_labels + $do_diffable_dump + $do_qdb_map == 1 or die "Only one function allowed with --output\n";
 
     for my $a (@ARGV) {
         my $rr = parse_file $a;
     #   if ($debug) {
     #       print Dumper($rr);
     #   }
-        if ($do_qndb_map) {
+        if ($do_qdb_map) {
             my $o = $output_name || $a =~ s/(?:\.\w+|)$/-qdb.csv/r;
-            generate_qndb_map( $o, $rr, $a );
+            generate_qdb_map( $o, $rr, $a );
         }
         if ($do_book) {
             my $o = $output_name || $a =~ s/(?:\.\w+|)$/-book.pdf/r;
@@ -4731,7 +3295,7 @@ else {
 
 __END__
 
-Set the global mediabox                     Set the global cropbox                      Set the global bleedbox                     Set the global trimbox                      Set the global artbox
+Set the global mediabox                     Set the global cropbox                      Set the global bleedbox                     Set the global trimbox                      Set the global artbox 
 
 ->mediabox($name)                           ->cropbox($name)                            ->bleedbox($name)                           ->trimbox($name)                            ->artbox($name)
 ->mediabox($width, $height)                 ->cropbox($width, $height)                  ->bleedbox($width, $height)                 ->trimbox($width, $height)                  ->artbox($width, $height)
