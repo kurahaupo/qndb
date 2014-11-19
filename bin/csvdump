@@ -98,6 +98,8 @@ sub sum(@) { my $r = shift; $r += $_ for @_; $r }
 sub uniq(@) { my %seen; grep { ! $seen{$_}++ } @_ }
 sub first(@) { @_ ? shift : () }
 sub near($$;$) { my ($a,$b) = @_; my $s = max(abs($a),abs($b)); abs($a-$b) < $s / ($_[2]||1000) }
+sub flatten(@) { map { ref $_ ? @$_ : $_ || () } @_ }
+
 sub sort_by_surname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
@@ -783,8 +785,8 @@ sub listed_email($) {
     my $r = shift;
     my $e = $r->_map('e_mail');
     return sort ::uniq
-            map { @$_ }
-             map { $e->{$_} || () }
+            ::flatten
+             map { $e->{$_} }
               'listing', @key_prefs; #, keys %$e
 }
 
@@ -792,8 +794,8 @@ sub listed_phone($) {
     my $r = shift;
     my $e = $r->_map('phone');
     return ::uniq
-            map { @$_ }
-             map { $e->{$_} || () }
+            ::flatten
+             map { $e->{$_} }
               'listing', 'mobile', @key_prefs; #, keys %$e
 }
 
@@ -801,8 +803,8 @@ sub all_addresses($) {
     my $r = shift;
     my $e = $r->_map('address');
     return ::uniq
-            map { @$_ }
-             map { $e->{$_} || () }
+            ::flatten
+             map { $e->{$_} }
               grep { ! /^old$|unlisted/ }
                @key_prefs, keys %$e
 }
@@ -811,7 +813,7 @@ sub listed_address($) {
     my $r = shift;
     my $e = $r->_map('address');
     return ::first
-            map { @$_ }
+            ::flatten
               ::first
                 map { $e->{$_} || () }
                   'listing', @key_prefs;
@@ -821,8 +823,8 @@ sub postal_address($) {
     my $r = shift;
     my $e = $r->_map('address');
     return ::first
-            map { @$_ }
-              map { $e->{$_} || () }
+            ::flatten
+              map { $e->{$_} }
                 'post', @key_prefs, 'c_', 'parents'; #, keys %$e;
 }
 
@@ -900,7 +902,7 @@ sub show_me_in_young_friends_listing($) {
 
 sub website_url($) {
     my $r = shift;
-    map { @$_ } values %{$r->{'MAP_website'}};
+    ::flatten values %{$r->{'MAP_website'}};
 }
 
 sub nz_friends_by_post($) {
@@ -1413,16 +1415,14 @@ sub new($\@\@) {
                     undef $tag;
                 }
                 elsif ($tag eq 'freephone') {
-                    $type = 'freephone_number';
+                    #$type = 'freephone_number';
                     $type = 'phone_number';
                     undef $tag;
                 }
             }
-            else {
-                if ($n =~ /^\+642|\+614|\+447/) {
-                    # cellphone
-                    $type = 'mobile_number';
-                }
+            if ($n =~ /^\+642|^\+614|^\+447/) {
+                # mobile area code, so ignore tag
+                $type = 'mobile_number';
             }
             $family{primary_phone} ||= $n;
             if ($tag) {
@@ -1614,9 +1614,13 @@ sub uid {
     $r->{'uid'} ||= 'GEN'.(0+$r).'-wdt';
 }
 
-sub uid_of_spouse            { my $r = shift; map { $_->uid }             grep {$_} $r && $r->{XREF_spouse}   }
-sub uids_of_parents          { my $r = shift; map { $_->uid } map { @$_ } grep {$_} $r && $r->{ZREF_parents}  }
-sub uid_of_children_under_16 { my $r = shift; map { $_->uid } map { @$_ } grep {$_} $r && $r->{ZREF_children} }
+sub uid_of_spouse            { my $r = shift; map { $_->uid } grep {$_} $r && $r->{XREF_spouse}   }
+sub uids_of_parents          { my $r = shift; map { $_->uid } ::flatten $r && $r->{ZREF_parents}  }
+sub uid_of_children_under_16 { my $r = shift; map { $_->uid } ::flatten $r && $r->{ZREF_children} }
+
+sub receive_local_newsletter_by_post { () }
+#sub nz_friends_by_email { 'No' }
+sub nz_friends_by_post { 'No' }
 
 }
 
@@ -1818,6 +1822,9 @@ my $need_region = 1;
 my $skip_archived = 1;
 my $skip_deceased = 1;
 my $skip_meetings = 1;
+my $skip_suppressed_listing = 0;
+my $skip_suppressed_email = 0;
+my $skip_suppressed_post = 0;
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
@@ -2072,6 +2079,9 @@ GetOptions
     'include-archived!'           => N$skip_archived,
     'include-deceased!'           => N$skip_deceased,
     'include-meetings!'           => N$skip_meetings,
+    'include-suppressed-listing!' => N$skip_suppressed_listing,
+    'include-suppressed-email!'   => N$skip_suppressed_email,
+    'include-suppressed-post!'    => N$skip_suppressed_post,
     'include-no-region!'          => N$need_region,
     'include-unsubscribed'        => N$skip_unsub,
     'instruction-color|instruction-colour=s' => \$instruction_colour,
@@ -2115,6 +2125,9 @@ GetOptions
     'skip-archived!'              => \$skip_archived,
     'skip-deceased!'              => \$skip_deceased,
     'skip-meetings!'              => \$skip_meetings,
+    'skip-suppressed-listing!'    => \$skip_suppressed_listing,
+    'skip-suppressed-email!'      => \$skip_suppressed_email,
+    'skip-suppressed-post!'       => \$skip_suppressed_post,
     'skip-unsubscribed'           => \$skip_unsub,
     'sort-book-by-givenname'      => \$sort_book_by_givenname,
     'sort-book-by-surname'        => \$sort_book_by_surname,
@@ -2507,21 +2520,26 @@ sub parse_file($) {
     close $in or die "Error while reading $in_name; $!\n";
 
     RECORD: for my $r ( @records ) {
-        my $uid = $r->uid;
-        for my $uid_of_kid ($r->uid_of_children_under_16) {
-            my $k = $record_by_uid{$uid_of_kid} or next RECORD;
-            push @{$k->{LIST_uids_of_parents}}, $uid;
-            push @{$k->{XREF_parents}}, $r;
-            push @{$r->{XREF_children}}, $k;
-        }
-        if (my ($uid_of_spouse) = $r->uid_of_spouse) {
-            my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid#%s, who does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
-            $r->{XREF_spouse} = $s;
-            $s->isa(CSV::Common::) or die "Not a CSV::Common record\n".Dumper($s);
-            my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has no spouse\n", $uid, $r->name, $uid_of_spouse; next; };
-            $s2uid eq $uid or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has a different spouse with uid#%s\n", $uid, $r->name, $uid_of_spouse, $s2uid; next; };
-            $s->{XREF_spouse} = $r;
-           #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
+        if ( $r->{ZREF_parents} || $r->{ZREF_children} ) {
+            $r->{XREF_parents}  = delete $r->{ZREF_parents};
+            $r->{XREF_children} = delete $r->{ZREF_children};
+        } else {
+            my $uid = $r->uid;
+            for my $uid_of_kid ($r->uid_of_children_under_16) {
+                my $k = $record_by_uid{$uid_of_kid} or next RECORD;
+                push @{$k->{LIST_uids_of_parents}}, $uid;
+                push @{$k->{XREF_parents}}, $r;
+                push @{$r->{XREF_children}}, $k;
+            }
+            if (my ($uid_of_spouse) = $r->uid_of_spouse) {
+                my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid#%s, who does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
+                $r->{XREF_spouse} = $s;
+                $s->isa(CSV::Common::) or die "Not a CSV::Common record\n".Dumper($s);
+                my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has no spouse\n", $uid, $r->name, $uid_of_spouse; next; };
+                $s2uid eq $uid or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has a different spouse with uid#%s\n", $uid, $r->name, $uid_of_spouse, $s2uid; next; };
+                $s->{XREF_spouse} = $r;
+               #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
+            }
         }
     }
 
@@ -2582,6 +2600,9 @@ sub parse_file($) {
                     my $rl = show_qonu($ru);
                     $v .= "  $rl";
                 }
+            }
+            if ($r->can("gtags") && $r->gtags("suppress listing")) {
+                $v .= "  [SUPPRESSED LISTING]";
             }
             printf $out "%s: %s\n", "name", $v;
             printf $out "%s: %s\n", "sort-by-surname", $r->{composite_name}->{sort_by_surname};
@@ -2802,6 +2823,9 @@ sub parse_file($) {
                 push @skips, 'archive - deceased'     if $skip_deceased && !$skip_archived;
                 push @skips, 'archive - unsubscribed' if $skip_unsub    && !$skip_archived;
                 push @skips, 'meetings'               if $skip_meetings;
+                push @skips, 'suppress listing'       if $skip_suppressed_listing;
+                push @skips, 'suppress email'         if $skip_suppressed_email;
+                push @skips, 'suppress post'          if $skip_suppressed_post;
                 \@skips;
             };
             if ( @$skips && $r->gtags(@$skips) ) {
