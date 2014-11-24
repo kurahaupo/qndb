@@ -1,0 +1,144 @@
+#!/bin/bash
+
+dbdir=$HOME/Quakers/db
+dldirs=( $HOME/Downloads  $dbdir/.. $dbdir ) once=false
+
+pT="$dbdir/profile-%(%Y%m%d)T.csv"
+gT="$dbdir/google-%(%Y%m%d)T.csv"
+
+list_before=false
+
+printf -v p0 "$pT" 1393541773   # baseline comparison file (first snapshot)
+printf -v p1 "$pT" 1402216718   # snapshot on which the Green Book was based
+
+g=()
+p=()
+use_google=true
+use_profile=true
+smart_diff=true
+
+true=1 false=0
+
+offset_times=()
+
+for o do
+    case $o in
+    (--*-days-ago)              offset_times+=( ${o//[^0-9]/} ) ;;
+    (--1-day-ago|--yesterday)   offset_times+=( 1 ) ;;
+    (--after)                   list_before=false ;;
+    (--before)                  list_before=true ;;
+    (--bl|--baseline)           p+=("$p0") ;;
+    (--book|--book2014)         p+=("$p1") ;;
+    (--last-week)               offset_times+=( 7 ) ;;
+    (--ng|--no-google|--no-gmail)   use_google=false  ;;
+    (--np|--no-profile)         use_profile=false ;;
+    (--offset-time=*)           offset_times+=( ${o#--*=} ) ;;
+    (--once)                    once=true ;;
+    (--loop)                    once=false ;;
+    (--ignore)                  ignore=true ;;
+    (--smart)                   smart_diff=true ;;
+    (--stupid)                  smart_diff=false ;;
+    (--today)                   offset_times+=( 0 ) ;;
+    (--ug|--use-google|--use-gmail) use_google=true  ;;
+    (--up|--use-profile)        use_profile=true ;;
+    (-*)                        dumpopts+=("$o") ;;
+    (*/google*|google*)         g+=($o) ;;
+    (*/profile*|profile*\
+    |*/mma-book*)               p+=($o) ;;
+    (*) echo >&2 "Unknown option '$o'" ; exit 64 ;;
+    esac
+done
+
+((${#offset_times[@]})) || offset_times=(0)
+
+echo "Offset times are: ${offset_times[*]}"
+
+do_comp() {
+    case $# in
+    (1) vim     "${ignore_file[@]}" \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1) \
+                ;;
+    (2)
+        vimdiff "${ignore_file[@]}" \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
+                ;;
+    (3) vimdiff "${ignore_file[@]}" \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$3" 2>&1 ) \
+                ;;
+    (4) vimdiff "${ignore_file[@]}" \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$3" 2>&1 ) \
+                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$4" 2>&1 ) \
+                ;;
+    (*) echo >&2 "Cannot diff $# files" ;;
+    esac
+}
+
+mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
+
+while
+    printf 'Diff? '
+    read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
+do
+    printf -v T "%(%s)T" -1
+    printf -v pt "$pT" $T
+    printf -v gt "$gT" $T
+
+    delay=false
+    for dd in "${dldirs[@]}"
+    do
+        mvs "$dd/google.csv"      "$gt"
+        mvs "$dd/all_members.csv" "$pt"
+    done
+    $delay && sleep 1.25
+
+        ff=()
+    $list_before && ff+=( "${p[@]}" )
+
+        ff+=( "${g[@]}" )
+    ((use_google)) && {
+        printf -v gx "$gT" $T
+        ff+=( "$gx" )
+    }
+
+    ((use_profile)) &&
+    for t in "${offset_times[@]}"
+    do
+        printf -v px "$pT" $((T-t*86400))
+        ff+=( "$px" )
+    done
+    ! $list_before && ff+=( "${p[@]}" )
+
+    (( nff = ${#ff[@]} ))
+    if (( smart_diff )) && (( nff == 2 ))
+    then
+        csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
+            less -i
+    else
+        ignore_opts=()
+        ignore_file=()
+        if (( ignore ))
+        then
+            ignore_file="$(dirname "$1")/DIFF ${*##*/}"
+            ignore_file="${ignore_file//' '/:}"
+            :>> "$ignore_file"
+            ignore_opts+=( --diff-ignore-file="$ignore_file" )
+        fi
+        for (( i=0 ; i<nff ; ++i )) do
+            [[ ${ff[i]} = *.csv ]] || continue
+            exec {fd}< <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
+            fz[i]=$fd
+            ff[i]=/proc/$BASHPID/fd/$fd
+        done
+        #do_comp "${ff[@]}"
+        vim "${ignore_file[@]}" "${ff[@]}"
+        for fd in ${fz[@]} ; do
+            exec {fd}<&-
+        done
+    fi
+    $once && break
+done
