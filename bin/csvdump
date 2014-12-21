@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use utf8;
 
+use Fcntl qw( SEEK_SET );
 use POSIX qw(strftime);
 use Data::Dumper;
 
@@ -112,7 +113,7 @@ sub sort_by_givenname(@) {
     return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
                || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_
 }
-sub sort_by(@) {
+sub preferred_sort(@) {
     goto &sort_by_givenname;
 }
 
@@ -1870,6 +1871,7 @@ my $suppress_status = 0;
 my $suppress_yf_listing = 0;
 my $show_hyperlinks = 1;
 my $diff_by = 'uid';
+my $diff_ignore_file;
 my $diff_quietly = 0;
 
 ########################################
@@ -2052,6 +2054,7 @@ GetOptions
     'diff-by-any'                 => sub { $diff_by = '' },
     'diff-by-name'                => sub { $diff_by = 'name' },
     'diff-by-uid'                 => sub { $diff_by = 'uid' },
+    'diff-ignore-file=s'          => \$diff_ignore_file,
     'dump|diffable-dump'          => \$do_diffable_dump,
     'encode-octet|encode-byte|eb' => sub { $use_encoding = 'OCTET' },
     'encode-utf16be|eu16b'        => sub { $use_encoding = 'UTF-16BE' },
@@ -2379,7 +2382,7 @@ s/^\W*// for @selection_tags,
 #  - CSV input for the interrim label generator
 #
 
-sub parse_file($) {
+sub open_file_for_reading($) {
     my $in_name = "(stdin)";
     my $in = shift;
 
@@ -2388,10 +2391,13 @@ sub parse_file($) {
     my $qchar = $csv_quote_char;
 
     if (!ref $in) {
+        # param is *not* a filehandle
         if (!$in || $in eq '-') {
+            # param is '' or '-', use stdin
             $in = *STDIN{IO};
         }
         else {
+            # param is filename, so open it
             $in_name = $in;
             $in = undef;
         }
@@ -2402,9 +2408,16 @@ sub parse_file($) {
     my @rd_binmode;
     my $rd_crlf = 1;
     if ($force_decoding) {
+        #
+        # we were told to expect a specific encoding; trust the user...
+        # (this might be necessary if the input is a pipe, so we can't rewind it)
+        #
         push @rd_binmode, ":encoding($force_decoding)" if $force_decoding ne 'OCTET';
     }
     else {
+        #
+        # deduce the encoding by reading the first 8KiB and looking for BOM and FS
+        #
         open $in, '<:raw', $in_name or die "Can't open $in_name; $!\n" if !$in;
         local $/ = \8192;
         my $s = <$in>;
@@ -2447,11 +2460,10 @@ sub parse_file($) {
             warn sprintf "Guessing %s for %s (no BOM)\n", $decoding || 'OCTET', $in_name;
         }
         push @rd_binmode, ":encoding($decoding)" if $decoding;
-        seek $in, $seek_to, 0 or die "Cannot seek within $in_name; $!\n(char-set auto-detection unavailable)\n";
+        seek $in, $seek_to, SEEK_SET or die "Cannot seek within $in_name; $!\n(char-set auto-detection unavailable)\n";
         $rd_crlf = $s =~ m{\r\n} ? 1 : 0;
     }
-    $rd_crlf and push @rd_binmode, ":crlf";
-
+    push @rd_binmode, ":crlf" if $rd_crlf;
     unshift @rd_binmode, ':raw' if @rd_binmode;
     warn "READ BINMODE=@rd_binmode\n" if $verbose > 1 && @rd_binmode;
     if (!$in) {
@@ -2460,6 +2472,12 @@ sub parse_file($) {
     else {
         binmode $in, "@rd_binmode" or die "Can't set binmode(@rd_binmode) on $in_name; $!\n" if @rd_binmode;
     }
+
+    return $in, $in_name, $fsep, $echar, $qchar;
+}
+
+sub parse_file($) {
+    my ( $in, $in_name, $fsep, $echar, $qchar ) = open_file_for_reading shift;
 
     my $filetype;
     $fsep ||= ',';
@@ -2662,7 +2680,7 @@ sub parse_file($) {
                 printf $out "%s: %s\n", "spouse", $v;
             }
             if (my $pp = $r->{XREF_parents}) {
-                for my $p ( sort_by @$pp ) {
+                for my $p ( preferred_sort @$pp ) {
                     #$p->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($p);
                     my $v = $p->name || '(unknown)';
                     if ($show_hyperlinks and my $pu = $p->uid) {
@@ -2673,7 +2691,7 @@ sub parse_file($) {
                 }
             }
             if (my $cc = $r->{XREF_children}) {
-                for my $c ( sort_by @$cc ) {
+                for my $c ( preferred_sort @$cc ) {
                     #$c->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($c);
                     my $v = $c->name || '(unknown)';
                     if ($show_hyperlinks and my $cu = $c->uid) {
@@ -2763,6 +2781,7 @@ sub parse_file($) {
 
     sub _skip_restricted_record($) {
         my $r = shift;
+
         if (@restrict_regions) {
             my $skip = 0;
             if ( $r->can('gtags') ) {
@@ -2844,6 +2863,39 @@ sub parse_file($) {
                 warn "Skipping line#$r->{__source_line} ".$r->name." because [no mm area, no formal membership, and no yf listing]\n" if $why_not;
                 return 1;
                 #$r->name =~ /Bakke/ and die Dumper($r);
+            }
+        }
+        if ( $diff_ignore_file ) {
+            state $things_to_ignore = do {
+                my %ignore_uid;
+                my %ignore_name;
+
+                my ( $in, $in_name ) = open_file_for_reading $diff_ignore_file;
+
+                my @f = <$in>;
+                close $in or die "Couldn't read '$in_name'; $!\n";
+                for my $f (@f) {
+                    chomp $f;
+                    $f =~ s/\#.*//;
+                    $f =~ s/\s+$//;
+                    next if !$f;
+                    if ($f =~ /^\d/) {
+                        $ignore_uid{$f} = 1;
+                    } else {
+                        $ignore_name{lc $f} = 1;
+                    }
+                }
+                warn "Loading ignorance table, ".(0+%ignore_uid)." uids and ".(0+%ignore_name)." names\n" if $verbose;
+                warn Dumper( \%ignore_uid, \%ignore_name ) if $verbose > 2;
+                [ \%ignore_uid, \%ignore_name ]
+            };
+            if ($things_to_ignore->[0]{$r->uid}) {
+                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring uid]\n" if $why_not;
+                return 1;
+            }
+            if ($things_to_ignore->[1]{lc $r->name}) {
+                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring name]\n" if $why_not;
+                return 1;
             }
         }
         return 0;
@@ -2940,11 +2992,11 @@ sub generate_diff($$$$$) {
     warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if $verbose;
     my @ofields = _choose_ofields;
 
-    my @rr1 = sort_by grep { !_skip_restricted_record $_ } @$rr1;
+    my @rr1 = preferred_sort grep { !_skip_restricted_record $_ } @$rr1;
     my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
     my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
 
-    my @rr2 = sort_by grep { !_skip_restricted_record $_} @$rr2;
+    my @rr2 = preferred_sort grep { !_skip_restricted_record $_} @$rr2;
     my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
     my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
 
@@ -3009,7 +3061,7 @@ sub diffably_dump_records($$;$) {
     my @ofields = _choose_ofields;
     my @records = @$rr;
     #print Dumper(\@records);
-    @records = sort_by @records;
+    @records = preferred_sort @records;
     #print Dumper(\@records);
     RECORD: for my $r (@records) {
         _skip_restricted_record $r and do {
@@ -3041,7 +3093,7 @@ sub generate_qndb_map($$;$) {
     ( $out, my $out_name ) = _open_output $out;
     my %rr = map { ( $_->uid => $_ ) } @$rr;
     print $out "Name,Group Membership,Custom Field 1 - Type,Custom Field 1 - Value,Custom Field 2 - Type,Custom Field 2 - Value,Custom Field 3 - Type,Custom Field 3 - Value\n";
-    my @records = sort_by @$rr;
+    my @records = preferred_sort @$rr;
     RECORD: for my $r (@records) {
         my $fullname = $r->name || next RECORD; #die "Missing name\n".Dumper($r);
         my $qdb = $r->uid || die "missing uid\n".Dumper($r);
