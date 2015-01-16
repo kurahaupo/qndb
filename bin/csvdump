@@ -327,6 +327,7 @@ sub text_size($$$$$;$) {
 
 sub text_flow($$$$$$$$;$) {
     my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit, $top, $left, $rotate) = @_;
+    ! $rotate or croak "Rotation has been deprecated";
     my $lineheight = $fontsize*$line_spacing;
     $str or do {
         warn sprintf "TEXTFLOW text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (1 empty line)\n",
@@ -3965,10 +3966,19 @@ sub render_index_list($$) {
         my $ep = $pq->{upon_start_page};
         for my $mm ( @mm_order ) {
             $pq->closepage;
+            my $mmname = $mm_names{$mm};
+            my $bfs = $fontsize*1.68**2;
+            my $lineheight = $bfs*$line_spacing;
+            my ($w, $h) = $pq->text_size($fontname, $bfs, $line_spacing, $mm);
             $pq->{upon_start_page} = sub {
                 $ep->(@_) if $ep;
                 my ($pq, $pagenum) = @_;
-                $pq->text_flow($fontname, $fontsize*1.68**2, $line_spacing, $mm, $page_left_margin*0.75, $page_height - $page_top_margin, ( $pagenum % 2 ? $page_width-$page_right_margin*7/8 : $page_left_margin/8 ),  $pagenum % 2 ? -90 : 90);
+                my $rotation = $left_page ? -90 : 90;
+                my $left_page = $pagenum % 2;
+                my $top =  $page_height - $page_top_margin;
+                my $left = $left_page ? $page_width-$page_right_margin*7/8 : $page_left_margin/8;
+                $pq->text_flow($fontname, $bfs, $line_spacing, $mm, $page_left_margin*0.75, $top, $left, $rotation);
+
             };
             my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
             render_sorted_columnated_list($pq, $render_person_index, 'render_context', \@rr2, 3, 1);
