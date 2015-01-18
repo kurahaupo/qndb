@@ -91,8 +91,6 @@ my %spelling_fixes = (
 
 ################################################################################
 
-sub normalize_phone($);
-
 {
 package list_functions;
 sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
@@ -103,9 +101,21 @@ sub first(@) { @_ ? shift : () }
 sub near($$;$) { my ($a,$b) = @_; my $s = max(abs($a),abs($b)); abs($a-$b) < $s / ($_[2]||1000) }
 sub flatten(@) { map { ref $_ ? @$_ : $_ || () } @_ }
 sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( min max sum uniq first near flatten )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
-BEGIN { $INC{"list_functions.pm"} = __FILE__ }
+BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ }
 }
+
+{
+package math_constants;
+use constant PHI => (sqrt(5)+1)/2;
+use constant PI => atan2(0,-1);
+use constant degrees_to_radians => PI/180;
+sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( PI degrees_to_radians PHI )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
+BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ }
+}
+
 use list_functions;
+
+sub normalize_phone($);
 
 sub sort_by_surname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
@@ -172,7 +182,13 @@ sub _startpage {
     $p->{page_item_num} = 0;
     if (my $cb = $p->{upon_start_page}) {
         my $pagenum = $pdf->pages || 0;
-        $cb->($p, $pagenum);
+        if (ref $cb eq 'CODE') {
+            $cb->($p, $pagenum);
+        } else {
+            for my $cc (@$cb) {
+                $cc->($p, $pagenum);
+            }
+        }
     }
 }
 
@@ -189,10 +205,17 @@ sub closepage {
     $p->{page} or return;  # no current page
     if (my $cb = $p->{upon_end_page}) {
         my $pagenum = $p->pdf->pages || 0;
-        $cb->($p, $pagenum);
+        if (ref $cb eq 'CODE') {
+            $cb->($p, $pagenum);
+        } else {
+            for my $cc (@$cb) {
+                $cc->($p, $pagenum);
+            }
+        }
     }
     delete $p->{text};
     delete $p->{page};
+    delete $p->{pagedata};
 }
 
 # get the "text" attribute of the current page (starting a new page if necessary)
@@ -228,15 +251,15 @@ sub stringify {
     return $r;
 }
 
-sub write_into {
-    my $p = shift;
-    my $filename = shift;
-    my $pdf = $p->{pdf} or return;
-    $p->closepage;
-    my $r = $pdf->saveas($filename);
-    %$p = ();
-    return $r;
-}
+#sub write_into {
+#    my $p = shift;
+#    my $filename = shift;
+#    my $pdf = $p->{pdf} or return;
+#    $p->closepage;
+#    my $r = $pdf->saveas($filename);
+#    %$p = ();
+#    return $r;
+#}
 
 #
 # Assuming no height bound, how much space would a given chunk of text take,
@@ -267,7 +290,7 @@ sub text_size($$$$$;$) {
                     _qm $str, $fontsize/mm,
                     0, $lineheight/mm,
             if $verbose > 3;
-        return 0, $lineheight;
+        return 0, $lineheight, 0, 0;
     };
     flush STDERR;
     my $boldstate = 0;
@@ -281,6 +304,7 @@ sub text_size($$$$$;$) {
         my $part = shift @parts;
         $part eq '' and next PART;
         if ( $part eq "\n" ) {
+            warn sprintf "TEXTSIZE newline ending line %u at column %.2fmm\n", $lines, $col/mm if $verbose > 3;
             $width >= $col or $width = $col;
             ++$lines;
             $col = 0;
@@ -289,7 +313,7 @@ sub text_size($$$$$;$) {
         if ( $part =~ /^[\x{fe10}-\x{fe1f}]$/ ) {
             $boldstate = (ord($part) - 0xfe10) % @fontnames;
             $pq->font( $fontnames[$boldstate], $fontsize );
-            warn sprintf "TEXTSIZE boldstate %#x [%s]\n", $boldstate, $fontnames[$boldstate] if $verbose > 3;
+            warn sprintf "TEXTSIZE boldstate %u [%s]\n", $boldstate, $fontnames[$boldstate] if $verbose > 3;
             next PART;
         }
         my $part_width = $text->advancewidth($part);
@@ -297,37 +321,40 @@ sub text_size($$$$$;$) {
             my $t = $part;
             warn sprintf "TEXTSIZE linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
                 if $verbose > 3 && $part_width > $width_limit-$col;
-            while ( $col+$part_width > $width_limit ) {
-                $t =~ s#\s+\S*$## or $t =~ s#.$## or last;
+            while ( $part_width > $width_limit-$col ) {
+                $t =~ s#\s+\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
                 $part_width = $text->advancewidth($t);
             }
-            if ($t ne '' && $col == 0) {
+            if ($t ne '' || $col > 0) {
                 (my $u = substr($part, length($t))) =~ s#^\s+##;
                 warn sprintf "TEXTSIZE wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
                     if $verbose > 3 && $u ne '';
                 unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
             }
             else {
-                warn "TEXTSIZE cantwrap\n" if $verbose > 3;
+                warn sprintf "TEXTSIZE cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
             }
         }
         $col += $part_width;
     }
     $width >= $col or $width = $col;
-    warn sprintf "TEXTSIZE text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (%u lines)\n",
+    my $height = $lines * $lineheight;
+    warn sprintf "TEXTSIZE text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (%u lines) return=(↔%.2fmm,↕%.2fmm)\n",
             _qm $str, $fontsize/mm,
             $width/mm, $lines * $lineheight/mm, $lines,
+            $col/mm, ($height - $lineheight)/mm,
         if $verbose > 3;
-    return $width, $lines * $lineheight;
+    return $width, $height, $col, $height - $lineheight;
 }
 
 #
 # Flow lines of text into a box; returns the width & height (same as text_size)
 #
 
+use Carp 'croak';
 sub text_flow($$$$$$$$;$) {
-    my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit, $top, $left, $rotate) = @_;
-    ! $rotate or croak "Rotation has been deprecated";
+    my ($pq, $fontname, $fontsize, $line_spacing, $str, $width_limit, $top, $left) = @_;
+    $#_ == 7 or croak "text_flow: wrong number of args";
     my $lineheight = $fontsize*$line_spacing;
     $str or do {
         warn sprintf "TEXTFLOW text=[%s] font=%.2fmm -> size=(↔%.2fmm,↕%.2fmm) (1 empty line)\n",
@@ -347,15 +374,7 @@ sub text_flow($$$$$$$$;$) {
     warn sprintf "TEXTFLOW position  →%.2fmm,↑%.2fmm\n",
             $left/mm, $ypos/mm,
         if $verbose > 3;
-  # $text->translate( $left, $ypos );
-  # $text->rotate_rel($rotate//0) if $rotate;
-
-    $text->transform(
-        -translate => [$left, $ypos],
-        -rotate    => $rotate,
-      # -scale     => [$sx, $sy],
-      # -skew      => [$sa, $sb],
-    );
+    $text->translate( $left, $ypos );
 
     PART: for ( my @parts = split /([\n\x{fe10}-\x{fe1f}])/, $str ; @parts ;) {
         my $part = shift @parts;
@@ -375,7 +394,7 @@ sub text_flow($$$$$$$$;$) {
         if ( $part =~ /^[\x{fe10}-\x{fe1f}]$/ ) {
             $boldstate = (ord($part) - 0xfe10) % @fontnames;
             $pq->font( $fontnames[$boldstate], $fontsize );
-            warn sprintf "TEXTFLOW boldstate %#x [%s]\n", $boldstate, $fontnames[$boldstate] if $verbose > 3;
+            warn sprintf "TEXTFLOW boldstate %u [%s]\n", $boldstate, $fontnames[$boldstate] if $verbose > 3;
             next PART;
         }
         my $part_width = $text->advancewidth($part);
@@ -384,10 +403,10 @@ sub text_flow($$$$$$$$;$) {
             warn sprintf "TEXTFLOW linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
                 if $verbose > 3 && $part_width > $width_limit-$col;
             while ( $part_width > $width_limit-$col ) {
-                $t =~ s#\s+\S*$## || $t =~ s#.$## or last;
+                $t =~ s#\s+\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
                 $part_width = $text->advancewidth($t);
             }
-            if ($t ne '' && $col == 0) {
+            if ($t ne '' || $col > 0) {
                 (my $u = substr($part, length($t))) =~ s#^\s+##;
                 warn sprintf "TEXTFLOW wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
                     if $verbose > 3 && $u ne '';
@@ -395,20 +414,88 @@ sub text_flow($$$$$$$$;$) {
                 $part = $t;
             }
             else {
-                warn "TEXTFLOW cantwrap\n" if $verbose > 3;
+                warn sprintf "TEXTFLOW cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
             }
         }
         $text->text($part);
         $col += $part_width;
     }
     $width >= $col or $width = $col;
-    warn sprintf "TEXTFLOW text=[%s] font=%.2fmm pos=(→%.2fmm,↑%.2fmm) -> size=(↔%.2fmm,↕%.2fmm) (%u lines)\n",
+    warn sprintf "TEXTFLOW text=[%s] font=%.2fmm pos=(→%.2fmm,↑%.2fmm) -> size=(↔%.2fmm,↕%.2fmm) (%u lines) return=(↔%.2fmm,↕%.2fmm)\n",
                 _qm $str, $fontsize/mm,
                 $left/mm, $top/mm,
                 $width/mm, ($ypos - $top)/mm,
                 $lines,
+                $col/mm, ($lines > 1 && $top - $ypos - $lineheight)/mm,
         if $verbose > 3;
-    return $width, $top - $ypos;
+    return $width, $top - $ypos, $col, $lines > 1 && $top - $ypos - $lineheight;
+}
+
+#
+# $pq->text_rotate($fname,$fsize, "some text", 
+# Write a single line of text in a rotated orientation
+# (attempt to arrange so that the top/left is not overlapped -- hopefully)
+# Rotation is anticlockwise
+# Assumes a stand-alone fixed-position line of text, so does not give you repositioning info
+#
+
+use math_constants;
+use list_functions;
+
+sub text_rotate($$$$$$$$) {
+    my ($pq, $fontname, $fontsize, $str, $top, $left, $rotation, $boldstate) = @_;
+    $#_ >= 6 && $#_ <= 7 or croak 'Wrong number of args; expecting pq->text_rotate( fontname, fontsize, str, top, left, rotation, [boldstate,] )';
+
+    $str && $str ne '' or do {
+        warn sprintf "TEXT_ROT (empty)\n" if $verbose > 3;
+        return ();
+    };
+
+    $str =~ /[\n\x{fe10}-\x{fe1f}]/ and croak "text_rotate does not support multiline or multifont text";
+
+    my $sin = sin($rotation*degrees_to_radians);
+    my $cos = cos($rotation*degrees_to_radians);
+
+    flush STDERR;
+    $boldstate //= 0;
+    my @fontnames = map { $fontname.$_ } @font_variants;
+    $pq->font( $fontnames[$boldstate], $fontsize );
+
+    my $text = $pq->text;
+    my $width = $text->advancewidth($str);
+    my $height = $fontsize;
+
+    my $bl_x_off = 0;
+    my $bl_y_off = 0;
+    my $tl_x_off = $height * -$sin;
+    my $tl_y_off = $height *  $cos;
+    my $br_x_off = $width  *  $cos;
+    my $br_y_off = $width  *  $sin;
+    my $tr_x_off = $tl_x_off + $br_x_off;
+    my $tr_y_off = $tl_y_off + $br_y_off;
+
+    my $xpos = $left - min $bl_x_off, $br_x_off, $tl_x_off, $tr_x_off;
+    my $ypos = $top  - max $bl_y_off, $br_y_off, $tl_y_off, $tr_y_off;
+
+    warn sprintf "TEXT_ROT position  →%.2fmm,↑%.2fmm\n",
+            $xpos/mm, $ypos/mm,
+        if $verbose > 3;
+
+    $text->transform(
+        -translate => [$xpos, $ypos],
+        -rotate    => $rotation,
+      # -scale     => [$sx, $sy],
+      # -skew      => [$sa, $sb],
+    );
+
+    $text->text($str);
+
+    warn sprintf "TEXT_ROT text=[%s] font=%.2fmm pos=(→%.2fmm,↑%.2fmm) -> size=(↔%.2fmm,↕%.2fmm) (1 line)\n",
+                _qm $str, $fontsize/mm,
+                $left/mm, $top/mm,
+                ($ypos - $top)/mm,
+        if $verbose > 3;
+    return ();
 }
 
 #sub DESTROY { }
@@ -1209,6 +1296,8 @@ sub _spouse_and_parents {
     return $r->{XREF_spouse} || (), $r->{XREF_parents} ? @{$r->{XREF_parents}} : ();
 }
 
+use list_functions 'uniq';
+
 sub monthly_meeting_area {
     my $r = shift;
     my @x = $r->{monthly_meeting_area} || ();
@@ -1224,7 +1313,7 @@ sub monthly_meeting_area {
       #     ;
       # }
     }
-    return ::uniq sort @x;
+    return sort uniq @x;
 }
 
 sub nz_friends_by_post {
@@ -1241,7 +1330,7 @@ sub nz_friends_by_post {
       #     ;
       # }
     }
-    return ::uniq sort @x;
+    return sort uniq @x;
 }
 
 sub listed_email($) {
@@ -1290,12 +1379,12 @@ sub listed_email($) {
     else {
         s#^([^@]*)\+\S*(\@.*)$#$1$2# for @a;
     }
-    return sort ::uniq @a;
+    return sort uniq @a;
 }
 
 sub all_addresses($) {
     my $r = shift;
-    return ::uniq grep {$_}
+    return uniq grep {$_}
         $r->{X_home_address},
         $r->{X_po_box_address},
         $r->{X_rd_address},
@@ -1370,6 +1459,7 @@ package WordDocTxt;
 use Carp 'croak';
 
 use parent -norequire => CSV::Common::;
+use list_functions 'uniq';
 
 sub new($\@\@) {
     my ($class, $headers, $ra) = @_;
@@ -1617,8 +1707,8 @@ sub birthdate { return shift->{birthdate} }
 sub _phones($$) {
     my ($r, $k) = @_;
     my $p = $r->{$k} || return;
-    return                             ::uniq @$p;
-  # return map { ::localize_phone $_ } ::uniq @$p;
+    return                             uniq @$p;
+  # return map { ::localize_phone $_ } uniq @$p;
 }
 
 sub fax             { $_[1] = 'fax_number';    goto &_phones; }
@@ -1627,7 +1717,7 @@ sub mobile_number   { $_[1] = 'mobile_number'; goto &_phones; }
 sub show_me_in_young_friends_listing { return shift->{show_me_in_young_friends_listing} }
 sub listed_address  { my $r = shift; return my ($a) = map { s/\nRD \d+\n/\n/r } map { $r->{$_} ? @{$r->{$_}} : () } qw{ street_address listed_address postal_address } }
 sub postal_address  { my $r = shift; return my ($a) = map { $r->{$_} ? @{$r->{$_}} : () } qw{ postal_address listed_address street_address } }
-sub all_addresses   { my $r = shift; return ::uniq    map { $r->{$_} ? @{$r->{$_}} : () } qw{ listed_address street_address postal_address } }
+sub all_addresses   { my $r = shift; return uniq      map { $r->{$_} ? @{$r->{$_}} : () } qw{ listed_address street_address postal_address } }
 sub listed_email    { my $r = shift; return sort @{$r->{listed_email}} if $r->{listed_email} }
 sub formal_membership { my $r = shift; return $r->{formal_membership} || (); }
 
@@ -1637,8 +1727,8 @@ sub uid {
 }
 
 sub uid_of_spouse            { my $r = shift; map { $_->uid } grep {$_} $r && $r->{XREF_spouse}   }
-sub uids_of_parents          { my $r = shift; map { $_->uid } ::flatten $r && $r->{ZREF_parents}  }
-sub uid_of_children_under_16 { my $r = shift; map { $_->uid } ::flatten $r && $r->{ZREF_children} }
+sub uids_of_parents          { my $r = shift; map { $_->uid }   flatten $r && $r->{ZREF_parents}  }
+sub uid_of_children_under_16 { my $r = shift; map { $_->uid }   flatten $r && $r->{ZREF_children} }
 
 sub receive_local_newsletter_by_post { () }
 #sub nz_friends_by_email { 'No' }
@@ -1662,20 +1752,23 @@ sub normalize_phone($) {
     }
 }
 
-my $nbsp = "\x{a0}";  # non-breaking space, using for spacing out phone numbers
+my $nbsp = "\x{a0}";  # non-breaking space, for spacing out phone numbers
 
 sub localize_phone($) {
     my $o = shift @_;
     my $oo = my $z = normalize_phone $o;
     for ($z) {
-        s/^\+1
-         |^\+4\d
-         |^\+6[145]
-         |^\+86
-         |^\+91
+        s/^\+1      # NANP
+         |^\+27     # ZA
+         |^\+4\d    # GB+EU
+         |^\+6[145] # Oceania
+         |^\+7      # СССР
+         |^\+86     # CH
+         |^\+91     # IN
          |^\+\d\d\d
          /$& /x;
         s/^\+1\s\d\d\d
+         |^\+27\s1\d\d
          |^\+44\s1\d\d\d
          |^\+44\s[2389]\d\d
          |^\+61\s1\d00
@@ -1685,6 +1778,7 @@ sub localize_phone($) {
          |^\+64\s800
          |^\+64\s83
          |^\+64\s[34679]
+         |^\+7\s\d\d\d2*
          |^\+\d\+\s\d\d
          /$& /x;
         s/^\+64\s*/0/;
@@ -1742,6 +1836,65 @@ my %show_fields = (
   # uid_of_spouse               => \&show_qonu,   # CSV::qndb
   # uids_of_parents             => \&show_qonu,   # CSV::qndb
 );
+
+########################################
+
+my $paper_sizes = {
+        # A-series paper sizes, portrait
+        (map {
+            (my $x = $_) =~ s/^a//i;
+            my $h = 2**(0.25-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'a0' : "a$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } -2 .. 10),
+        # B-series paper sizes, portrait
+        (map {
+            (my $x = $_) =~ s/^b//i;
+            my $h = 2**(0.5-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'b0' : "b$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } 0 .. 10),
+        # C-series envelope sizes, landscape
+        (map {
+            (my $x = $_) =~ s/^c//i;
+            my $w = 2**(0.375-$x/2);
+            my $h = $w / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'c0' : "c$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } 0 .. 10),
+        # DL envelope size, landscape
+        dl => [ 110*mm, 220*mm ],
+    };
+
+########################################
+# actual parsing of command-line
+
+sub II(&) {
+    my $f = pop;
+    sub {
+        for my $i ( split m{\s*,\s*}, $_[1] ) {
+            my @k = split m{[=/]}, $i;
+            $k[1] ||= '!post '.$k[0];
+            $f->(@k);
+        }
+    }
+}
+
+sub as_points($) {
+    my $v = $_[0];
+    if ($v =~ s/[a-z]+$//) {
+        state $units = {
+            cm => 0.1*mm,
+            in => in,
+            m  => 1000*mm,
+            mm => mm,
+            pt => pt,
+            px => px,
+            μm => 0.001*mm,
+        };
+        $v *= $units->{$&} || die "Unknown unit-of-measure $&\n";
+    }
+    $v;
+}
 
 ################################################################################
 #
@@ -1822,9 +1975,9 @@ my $diff_ignore_file;
 my $diff_quietly = 0;
 
 ########################################
-# Generic PDF output options
+# Generic PDF output options (shared between labels and book generation)
 
-my $page_size = 'a4';  # this is shared with book generation
+my $page_size = 'a4';
 my $page_height = 297.302*mm;
 my $page_width  = 210.224*mm;
 
@@ -1833,13 +1986,17 @@ my $page_right_margin  = 18*mm;
 my $page_bottom_margin = 14*mm;
 my $page_top_margin    = 14*mm;
 
+my $line_spacing = 1.25;    # ratio of font-size to line-pitch
+
+my $extra_para_spacing = 0.25;  # used between records in book format
+
 ########################################
 # Book output options
 
 #my $item_left_margin  = 5*mm;
 #my $item_right_margin = 5*mm;
 my $intercolumn_margin = 10*mm;     # $item_left_margin + $item_right_margin;
-                                    # ::min 10*mm, $page_left_margin, $page_right_margin;
+                                    # min 10*mm, $page_left_margin, $page_right_margin;
 my $interdetail_spacing = 1.75*mm;
 
 ########################################
@@ -1854,8 +2011,9 @@ my $label_right_margin = 1*mm;
 my $label_bottom_margin = 4*mm;
 my $label_top_margin = 4*mm;
 
-my $line_spacing = 1.25;
-my $extra_para_spacing = 0.25;
+my $label_fontsize = 12*pt;
+
+my $book_fontname  = 'Helvetica';
 
 my $label_width;
 my $label_height;
@@ -1865,10 +2023,14 @@ my $num_labels_across = 2;
 my $num_labels_down = 4;
 my $labels_ordered_in = 'columns';
 
-my $normal_font = 'Helvetica';
-my $fontsize = 12*pt;
+use math_constants 'PHI';
 
-my $postcode_fontsize = 14;
+my $normal_font = 'Helvetica';
+my $book_fontsize = 12*pt;
+my $book_pagenumber_fontsize = $book_fontsize / PHI;
+my $book_margin_fontsize = $book_fontsize * PHI;
+
+my $postcode_fontsize = 14*pt;
 my $postcode_font = 'Helvetica';
 
 my $banner_font = 'Helvetica';
@@ -1876,320 +2038,47 @@ my $banner_scale = (sqrt(5)+1)/2;   # =φ=1.61803398874989484820
 
 my $instruction_colour = 'orange';
 
-################################################################################
 
-=head 3
+my $use_page_numbers;
 
-Label records
+    sub use_preset {
+        my $pt = pop;
 
-=cut
+        state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
 
-{
-package CommonLabel;
+        state $label_product = {
+            ( map { ( $_     => { page_size => $_,     page_height => $paper_sizes->{$_}->[0], page_width => $paper_sizes->{$_}->[1], num_labels_across => 2, num_labels_down => 3, } ) } keys %$paper_sizes ),
+            ( map { ( $_.'R' => { page_size => $_.'R', page_height => $paper_sizes->{$_}->[1], page_width => $paper_sizes->{$_}->[0], num_labels_across => 3, num_labels_down => 2, } ) } keys %$paper_sizes ),
 
-use scale_factors;
+            'avery-l7160' => {
+                    page_size            => 'a4',
+                    page_height          => 297.302*mm,
+                    page_width           => 210.224*mm,
+                    num_across           => 3,
+                    num_down             => 7,
+                    page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
+                    page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
+                    page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
+                    page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
+                    ordered_in           => 'columns',
+                },
+            };
 
-sub new {
-    my $class = shift;
-    bless { @_ }, $class;
-}
+        state $y = warn Dumper($label_product) if $verbose > 4 && $debug;
 
-use constant colour => 'black';
-
-sub draw_label {
-    my ($r, $pq, $top, $left, $label_on_page) = @_;
-    my $text = $pq->text;
-    $text->fillcolor($r->colour);
-
-    my @lines = @{$r->{lines}};
-    my $banner = $r->{banner};
-
-    @lines || $banner || return;
-
-    my $active_fontsize = $fontsize;
-    my $current_fontsize = $fontsize;
-
-    $pq->font( $normal_font, $active_fontsize );
-
-    if ($evenly_squash_to_fit) {
-        # squash up when too many lines
-        # evenly squash up ALL lines when any line is too wide
-        my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-        my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-        $active_fontsize *= ::min 1,
-                                  $printable_label_height / ( @lines + ($banner && $banner_scale || 0) ) / ( $line_spacing * $active_fontsize ),
-                                  $printable_label_width / ::max 1,
-                                                                 $banner && $text->advancewidth($banner)*$banner_scale || 0,
-                                                                 map { $text->advancewidth($_) } @lines;
+        my $p = $label_product->{$pt} || die "Unknown label product '$pt'\nAvailable presets are @{[sort keys %$label_product]}\n";
+        (
+            $page_size, $page_height, $page_width,
+            $num_labels_across, $num_labels_down, $labels_ordered_in,
+            $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
+            $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
+        ) = @$p{qw{
+            page_size page_height page_width
+            num_across num_down ordered_in
+            page_top_margin page_bottom_margin page_left_margin page_right_margin
+            label_top_margin label_bottom_margin label_left_margin label_right_margin
+        }};
     }
-
-    if (my $p = $r->{banner}) {
-        if (my @v = $p =~ m/\%\{(\w+)\}/g) {
-            warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
-            $p =~ s/\%\{(\w+)\}/%/g;
-            $p = sprintf $p, @$r{@v};
-        }
-        $active_fontsize = ::min $active_fontsize,
-                                 $label_height / ($banner_scale * $line_spacing + @lines * $line_spacing);
-
-        my $banner_fontsize = $active_fontsize*$banner_scale;
-        $pq->font( $banner_font, $current_fontsize = $banner_fontsize ) if $banner_fontsize != $current_fontsize;
-        $text->translate( $left, $top -= $banner_fontsize*$line_spacing );
-        $text->text($p);
-    }
-
-    if (@lines) {
-        for (0 .. $#lines) {
-            $pq->font( $normal_font, $current_fontsize = $active_fontsize ) if $active_fontsize != $current_fontsize;
-            my $rescale = $label_width / $text->advancewidth($_);
-            if ( $rescale < 1 ) {
-                # squeeze up to make room...
-                $pq->font( $normal_font, $current_fontsize = $active_fontsize * $rescale );
-            }
-            $text->translate( $left, $top - (@lines - $#lines + $_)*$active_fontsize*$line_spacing );
-            $text->text($lines[$_]);
-        }
-    }
-
-    if (my $p = $r->{postcode}) {
-        $pq->font( $postcode_font, $postcode_fontsize );
-        $text->translate( $left + $label_width, $top - $label_height + $postcode_fontsize );
-        $text->text_right($p);
-    }
-
-    warn sprintf "Page %u label %u -> lines=%u font=%.2fmm (%.2fpt)\n",
-                $pq->pages,
-                $label_on_page,
-                0+@lines,
-                $active_fontsize/mm, $active_fontsize/pt
-        if $verbose > 1;
-}
-}
-
-{
-package BlankLabel;
-use parent -norequire => CommonLabel::;
-sub one { state $x = bless {}, shift }
-sub new { die }
-sub draw_label {}   # do nothing
-}
-
-{
-package ItemCountLabel;
-use parent -norequire => CommonLabel::;
-
-sub colour { $instruction_colour }
-
-use scale_factors;
-
-sub new {
-    my $class = shift;
-    my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
-    $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
-    $class->SUPER::new(
-        banner          => sprintf( "%u on this page, %u total", $total_count, $last_label_on_page-$first_label_on_page+1, ),
-        lines           => $inclusions,
-        first_on_page   => $first_label_on_page,
-        last_on_page    => $last_label_on_page,
-        total_count     => $total_count,
-        @_
-    );
-}
-sub draw_label {
-    my ($r, $pq, $top, $left, $label_on_page) = @_;
-    my $text = $pq->text;
-    my $first_label_on_page = $r->{first_on_page};
-    my $last_label_on_page = $r->{last_on_page};
-    warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page
-        if $verbose > 1;
-    my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-    my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-    my $labels_per_page = $num_labels_across * $num_labels_down;
-
-    my $tiny_label_step_across = $printable_label_width / 3 / $num_labels_across;
-    my $tiny_label_step_down   = $printable_label_height / $num_labels_down;
-    my $tiny_fontsize = $tiny_label_step_down / $line_spacing;
-    warn sprintf "Tiny labels fontsize=%.2fmm (%.2fpt), step-across=%.2fmm, step-down=%.2fmm ",
-                $tiny_fontsize/mm, $tiny_fontsize/pt,
-                $tiny_label_step_across/mm,
-                $tiny_label_step_down/mm
-        if $verbose > 2;
-    $pq->font( $normal_font, $tiny_fontsize );
-    for my $tiny_l ( 0 .. $labels_per_page-1 ) {
-        my $tiny_col;
-        my $tiny_row;
-        if ($labels_ordered_in eq 'columns') {
-            $tiny_row  = $tiny_l             % $num_labels_down;
-            $tiny_col  = ($tiny_l-$tiny_row) / $num_labels_down;
-        }
-        else {
-            $tiny_col  = $tiny_l             % $num_labels_across;
-            $tiny_row  = ($tiny_l-$tiny_col) / $num_labels_across;
-        }
-        my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
-        my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
-        warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm,
-            if $verbose > 2;
-        $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
-        if ( $tiny_l == $label_on_page ) {
-            $text->fillcolor($instruction_colour);
-            $text->text_right("O");
-        }
-        elsif ( $tiny_l >= $first_label_on_page && $tiny_l <= $last_label_on_page ) {
-            $text->fillcolor('black');
-            $text->text_right("X");
-        }
-        else {
-            $text->fillcolor('black');
-            $text->text_right("-");
-        }
-    }
-    $r->SUPER::draw_label($pq, $top, $left, $label_on_page);
-}
-}
-
-{
-package TotalCountLabel;
-use parent -norequire => CommonLabel::;
-sub new {
-    my $class = shift;
-    my ($inclusion_labels, $counts) = @_;
-    bless {
-        banner => "Totals",
-        lines => [ map { sprintf "%3u× %s", $counts->[$_], $inclusion_labels->[$_] } grep { $counts->[$_] } 0..$#$inclusion_labels ],
-    }, $class;
-}
-}
-
-{
-package HouseHoldLabel;
-use parent -norequire => CommonLabel::;
-
-sub new {
-    my $class = shift;
-    my ($inclusions, $postcode, @lines) = @_;
-    bless {
-            inclusions => $inclusions,
-            lines    => \@lines,
-            postcode => $postcode,
-        }, $class;
-}
-
-use constant colour => 'black';
-
-}
-
-##  {
-##  package InfoLabel;
-##  use parent -norequire => CommonLabel::;
-##  sub fix_one {
-##      my $r = shift;
-##      $r->SUPER::fix_one(@_);
-##      my @inserts = sort split /\s*,\s*/, $r->{inserts} // '';
-##      $r->{inserts} = join ',', @inserts;
-##      $r->{LIST_insert} = \@inserts;
-##      $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
-##      1;
-##  }
-##  }
-
-########################################
-
-my $paper_sizes = {
-        # A-series paper sizes, portrait
-        (map {
-            (my $x = $_) =~ s/^a//i;
-            my $h = 2**(0.25-$x/2);
-            my $w = $h / sqrt(2);
-            ( ( $_ < 0 ? (2**-$_).'a0' : "a$_") => [ $h*1000*mm, $w*1000*mm ] );
-        } -2 .. 10),
-        # B-series paper sizes, portrait
-        (map {
-            (my $x = $_) =~ s/^b//i;
-            my $h = 2**(0.5-$x/2);
-            my $w = $h / sqrt(2);
-            ( ( $_ < 0 ? (2**-$_).'b0' : "b$_") => [ $h*1000*mm, $w*1000*mm ] );
-        } 0 .. 10),
-        # C-series envelope sizes, landscape
-        (map {
-            (my $x = $_) =~ s/^c//i;
-            my $w = 2**(0.375-$x/2);
-            my $h = $w / sqrt(2);
-            ( ( $_ < 0 ? (2**-$_).'c0' : "c$_") => [ $h*1000*mm, $w*1000*mm ] );
-        } 0 .. 10),
-        # DL envelope size, landscape
-        dl => [ 110*mm, 220*mm ],
-    };
-
-sub use_preset {
-    my $pt = pop;
-
-    state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
-
-    state $label_product = {
-        ( map { ( $_     => { page_size => $_,     page_height => $paper_sizes->{$_}->[0], page_width => $paper_sizes->{$_}->[1], num_labels_across => 2, num_labels_down => 3, } ) } keys %$paper_sizes ),
-        ( map { ( $_.'R' => { page_size => $_.'R', page_height => $paper_sizes->{$_}->[1], page_width => $paper_sizes->{$_}->[0], num_labels_across => 3, num_labels_down => 2, } ) } keys %$paper_sizes ),
-
-        'avery-l7160' => {
-                page_size            => 'a4',
-                page_height          => 297.302*mm,
-                page_width           => 210.224*mm,
-                num_across           => 3,
-                num_down             => 7,
-                page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
-                page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
-                page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
-                page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
-                ordered_in           => 'columns',
-            },
-        };
-
-    state $y = warn Dumper($label_product) if $verbose > 4 && $debug;
-
-    my $p = $label_product->{$pt} || die "Unknown label product '$pt'\nAvailable presets are @{[sort keys %$label_product]}\n";
-    (
-        $page_size, $page_height, $page_width,
-        $num_labels_across, $num_labels_down, $labels_ordered_in,
-        $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
-        $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
-    ) = @$p{qw{
-        page_size page_height page_width
-        num_across num_down ordered_in
-        page_top_margin page_bottom_margin page_left_margin page_right_margin
-        label_top_margin label_bottom_margin label_left_margin label_right_margin
-    }};
-}
-
-########################################
-# actual parsing of command-line
-
-sub II(&) {
-    my $f = pop;
-    sub {
-        for my $i ( split m{\s*,\s*}, $_[1] ) {
-            my @k = split m{[=/]}, $i;
-            $k[1] ||= '!post '.$k[0];
-            $f->(@k);
-        }
-    }
-}
-
-sub as_points($) {
-    my $v = $_[0];
-    if ($v =~ s/[a-z]+$//) {
-        state $units = {
-            cm => 0.1*mm,
-            in => in,
-            m  => 1000*mm,
-            mm => mm,
-            pt => pt,
-            px => px,
-            μm => 0.001*mm,
-        };
-        $v *= $units->{$&} || die "Unknown unit-of-measure $&\n";
-    }
-    $v;
-}
 
 my @ORIG_ARGV = @ARGV;
 
@@ -2274,6 +2163,7 @@ GetOptions
     'output-bom|bom!'             => \$output_bom,
     'output-crlf|crlf!'           => \$output_crlf,
     'output|o=s'                  => \$output_name,
+    'page-numbering!'             => \$use_page_numbers,
     'page-height|ph=s'            => sub { $page_size = undef; $page_height = as_points pop },
     'page-size=s'                 => sub { $page_size = pop; $page_width = $page_height = undef },  #A4, B3, etc
     'page-width|pw=s'             => sub { $page_size = undef; $page_width  = as_points pop },
@@ -3319,6 +3209,224 @@ sub generate_qndb_map($$;$) {
 # change of tag-set
 #
 
+################################################################################
+
+=head 3
+
+Label records
+
+=cut
+
+    {
+    package CommonLabel;
+
+    use scale_factors;
+
+    sub new {
+        my $class = shift;
+        bless { @_ }, $class;
+    }
+
+    use constant colour => 'black';
+
+    sub draw_label {
+        my ($r, $pq, $top, $left, $label_on_page) = @_;
+        my $text = $pq->text;
+        $text->fillcolor($r->colour);
+
+        my @lines = @{$r->{lines}};
+        my $banner = $r->{banner};
+
+        @lines || $banner || return;
+
+        my $active_fontsize = $label_fontsize;
+        my $current_fontsize = $label_fontsize;
+
+        $pq->font( $normal_font, $active_fontsize );
+
+        if ($evenly_squash_to_fit) {
+            # squash up when too many lines
+            # evenly squash up ALL lines when any line is too wide
+            my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
+            my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
+            $active_fontsize *= ::min 1,
+                                      $printable_label_height / ( @lines + ($banner && $banner_scale || 0) ) / ( $line_spacing * $active_fontsize ),
+                                      $printable_label_width / ::max 1,
+                                                                     $banner && $text->advancewidth($banner)*$banner_scale || 0,
+                                                                     map { $text->advancewidth($_) } @lines;
+        }
+
+        if (my $p = $r->{banner}) {
+            if (my @v = $p =~ m/\%\{(\w+)\}/g) {
+                warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
+                $p =~ s/\%\{(\w+)\}/%/g;
+                $p = sprintf $p, @$r{@v};
+            }
+            $active_fontsize = ::min $active_fontsize,
+                                     $label_height / ($banner_scale * $line_spacing + @lines * $line_spacing);
+
+            my $banner_fontsize = $active_fontsize*$banner_scale;
+            $pq->font( $banner_font, $current_fontsize = $banner_fontsize ) if $banner_fontsize != $current_fontsize;
+            $text->translate( $left, $top -= $banner_fontsize*$line_spacing );
+            $text->text($p);
+        }
+
+        if (@lines) {
+            for (0 .. $#lines) {
+                $pq->font( $normal_font, $current_fontsize = $active_fontsize ) if $active_fontsize != $current_fontsize;
+                my $rescale = $label_width / $text->advancewidth($_);
+                if ( $rescale < 1 ) {
+                    # squeeze up to make room...
+                    $pq->font( $normal_font, $current_fontsize = $active_fontsize * $rescale );
+                }
+                $text->translate( $left, $top - (@lines - $#lines + $_)*$active_fontsize*$line_spacing );
+                $text->text($lines[$_]);
+            }
+        }
+
+        if (my $p = $r->{postcode}) {
+            $pq->font( $postcode_font, $postcode_fontsize );
+            $text->translate( $left + $label_width, $top - $label_height + $postcode_fontsize );
+            $text->text_right($p);
+        }
+
+        warn sprintf "Page %u label %u -> lines=%u font=%.2fmm (%.2fpt)\n",
+                    $pq->pages,
+                    $label_on_page,
+                    0+@lines,
+                    $active_fontsize/mm, $active_fontsize/pt
+            if $verbose > 1;
+    }
+    }
+
+    {
+    package BlankLabel;
+    use parent -norequire => CommonLabel::;
+    sub one { state $x = bless {}, shift }
+    sub new { die }
+    sub draw_label {}   # do nothing
+    }
+
+    {
+    package ItemCountLabel;
+    use parent -norequire => CommonLabel::;
+
+    sub colour { $instruction_colour }
+
+    use scale_factors;
+
+    sub new {
+        my $class = shift;
+        my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
+        $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
+        $class->SUPER::new(
+            banner          => sprintf( "%u on this page, %u total", $total_count, $last_label_on_page-$first_label_on_page+1, ),
+            lines           => $inclusions,
+            first_on_page   => $first_label_on_page,
+            last_on_page    => $last_label_on_page,
+            total_count     => $total_count,
+            @_
+        );
+    }
+    sub draw_label {
+        my ($r, $pq, $top, $left, $label_on_page) = @_;
+        my $text = $pq->text;
+        my $first_label_on_page = $r->{first_on_page};
+        my $last_label_on_page = $r->{last_on_page};
+        warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page
+            if $verbose > 1;
+        my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
+        my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
+        my $labels_per_page = $num_labels_across * $num_labels_down;
+
+        my $tiny_label_step_across = $printable_label_width / 3 / $num_labels_across;
+        my $tiny_label_step_down   = $printable_label_height / $num_labels_down;
+        my $tiny_fontsize = $tiny_label_step_down / $line_spacing;
+        warn sprintf "Tiny labels fontsize=%.2fmm (%.2fpt), step-across=%.2fmm, step-down=%.2fmm ",
+                    $tiny_fontsize/mm, $tiny_fontsize/pt,
+                    $tiny_label_step_across/mm,
+                    $tiny_label_step_down/mm
+            if $verbose > 2;
+        $pq->font( $normal_font, $tiny_fontsize );
+        for my $tiny_l ( 0 .. $labels_per_page-1 ) {
+            my $tiny_col;
+            my $tiny_row;
+            if ($labels_ordered_in eq 'columns') {
+                $tiny_row  = $tiny_l             % $num_labels_down;
+                $tiny_col  = ($tiny_l-$tiny_row) / $num_labels_down;
+            }
+            else {
+                $tiny_col  = $tiny_l             % $num_labels_across;
+                $tiny_row  = ($tiny_l-$tiny_col) / $num_labels_across;
+            }
+            my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
+            my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
+            warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm,
+                if $verbose > 2;
+            $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
+            if ( $tiny_l == $label_on_page ) {
+                $text->fillcolor($instruction_colour);
+                $text->text_right("O");
+            }
+            elsif ( $tiny_l >= $first_label_on_page && $tiny_l <= $last_label_on_page ) {
+                $text->fillcolor('black');
+                $text->text_right("X");
+            }
+            else {
+                $text->fillcolor('black');
+                $text->text_right("-");
+            }
+        }
+        $r->SUPER::draw_label($pq, $top, $left, $label_on_page);
+    }
+    }
+
+    {
+    package TotalCountLabel;
+    use parent -norequire => CommonLabel::;
+    sub new {
+        my $class = shift;
+        my ($inclusion_labels, $counts) = @_;
+        bless {
+            banner => "Totals",
+            lines => [ map { sprintf "%3u× %s", $counts->[$_], $inclusion_labels->[$_] } grep { $counts->[$_] } 0..$#$inclusion_labels ],
+        }, $class;
+    }
+    }
+
+    {
+    package HouseHoldLabel;
+    use parent -norequire => CommonLabel::;
+
+    sub new {
+        my $class = shift;
+        my ($inclusions, $postcode, @lines) = @_;
+        bless {
+                inclusions => $inclusions,
+                lines    => \@lines,
+                postcode => $postcode,
+            }, $class;
+    }
+
+    use constant colour => 'black';
+
+    }
+
+##  {
+##  package InfoLabel;
+##  use parent -norequire => CommonLabel::;
+##  sub fix_one {
+##      my $r = shift;
+##      $r->SUPER::fix_one(@_);
+##      my @inserts = sort split /\s*,\s*/, $r->{inserts} // '';
+##      $r->{inserts} = join ',', @inserts;
+##      $r->{LIST_insert} = \@inserts;
+##      $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
+##      1;
+##  }
+##  }
+
+
     sub suppress_unwanted_records($) {
         my $rr = shift;
         if ( @$rr && $rr->[0]->isa(CSV::gmail::) ) {
@@ -3676,9 +3784,9 @@ sub generate_labels($$;$) {
             my $item_height = 0;
 
             # Compute exact item height in advance if either (a) not visible
-            # (dimensions are the  all that are wanted), or (b) we're getting
-            # close to the bottom of the column; otherwise use an estimate
-            # based on 4× the current worst-case.
+            # (dimensions are all that are wanted), or (b) we're getting close
+            # to the bottom of the column; otherwise use an estimate based on
+            # 4× the current worst-case.
             my $item_height_estimate = $height_limit * 4;
             if ( $top - $item_height_estimate < $page_bottom_margin || ! $visible ) {
                 $item_height =
@@ -3729,18 +3837,21 @@ sub generate_labels($$;$) {
         }
         if ($sort_book_by_surname) {
             @$rr = sort_by_surname @$rr;
+            $render_context->{ORDER} = 'surname';
             ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
         }
         if ($sort_book_by_givenname) {
             @$rr = sort_by_givenname @$rr;
+            $render_context->{ORDER} = 'given_name';
             ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
         }
+        delete $render_context->{ORDER};
         return $col, $top;
     }
 
-                            # ╭─╮╭────╮╭─╮╭─╮╭────╮╭─╮╭─╮╭────╮╭─╮╭─╮╭───╮ prefer
-                            # ╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮ │  this
-    my $mtg_abbrev_len = 5; # ──╯╰─╯╰─╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯╰────╯╰─╯ ▽ column
+                             # ╭─╮╭────╮╭─╮╭─╮╭────╮╭─╮╭─╮╭────╮╭─╮╭─╮╭───╮ prefer
+                             # ╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮ │  this
+    my $mtg_abbrev_len = 5;  # ──╯╰─╯╰─╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯╰────╯╰─╯ ▽ column
     my %short_meeting_name = (
             'Canterbury'        => [ undef, 'C', 'Cn', 'Cnb', 'Cnby', 'Cntby', 'Cantby', 'Cantbry', 'Cantbury', 'Cantrbury', 'Canterbury',                ], # CH
             'GoldenBay'         => [ undef, 'G', 'GB', 'GoB', 'GldB', 'GldnB', 'GldnBy', 'GoldenB', 'GoldnBay', 'GoldenBay',                              ], # CH
@@ -3778,6 +3889,8 @@ sub render_full_list($$) {
     my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
 
+    my $fontname = $book_fontname;
+    my $fontsize = $book_fontsize;
     my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
 
     warn sprintf "Pagination info\n"
@@ -3788,10 +3901,8 @@ sub render_full_list($$) {
                 $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
 
-    my $fontname  = 'Helvetica';
-
     my @render_order = qw( phone name details );
-    my @render_widths =(   0.18, 0.32, 0.5 );
+    my @render_widths =(   0.20, 0.30, 0.50 );
     my %detail_widths; @detail_widths{@render_order} = @render_widths;
 
     my @detail_order = $book_phones_first ? @render_order : uniq 'name', @render_order;
@@ -3824,7 +3935,7 @@ sub render_full_list($$) {
         my $family_name = $name->{family_name};
         $name = "$name";
         $name =~ s/\([^()]*\)//g;
-        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name;
+        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name && $name;
         my $phones = join "\n", map { s/(?<=\d) (?=\d)/$nbsp/gr } map { localize_phone $_ } $r->listed_phone;
         my $addresses = join "\n", map { s/\n/, /gr } $r->listed_address;
 
@@ -3853,24 +3964,19 @@ sub render_full_list($$) {
     };
 
     if ($do_book_listing_all) {
-        render_sorted_columnated_list($pq, $render_person_details, 'render_context', $rr, 1, 1);
+        my %render_context;
+        render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rr, 1, 1);
         $pq->closepage;
     }
 
     if ($do_book_listing_by_mm) {
-        my $ep = $pq->{upon_start_page};
         for my $mm ( @mm_order ) {
             $pq->closepage;
-            $pq->{upon_start_page} = sub {
-                $ep->(@_) if $ep;
-                my ($pq, $pagenum) = @_;
-                $pq->text_flow($fontname, $fontsize*1.68, $line_spacing, $mm, $page_left_margin*0.75, $page_height - $page_top_margin, ( $pagenum % 2 ? $page_width-$page_right_margin*7/8 : $page_left_margin/8 ));
-            };
             my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
-            render_sorted_columnated_list($pq, $render_person_details, 'render_context', \@rr2, 1, 1);
+            my %render_context;
+            render_sorted_columnated_list($pq, $render_person_details, \%render_context, \@rr2, 1, 1);
             $pq->closepage;
         }
-        $pq->{upon_start_page} = $ep;
     }
 
     if ($do_book_listing_by_wg) {
@@ -3882,31 +3988,31 @@ sub render_full_list($$) {
 sub render_index_list($$) {
     my ($pq,$rr) = @_;
 
-    my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
-    my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-
-    my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
+   #my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
+   #my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
+    my $fontname = $book_fontname;
+    my $fontsize = $book_fontsize;
+    my $small_fontsize = $book_fontsize*2/3;
+   #my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
 
     warn sprintf "Pagination info\n"
                . "page size: %.2fmm × %.2fmm (%s)\n"
-               . "printable page size: %.2fmm × %.2fmm\n"
+   #           . "printable page size: %.2fmm × %.2fmm\n"
                ,
                 $page_width/mm, $page_height/mm, $page_size,
-                $printable_page_width/mm, $printable_page_height/mm,
+   #            $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
 
-    my $fontname  = 'Helvetica';
+#   my @render_order = qw( phone name details );
+#   my @render_widths =(   0.25, 0.30, 0.45 );
+#   my %detail_widths; @detail_widths{@render_order} = @render_widths;
 
-    my @render_order = qw( phone name details );
-    my @render_widths =(   0.18, 0.32, 0.5 );
-    my %detail_widths; @detail_widths{@render_order} = @render_widths;
+#   my @detail_order = $book_phones_first ? @render_order : uniq 'name', @render_order;
 
-    my @detail_order = $book_phones_first ? @render_order : uniq 'name', @render_order;
+#   my @detail_offsets = (0, @detail_widths{@detail_order[0..$#detail_order-1]});
+#   $detail_offsets[$_] += $detail_offsets[$_-1] for 1..$#detail_offsets;
 
-    my @detail_offsets = (0, @detail_widths{@detail_order[0..$#detail_order-1]});
-    $detail_offsets[$_] += $detail_offsets[$_-1] for 1..$#detail_offsets;
-
-    my %detail_offsets; @detail_offsets{@detail_order} = @detail_offsets;
+#   my %detail_offsets; @detail_offsets{@detail_order} = @detail_offsets;
 
     my $render_person_index = sub {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
@@ -3935,60 +4041,91 @@ sub render_index_list($$) {
         my $N = $pq->TN;
         my $text = $pq->text;
         my $width = 0;
-        my @subcolumn_offset = map { $_ * ($column_width + $interdetail_spacing) } 0, 0.75, 1;
+        my @subcolumn_offset = map { $_ * ($column_width + $interdetail_spacing) } 0, 0.6667, 1;
         my @subcolumn_width = map { $subcolumn_offset[$_] - $subcolumn_offset[$_-1] - $interdetail_spacing } 1 .. $#subcolumn_offset;
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
         $name =~ s/\([^()]*\)//g;
-        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name;
+        # record full name & family name of first entry on page
+        $pq->{pagedata} ||= {
+            first_full_name => $name,
+            first_family_name => $family_name,
+        };
+        # record full name & family name of last entry on page
+        $pq->{pagedata}{last_full_name} = $name;
+        $pq->{pagedata}{last_family_name} = $family_name;
+        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name && $name;
         my @listings = map { $short_meeting_name{$_} && ($short_meeting_name{$_}[$mtg_abbrev_len] || $short_meeting_name{$_}[-1]) || $_ } map { s/\W+//gr } $r->gtags(qr/^listing[- ]+(?:\w\w\w?[- ]+|)(.*)/);
-        my @memberships = $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
+        my @memberships = map { $pq->TB . $_ . $pq->TN } $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
         my @phones = map { localize_phone $_ } $r->listed_phone;
-        my $info = join "\n", @phones, @memberships, @listings;
+        my ($w1, $h1, $c1, $t1);
         if ( $visible ) {
-            (undef, my $h1) = $pq->text_flow($fontname, $fontsize,   $line_spacing, $name, $subcolumn_width[0], $top, $left + $subcolumn_offset[0]);
-            (undef, my $h2) = $pq->text_flow($fontname, $fontsize*2/3, $line_spacing, $info, $subcolumn_width[1], $top, $left + $subcolumn_offset[1]);
-            return $column_width, ::max $h1, $h2;
+            ($w1, $h1, $c1, $t1) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $column_width, $top, $left);
+        } else {
+            ($w1, $h1, $c1, $t1) = $pq->text_size($fontname, $fontsize, $line_spacing, $name, $column_width);
         }
-        else {
-            (undef, my $h1) = $pq->text_size($fontname, $fontsize,   $line_spacing, $name, $subcolumn_width[0]);
-            (undef, my $h2) = $pq->text_size($fontname, $fontsize/2, $line_spacing, $info, $subcolumn_width[1]);
-            return $column_width, ::max $h1, $h2;
+        for my $s (@memberships, @listings, @phones) {
+            my ($w, $h) = $pq->text_size($fontname, $small_fontsize, $line_spacing, $s);
+            if ($t1 < $h1 && $c1 + $interdetail_spacing + $w > $column_width) {
+                # Skip to next blank line if it won't fit to the right
+                $c1 = 0;
+                $t1 = $h1;
+            }
+            $pq->text_flow($fontname, $small_fontsize, $line_spacing, $s, $w, $top-$t1, $left+$column_width-$w)
+                if $visible;
+            $t1 += $h;
         }
+
+        my $item_height = max $h1, $t1;
+        warn sprintf "ITEM: ↑%.2fmm →%.2fmm ↕%.2fmm=max((h1=%.2f),(t1=%.2f)) ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $h1/mm, $t1/mm, $column_width/mm if $verbose;
+        return $column_width, $item_height;
     };
 
     if ($do_book_index_all) {
-        render_sorted_columnated_list($pq, $render_person_index, 'render_context', $rr, 3, 1);
+        my $margin_note;
+        my $mm_lh = $book_margin_fontsize*$line_spacing;
+        #my ($w, $h) = $pq->text_size($fontname, $book_margin_fontsize, $line_spacing, $mm);
+        push @{$pq->{upon_end_page}}, sub {
+            my ($pq, $pagenum) = @_;
+            my $right_page = $pagenum % 2;
+            my $rotation = $right_page ? -90 : 90;
+            my $top =  $page_height - $page_top_margin;
+            my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
+            $pq->text_rotate($fontname, $book_margin_fontsize, $margin_note, $top, $left, $rotation);
+        };
+        my %render_context;
+        render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rr, 3, 1);
+        $pq->closepage;
+        pop $pq->{upon_end_page};
     }
 
     if ($do_book_index_by_mm) {
-        my $ep = $pq->{upon_start_page};
+        my $margin_note;
+        my $mm_lh = $book_margin_fontsize*$line_spacing;
+        #my ($w, $h) = $pq->text_size($fontname, $book_margin_fontsize, $line_spacing, $mm);
+        push @{$pq->{upon_end_page}}, sub {
+            my ($pq, $pagenum) = @_;
+            my $right_page = $pagenum % 2;
+            my $rotation = $right_page ? -90 : 90;
+            my $top =  $page_height - $page_top_margin;
+            my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
+            $pq->text_rotate($fontname, $book_margin_fontsize, $margin_note, $top, $left, $rotation);
+        };
         for my $mm ( @mm_order ) {
-            $pq->closepage;
-            my $mmname = $mm_names{$mm};
-            my $bfs = $fontsize*1.68**2;
-            my $lineheight = $bfs*$line_spacing;
-            my ($w, $h) = $pq->text_size($fontname, $bfs, $line_spacing, $mm);
-            $pq->{upon_start_page} = sub {
-                $ep->(@_) if $ep;
-                my ($pq, $pagenum) = @_;
-                my $rotation = $left_page ? -90 : 90;
-                my $left_page = $pagenum % 2;
-                my $top =  $page_height - $page_top_margin;
-                my $left = $left_page ? $page_width-$page_right_margin*7/8 : $page_left_margin/8;
-                $pq->text_flow($fontname, $bfs, $line_spacing, $mm, $page_left_margin*0.75, $top, $left, $rotation);
-
-            };
+            $margin_note = $mm_names{$mm};
             my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
-            render_sorted_columnated_list($pq, $render_person_index, 'render_context', \@rr2, 3, 1);
+            $pq->closepage;
+            my %render_context;
+            render_sorted_columnated_list($pq, $render_person_index, \%render_context, \@rr2, 3, 1);
+            $pq->closepage;
         }
-        $pq->{upon_start_page} = $ep;
+        pop $pq->{upon_end_page};
     }
-    $pq->closepage;
 
     if ($do_book_index_by_wg) {
         die "UNIMPLEMENTED";
+        $pq->closepage;
     }
 }
 
@@ -4001,14 +4138,25 @@ sub generate_book($$;$) {
     #@$rr = grep { ! $_->gtags( qr/^meeting/ ) } @$rr;       # only humans in main listing
 
     my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
+
+    # if pagesize was given as eg "A5", convert that back to actual dimensions
     $page_width = $pq->{page_width};
     $page_height = $pq->{page_height};
+
+    if ($use_page_numbers) {
+        # Number each page
+        $pq->{upon_start_page}[0] = sub {
+            my ($pq, $pagenum) = @_;
+            my $right_page = $pagenum % 2;
+            $pq->text_rotate($book_fontname, $book_pagenumber_fontsize, $pagenum, 1.5*$book_pagenumber_fontsize*$line_spacing, $page_width/2, 30); 
+        };
+    }
 
     render_full_list($pq, $rr);
     render_index_list($pq, $rr);
 
     ( $out, my $out_name ) = _open_output $out, 1;
-    print "Writing PDF to $out_name\n";
+    print "Writing PDF to $out_name ($out)\n";
     print {$out} $pq->stringify;
     close $out or die "Error while writing to $out_name; $!\n";
 }
