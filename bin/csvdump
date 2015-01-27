@@ -1923,9 +1923,9 @@ my $need_region = 1;
 my $skip_archived = 1;
 my $skip_deceased = 1;
 my $skip_meetings = 1;
-my $skip_suppressed_listing = 0;
+my $skip_suppressed_listing = undef;    # default to do_book
 my $skip_suppressed_email = 0;
-my $skip_suppressed_post = 0;
+my $skip_suppressed_post = undef;       # default to do_labels
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
@@ -2412,6 +2412,10 @@ $mm_names{$_} or die "Invalid region '$_'\n" for @restrict_regions;
 warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
 
 $do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all;
+
+$skip_suppressed_listing //= $do_book;
+
+$skip_suppressed_post //= $do_labels;
 
 my @wr_binmode;
 my @wr_bom;
