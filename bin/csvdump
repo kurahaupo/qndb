@@ -43,6 +43,67 @@ my %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
 
 my @mm_order = qw( NT MNI WG PN KP WN CH DN );
 
+my @wg_order = (
+
+    'NT - Kaitaia',
+    'NT - Bay of Islands',
+    'NT - Whangarei',
+    'NT - North Shore',
+    'NT - Mt Eden',
+    'NT - West Auckland',
+    'NT - Howick',
+    'NT - Waiheke',
+    'NT - elsewhere',
+    'NT - overseas',
+
+    'MNI - Thames',
+    'MNI - Waikato',
+    'MNI - Tauranga',
+    'MNI - Rotorua',
+    'MNI - Whakatane',
+    'MNI - elsewhere',
+    'MNI - overseas',
+
+    'PN - Palmerston North',
+    'PN - Hawkes Bay',
+    'PN - Levin',
+    'PN - elsewhere',
+    'PN - overseas',
+
+    'WG - Whanganui',
+    'WG - Taranaki',
+    'WG - elsewhere',
+    'WG - overseas',
+
+    'KP - Kapiti',
+    'KP - elsewhere',
+    'KP - overseas',
+
+    'WN - Wellington',
+  # 'WN - Upper Hutt',
+    'WN - Wairarapa',
+    'WN - elsewhere',
+    'WN - overseas',
+
+    'CH - Golden Bay',
+    'CH - Marlborough',
+    'CH - Nelson',
+    'CH - Canterbury',
+    'CH - South Canterbury',
+    'CH - Westland',
+    'CH - elsewhere',
+    'CH - overseas',
+
+    'DN - Otago',
+    'DN - Southland',
+    'DN - elsewhere',
+    'DN - overseas',
+
+    'YF',
+  # 'YF - overseas',
+
+);
+
 my $mm_keys_re = eval sprintf "qr/\\b(?:%s)\\b/o", join '|', keys %mm_names;
 
 # The rule of thumb is to map towards the ambiguous abbreviations, rather than
@@ -92,7 +153,33 @@ my %spelling_fixes = (
 ################################################################################
 
 {
+package export;
+BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ } # Fake things so that when "use" does "require FILE", it thinks it's already loaded
+sub import {
+    my $self = shift;
+    my $exportable = \@_;
+    my $cpkg = caller;
+    # Create an import method for the target package
+    my $im = sub {
+        my $self = shift;
+        my $pkg = caller;
+        for my $n (@_ ? @_ : @$exportable) {
+            no strict 'refs';
+            my $f = UNIVERSAL::can($self,$n) or die "$self does not export $n\n";
+            *{"${pkg}::$n"} = $f;
+        }
+    };
+    { no strict 'refs'; *{"${cpkg}::import"} = $im; };
+    # Fake things so that when "use" does "require FILE", it thinks it's already loaded
+    $cpkg =~ s#::#/#g;
+    $cpkg .= '.pm';
+    $INC{$cpkg} = __FILE__;
+}
+}
+
+{
 package list_functions;
+use export qw( min max sum uniq first near flatten );
 sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
 sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
 sub sum(@) { my $r = shift; $r += $_ for @_; $r }
@@ -100,8 +187,6 @@ sub uniq(@) { my %seen; grep { ! $seen{$_}++ } @_ }
 sub first(@) { @_ ? shift : () }
 sub near($$;$) { my ($a,$b) = @_; my $s = max(abs($a),abs($b)); abs($a-$b) < $s / ($_[2]||1000) }
 sub flatten(@) { map { ref $_ ? @$_ : $_ || () } @_ }
-sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( min max sum uniq first near flatten )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
-BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ }
 }
 
 {
@@ -109,8 +194,7 @@ package math_constants;
 use constant PHI => (sqrt(5)+1)/2;
 use constant PI => atan2(0,-1);
 use constant degrees_to_radians => PI/180;
-sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( PI degrees_to_radians PHI )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
-BEGIN { $INC{__PACKAGE__.".pm"} = __FILE__ }
+use export qw( PI degrees_to_radians PHI );
 }
 
 use list_functions;
@@ -118,13 +202,13 @@ use list_functions;
 sub normalize_phone($);
 
 sub sort_by_surname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
     return sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
                || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_
 }
 sub sort_by_givenname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { die "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
     return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
                || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_
@@ -439,7 +523,7 @@ sub text_flow($$$$$$$$;$) {
 # Assumes a stand-alone fixed-position line of text, so does not give you repositioning info
 #
 
-use math_constants;
+use math_constants 'degrees_to_radians';
 use list_functions;
 
 sub text_rotate($$$$$$$$) {
@@ -1923,9 +2007,10 @@ my $need_region = 1;
 my $skip_archived = 1;
 my $skip_deceased = 1;
 my $skip_meetings = 1;
-my $skip_suppressed_listing = undef;    # default to do_book
+my $skip_newsletters_only = undef;      # default to "yes" for do_book
+my $skip_suppressed_listing = undef;    # default to "yes" for do_book
 my $skip_suppressed_email = 0;
-my $skip_suppressed_post = undef;       # default to do_labels
+my $skip_suppressed_post = undef;       # default to "yes" for do_labels
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
@@ -2140,10 +2225,11 @@ GetOptions
     'include-archived!'           => N$skip_archived,
     'include-deceased!'           => N$skip_deceased,
     'include-meetings!'           => N$skip_meetings,
-    'include-suppressed-listing!' => N$skip_suppressed_listing,
-    'include-suppressed-email!'   => N$skip_suppressed_email,
-    'include-suppressed-post!'    => N$skip_suppressed_post,
+    'include-newsletters-only!'   => N$skip_newsletters_only,
     'include-no-region!'          => N$need_region,
+    'include-suppressed-email!'   => N$skip_suppressed_email,
+    'include-suppressed-listing!' => N$skip_suppressed_listing,
+    'include-suppressed-post!'    => N$skip_suppressed_post,
     'include-unsubscribed'        => N$skip_unsub,
     'instruction-color|instruction-colour=s' => \$instruction_colour,
     'label-height|lh=s'           => M$label_height,
@@ -2151,20 +2237,20 @@ GetOptions
     'label-step-down|lxh=s'       => M$label_step_down,
     'label-width|lw=s'            => M$label_width,
     'labels'                      => \$do_labels,
-    'num-labels-across|nla=i'     => \$num_labels_across,
-    'num-labels-down|nld=i'       => \$num_labels_down,
-    'labels-ordered-in=s'         => \$labels_ordered_in,
     'labels-ordered-in-columns'   => sub { $labels_ordered_in = 'columns' },
     'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
+    'labels-ordered-in=s'         => \$labels_ordered_in,
     'names-only!'                 => \$names_only,
     'need-region!'                => \$need_region,
+    'num-labels-across|nla=i'     => \$num_labels_across,
+    'num-labels-down|nld=i'       => \$num_labels_down,
     'octet|byte|b'                => sub { $presume_decoding = $use_encoding = 'OCTET' },
     'optional-include=s'          => II {                              push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
     'output-bom|bom!'             => \$output_bom,
     'output-crlf|crlf!'           => \$output_crlf,
     'output|o=s'                  => \$output_name,
-    'page-numbering!'             => \$use_page_numbers,
     'page-height|ph=s'            => sub { $page_size = undef; $page_height = as_points pop },
+    'page-numbering!'             => \$use_page_numbers,
     'page-size=s'                 => sub { $page_size = pop; $page_width = $page_height = undef },  #A4, B3, etc
     'page-width|pw=s'             => sub { $page_size = undef; $page_width  = as_points pop },
     'preset=s'                    => \&use_preset,
@@ -2187,8 +2273,9 @@ GetOptions
     'skip-archived!'              => \$skip_archived,
     'skip-deceased!'              => \$skip_deceased,
     'skip-meetings!'              => \$skip_meetings,
-    'skip-suppressed-listing!'    => \$skip_suppressed_listing,
+    'skip-newsletters-only!'      => \$skip_newsletters_only,
     'skip-suppressed-email!'      => \$skip_suppressed_email,
+    'skip-suppressed-listing!'    => \$skip_suppressed_listing,
     'skip-suppressed-post!'       => \$skip_suppressed_post,
     'skip-unsubscribed'           => \$skip_unsub,
     'sort-book-by-givenname'      => \$sort_book_by_givenname,
@@ -2413,9 +2500,10 @@ warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
 
 $do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all;
 
+# Default exclusions for different generation types
 $skip_suppressed_listing //= $do_book;
-
-$skip_suppressed_post //= $do_labels;
+$skip_newsletters_only   //= $do_book;
+$skip_suppressed_post    //= $do_labels;
 
 my @wr_binmode;
 my @wr_bom;
@@ -2906,6 +2994,7 @@ sub parse_file($) {
                 push @skips, 'archive - unsubscribed' if $skip_unsub    && !$skip_archived;
                 push @skips, 'meetings'               if $skip_meetings;
                 push @skips, 'suppress listing'       if $skip_suppressed_listing;
+                push @skips, 'newsletters-only'       if $skip_newsletters_only;
                 push @skips, 'suppress email'         if $skip_suppressed_email;
                 push @skips, 'suppress post'          if $skip_suppressed_post;
                 \@skips;
@@ -3337,8 +3426,7 @@ Label records
         my $text = $pq->text;
         my $first_label_on_page = $r->{first_on_page};
         my $last_label_on_page = $r->{last_on_page};
-        warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page
-            if $verbose > 1;
+        warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page if $verbose > 1;
         my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
         my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
         my $labels_per_page = $num_labels_across * $num_labels_down;
@@ -3365,8 +3453,7 @@ Label records
             }
             my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
             my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
-            warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm,
-                if $verbose > 2;
+            warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm if $verbose > 2;
             $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
             if ( $tiny_l == $label_on_page ) {
                 $text->fillcolor($instruction_colour);
@@ -3439,6 +3526,10 @@ Label records
             push @skips, 'archive - deceased'     if $skip_deceased;
             push @skips, 'archive - unsubscribed' if $skip_unsub;
             push @skips, 'meetings'               if $skip_meetings;
+            push @skips, 'suppress listing'       if $skip_suppressed_listing;
+            push @skips, 'newsletters-only'       if $skip_newsletters_only;
+            push @skips, 'suppress email'         if $skip_suppressed_email;
+            push @skips, 'suppress post'          if $skip_suppressed_post;
             push @skips, 'explanatory texts';
             @rr = grep { ! $_->gtags(@skips) } @rr if @skips;
             @rr = grep { ! $_->gtags(qr/^archive - /) } @rr if $skip_archived;
@@ -3736,12 +3827,14 @@ sub generate_labels($$;$) {
         my ($array,$chk,$all) = @_;
         is_array($array) or return 0;
         my $c = $_[1] || return 1;
-        for my $elem ( $_[2] || !@$array ? @$array
-                                      : $array->[0] ) {
+        for my $elem ( @$array ) {
+          # defined $elem or next;
             $c->validate($elem)       or return 0 if UNIVERSAL::can($c, 'validate');
             $c->($elem)               or return 0 if is_code($c);
             $elem =~ $c               or return 0 if is_regex($c);
             UNIVERSAL::isa($elem, $c) or return 0;
+        } continue {
+            $_[2] || last;
         }
         return 1;
     }
@@ -3771,7 +3864,8 @@ sub generate_labels($$;$) {
             @_ == 6 || @_ == 8 or croak "Wrong number of args";
             UNIVERSAL::isa($pq, PDF_paginator::) or croak "arg 1 is not a PDF_paginator";
             is_code $render_one or croak "arg 2 is not a sub";
-            is_array_of $rr, CSV::gmail:: or croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
+            is_array_of $rr               or croak         "arg 4 is not an array";
+          # is_array_of $rr, CSV::gmail:: or croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
             is_number $items_across or croak "arg 5 is not a number (items-across)";
             is_bool $visible or croak "arg 6 is not a bool (visible)";
             is_number $col or croak "arg 7 is not a number (column number)";
@@ -3813,7 +3907,7 @@ sub generate_labels($$;$) {
                 $text->fillcolor('black');
                 my $left = $page_left_margin + $column_step * $col;
                 (my $item_width, $item_height) = $render_one->( $pq, $r, $render_context, $column_width, 1, $top, $left ); # VISIBLE
-                warn sprintf "COLUMNATION: item #%d ↑%.2fmm →%.2fmm ↕%.2fmm ↔%.2fmm\n", $zi++, $top/mm, $left/mm, $item_height/mm, $item_width/mm if $verbose;
+                warn sprintf "COLUMNATION: item #%d ↑%.2fmm →%.2fmm ↕%.2fmm ↔%.2fmm\n", $zi++, $top/mm, $left/mm, $item_height/mm, $item_width/mm if $verbose > 2;
             }
             $top -= $item_height;
             $height_limit >= $item_height or $height_limit = $item_height;
@@ -3887,14 +3981,35 @@ sub generate_labels($$;$) {
             'overseas',         => [ undef, '*', '*',  '*',   '*',     '*',    '*',      '*',       '*',        'overseas',                               ], # elsewhere in NZ
         );
 
-sub render_full_list($$) {
-    my ($pq,$rr) = @_;
+sub generate_book($$;$) {
+    my $out = shift;
+    my $rr0 = shift;
+    my $in_name = shift || '(stdin)';
+
+    my $rr = suppress_unwanted_records $rr0;
+    @$rr = grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } @$rr;
+    #@$rr = grep { ! $_->gtags( qr/^meeting/ ) } @$rr;       # only humans in main listing
+
+    my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
+
+    # if pagesize was given as eg "A5", convert that back to actual dimensions
+    $page_width = $pq->{page_width};
+    $page_height = $pq->{page_height};
+
+    if ($use_page_numbers) {
+        # Number each page
+        $pq->{upon_start_page}[0] = sub {
+            my ($pq, $pagenum) = @_;
+            my $right_page = $pagenum % 2;
+            $pq->text_rotate($book_fontname, $book_pagenumber_fontsize, $pagenum, 1.5*$book_pagenumber_fontsize*$line_spacing, $page_width/2, 30); 
+        };
+    }
 
     my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-
     my $fontname = $book_fontname;
     my $fontsize = $book_fontsize;
+    my $small_fontsize = $book_fontsize*2/3;
     my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
 
     warn sprintf "Pagination info\n"
@@ -3904,6 +4019,63 @@ sub render_full_list($$) {
                 $page_width/mm, $page_height/mm, $page_size,
                 $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
+
+    my $render_column_heading = sub {
+        my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
+        if (CHECK_ARGS) {
+            if ($visible) {
+                @_ == 7 or croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
+            } else {
+                @_ == 5 or croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
+            }
+            UNIVERSAL::isa($pq, PDF_paginator::) or croak "arg 1 is not a PDF_paginator" if @_ > 5;
+            UNIVERSAL::isa($r, CSV::gmail::) or croak "arg 2 is not a gmail record\n";
+            is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ > 4;
+            is_bool $visible or croak "arg 5 is not a flag (visible)";
+            is_number $top or croak "arg 6 is not a number (top-position)" if $visible;
+            is_number $left or croak "arg 7 is not a number (left-position)" if $visible;
+        }
+        if ($verbose) {
+            if ($visible) {
+                warn sprintf "RENDER heading ↔%.2fmm →%.2fmm ↑%.2fmm\n", $column_width/mm, $left/mm, $top/mm
+                    if $verbose > 2;
+            }
+            else {
+                warn sprintf "SIZING heading ↔%.2fmm\n", $column_width/mm
+                    if $verbose > 2;
+            }
+        }
+
+        my $heading_text = $render_context->{heading} or return 0, 0;
+        $render_context->{heading_bold} and $heading_text = $pq->TB . $heading_text;
+
+        my $heading_fontname = $render_context->{heading_font} || $fontname;
+        my $heading_fontsize = $render_context->{heading_size} || $fontsize;
+        my $heading_line_spacing = $render_context->{heading_spacing} || $line_spacing;
+        my $text = $pq->text;
+        my $item_height;
+
+        if ( $visible ) {
+            (undef, $item_height) = $pq->text_flow($heading_fontname, $heading_fontsize, $heading_line_spacing, $heading_text, $column_width, $top, $left);
+        } else {
+            (undef, $item_height) = $pq->text_size($heading_fontname, $heading_fontsize, $heading_line_spacing, $heading_text, $column_width);
+        }
+        warn sprintf "HEADING: ↑%.2fmm →%.2fmm ↕%.2fmm ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $column_width/mm if $verbose > 2;
+        return $column_width, $item_height;
+    };
+
+    # Margin stamping
+    push @{$pq->{upon_end_page}}, sub {
+            my ($pq, $pagenum) = @_;
+            my $data = $pq->{pagedata} or return;
+            my $margin_notes = $data->{margin_notes} or return;
+            my $right_page = $pagenum % 2;
+            my $rotation = $right_page ? -90 : 90;
+            my $top =  $page_height - $page_top_margin;
+            my $mm_lh = $book_margin_fontsize*$line_spacing;
+            my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
+            $pq->text_rotate($fontname, $book_margin_fontsize, $margin_notes, $top, $left, $rotation);
+        };
 
     my @render_order = qw( phone name details );
     my @render_widths =(   0.20, 0.30, 0.50 );
@@ -3933,13 +4105,21 @@ sub render_full_list($$) {
             is_number $top or croak "arg 6 is not a number (top-position)" if $visible;
             is_number $left or croak "arg 7 is not a number (left-position)" if $visible;
         }
-        my $B = $pq->TB;
-        my $N = $pq->TN;
+        my $inactive = $r->gtags('inactive');
+        my $B = $inactive ? $pq->TBI : $pq->TB;
+        my $N = $inactive ? $pq->TI  : '';
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
         $name =~ s/\([^()]*\)//g;
-        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name && $name;
+        if ($name) {
+            if ( $family_name ) {
+                $name = "$name";
+                $name =~ s/(.*)\b($family_name)\b/$N$1$B$2/
+            } else {                                
+                $name = $N.$name;
+            }
+        }
         my $phones = join "\n", map { s/(?<=\d) (?=\d)/$nbsp/gr } map { localize_phone $_ } $r->listed_phone;
         my $addresses = join "\n", map { s/\n/, /gr } $r->listed_address;
 
@@ -3962,61 +4142,11 @@ sub render_full_list($$) {
                                : "SIZING details ↕%.2fmm=%.2f*%.2f*(%.2f,%.2f,%.2f) ↔%.2fmm";
             warn sprintf "$fmt\n", $item_height/mm, ($lineheight/mm, $extra_para_spacing, $h1, $h2, $h3),
                                     $column_width/mm,
-                                    ($top//0)/mm, ($left//0)/mm;
+                                    ($top//0)/mm, ($left//0)/mm
+                if $verbose > 2;
         }
         return $column_width, $item_height;
     };
-
-    if ($do_book_listing_all) {
-        my %render_context;
-        render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rr, 1, 1);
-        $pq->closepage;
-    }
-
-    if ($do_book_listing_by_mm) {
-        for my $mm ( @mm_order ) {
-            $pq->closepage;
-            my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
-            my %render_context;
-            render_sorted_columnated_list($pq, $render_person_details, \%render_context, \@rr2, 1, 1);
-            $pq->closepage;
-        }
-    }
-
-    if ($do_book_listing_by_wg) {
-        die "UNIMPLEMENTED";
-    }
-
-}
-
-sub render_index_list($$) {
-    my ($pq,$rr) = @_;
-
-   #my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
-   #my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
-    my $fontname = $book_fontname;
-    my $fontsize = $book_fontsize;
-    my $small_fontsize = $book_fontsize*2/3;
-   #my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
-
-    warn sprintf "Pagination info\n"
-               . "page size: %.2fmm × %.2fmm (%s)\n"
-   #           . "printable page size: %.2fmm × %.2fmm\n"
-               ,
-                $page_width/mm, $page_height/mm, $page_size,
-   #            $printable_page_width/mm, $printable_page_height/mm,
-        if $verbose;
-
-#   my @render_order = qw( phone name details );
-#   my @render_widths =(   0.25, 0.30, 0.45 );
-#   my %detail_widths; @detail_widths{@render_order} = @render_widths;
-
-#   my @detail_order = $book_phones_first ? @render_order : uniq 'name', @render_order;
-
-#   my @detail_offsets = (0, @detail_widths{@detail_order[0..$#detail_order-1]});
-#   $detail_offsets[$_] += $detail_offsets[$_-1] for 1..$#detail_offsets;
-
-#   my %detail_offsets; @detail_offsets{@detail_order} = @detail_offsets;
 
     my $render_person_index = sub {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
@@ -4035,14 +4165,17 @@ sub render_index_list($$) {
         }
         if ($verbose) {
             if ($visible) {
-                warn sprintf "RENDER index ↔%.2fmm →%.2fmm ↑%.2fmm\n", $column_width/mm, $left/mm, $top/mm;
+                warn sprintf "RENDER index ↔%.2fmm →%.2fmm ↑%.2fmm\n", $column_width/mm, $left/mm, $top/mm
+                    if $verbose > 2;
             }
             else {
-                warn sprintf "SIZING index ↔%.2fmm\n", $column_width/mm;
+                warn sprintf "SIZING index ↔%.2fmm\n", $column_width/mm
+                    if $verbose > 2;
             }
         }
-        my $B = $pq->TB;
-        my $N = $pq->TN;
+        my $inactive = $r->gtags('inactive');
+        my $B = $inactive ? $pq->TBI : $pq->TB;
+        my $N = $inactive ? $pq->TI  : '';
         my $text = $pq->text;
         my $width = 0;
         my @subcolumn_offset = map { $_ * ($column_width + $interdetail_spacing) } 0, 0.6667, 1;
@@ -4051,15 +4184,30 @@ sub render_index_list($$) {
         my $family_name = $name->{family_name};
         $name = "$name";
         $name =~ s/\([^()]*\)//g;
+
+        my $data = $pq->{pagedata} ||= { first_on_page => 1 };
+
+        my $margin_note = $render_context->{margin_note};
+        if ( ! $data->{seen_margin_note}{$margin_note}++ ) {
+            push $data->{margin_notes_list}, $margin_note;
+            $data->{margin_notes} = join ', ', @{ $data->{margin_notes_list} };
+        }
+
         # record full name & family name of first entry on page
-        $pq->{pagedata} ||= {
-            first_full_name => $name,
-            first_family_name => $family_name,
-        };
+        if (delete $data->{first_on_page}) {
+        $data->{first_full_name}   = $name,
+        $data->{first_family_name} = $family_name,
+        }
         # record full name & family name of last entry on page
-        $pq->{pagedata}{last_full_name} = $name;
+        $pq->{pagedata}{last_full_name}   = $name;
         $pq->{pagedata}{last_family_name} = $family_name;
-        $name =~ s/(.*)\b($family_name)\b/$1$B$2$N/ if $family_name && $name;
+        if ($name) {
+            if ( $family_name ) {
+                $name =~ s/(.*)\b($family_name)\b/$N$1$B$2/
+            } else {                                
+                $name = $N.$name;
+            }
+        }
         my @listings = map { $short_meeting_name{$_} && ($short_meeting_name{$_}[$mtg_abbrev_len] || $short_meeting_name{$_}[-1]) || $_ } map { s/\W+//gr } $r->gtags(qr/^listing[- ]+(?:\w\w\w?[- ]+|)(.*)/);
         my @memberships = map { $pq->TB . $_ . $pq->TN } $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
         my @phones = map { localize_phone $_ } $r->listed_phone;
@@ -4082,82 +4230,106 @@ sub render_index_list($$) {
         }
 
         my $item_height = max $h1, $t1;
-        warn sprintf "ITEM: ↑%.2fmm →%.2fmm ↕%.2fmm=max((h1=%.2f),(t1=%.2f)) ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $h1/mm, $t1/mm, $column_width/mm if $verbose;
+        warn sprintf "ITEM: ↑%.2fmm →%.2fmm ↕%.2fmm=max((h1=%.2f),(t1=%.2f)) ↔%.2fmm\n", $top/mm, $left/mm, $item_height/mm, $h1/mm, $t1/mm, $column_width/mm if $verbose > 2;
         return $column_width, $item_height;
     };
 
+    if ($do_book_listing_all) {
+        warn "doing book LISTING - all\n" if $verbose;
+        my %render_context;
+        render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rr, 1, 1);
+        $pq->closepage;
+    }
+
+    if ($do_book_listing_by_mm) {
+        warn "doing book LISTING - by MM\n" if $verbose;
+        for my $mm ( @mm_order ) {
+            $pq->closepage;
+            my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
+            my %render_context;
+            render_sorted_columnated_list($pq, $render_person_details, \%render_context, \@rr2, 1, 1);
+            $pq->closepage;
+        }
+    }
+
+    if ($do_book_listing_by_wg) {
+        warn "doing book LISTING - by WG\n" if $verbose;
+        my $col;
+        my $top = 0;
+        for my $wg ( @wg_order ) {
+            my $wgn;
+            (my $mm = $wg) =~ s/[- ]+(.*)// and $wgn = $1;
+            $pq->closepage;
+            # You get listed in MM-elsewhere if
+            #  1, you're tagged for it; or
+            #  2, you're a member of the MM but *not* in any WG listing within that MM (which includes tagging as MM-overseas)
+            my @rr2 = grep { $_->gtags( qr/^listing[- ]+$wg/ )
+                          || $wgn eq 'elsewhere'
+                            && $_->gtags( qr/^member[- ]+$mm/ )
+                            && ! $_->gtags( qr/^listing[- ]+$mm/ )
+                        } @$rr;
+            my %render_context = (  heading => $wgn,
+                                    heading_bold => 1,
+                                    x_heading_size => $fontsize * PHI,
+                                    x_heading_spacing => 2 );
+            if ( $top < $fontsize*$line_spacing*9 ) { $top = 0 }    # skip to next column if not enough room for 8 lines
+            else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
+            ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 3, 1, $col, $top);
+            ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, \@rr2, 1, 1, $col, $top);
+        }
+        $pq->closepage;
+    }
+
     if ($do_book_index_all) {
-        my $margin_note;
-        my $mm_lh = $book_margin_fontsize*$line_spacing;
+        warn "doing book INDEX - all\n" if $verbose;
         #my ($w, $h) = $pq->text_size($fontname, $book_margin_fontsize, $line_spacing, $mm);
-        push @{$pq->{upon_end_page}}, sub {
-            my ($pq, $pagenum) = @_;
-            my $right_page = $pagenum % 2;
-            my $rotation = $right_page ? -90 : 90;
-            my $top =  $page_height - $page_top_margin;
-            my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
-            $pq->text_rotate($fontname, $book_margin_fontsize, $margin_note, $top, $left, $rotation);
-        };
         my %render_context;
         render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rr, 3, 1);
         $pq->closepage;
-        pop $pq->{upon_end_page};
     }
 
     if ($do_book_index_by_mm) {
-        my $margin_note;
-        my $mm_lh = $book_margin_fontsize*$line_spacing;
+        warn "doing book INDEX - by MM\n" if $verbose;
         #my ($w, $h) = $pq->text_size($fontname, $book_margin_fontsize, $line_spacing, $mm);
-        push @{$pq->{upon_end_page}}, sub {
-            my ($pq, $pagenum) = @_;
-            my $right_page = $pagenum % 2;
-            my $rotation = $right_page ? -90 : 90;
-            my $top =  $page_height - $page_top_margin;
-            my $left = $right_page ? $page_width-$mm_lh : $mm_lh-$book_margin_fontsize;
-            $pq->text_rotate($fontname, $book_margin_fontsize, $margin_note, $top, $left, $rotation);
-        };
         for my $mm ( @mm_order ) {
-            $margin_note = $mm_names{$mm};
             my @rr2 = grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr;
             $pq->closepage;
-            my %render_context;
+            my %render_context = ( margin_note => $mm_names{$mm} );
             render_sorted_columnated_list($pq, $render_person_index, \%render_context, \@rr2, 3, 1);
             $pq->closepage;
         }
-        pop $pq->{upon_end_page};
     }
 
     if ($do_book_index_by_wg) {
-        die "UNIMPLEMENTED";
+        warn "doing book INDEX - by WG\n" if $verbose;
+        my $col;
+        my $top = 0;
+        for my $wg ( @wg_order ) {
+            my $wgn;
+            (my $mm = $wg) =~ s/[- ]+(.*)// and $wgn = $1;
+            # You get listed in MM-elsewhere if
+            #  1, you're tagged for it; or
+            #  2, you're a member of the MM but *not* in any WG listing within that MM (which includes tagging as MM-overseas)
+            my @rr2 = grep { $_->gtags( qr/^listing[- ]+$wg/ )
+                          || $wgn eq 'elsewhere'
+                            && $_->gtags( qr/^member[- ]+$mm/ )
+                            && ! $_->gtags( qr/^listing[- ]+$mm/ )
+                        } @$rr;
+            my %render_context = (  heading => $wgn,
+                                    heading_bold => 1,
+                                    x_heading_size => $fontsize * PHI,
+                                    x_heading_spacing => 2,
+                                    margin_note => $wgn );
+            if ( $top < $fontsize*$line_spacing*9 ) { $top = 0 }    # skip to next column if not enough room for 8 lines
+            else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
+            ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 3, 1, $col, $top);
+            ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, \@rr2, 3, 1, $col, $top);
+        }
         $pq->closepage;
     }
-}
 
-sub generate_book($$;$) {
-    my $out = shift;
-    my $rr0 = shift;
-    my $in_name = shift || '(stdin)';
-
-    my $rr = suppress_unwanted_records $rr0;
-    #@$rr = grep { ! $_->gtags( qr/^meeting/ ) } @$rr;       # only humans in main listing
-
-    my $pq = new PDF_paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
-
-    # if pagesize was given as eg "A5", convert that back to actual dimensions
-    $page_width = $pq->{page_width};
-    $page_height = $pq->{page_height};
-
-    if ($use_page_numbers) {
-        # Number each page
-        $pq->{upon_start_page}[0] = sub {
-            my ($pq, $pagenum) = @_;
-            my $right_page = $pagenum % 2;
-            $pq->text_rotate($book_fontname, $book_pagenumber_fontsize, $pagenum, 1.5*$book_pagenumber_fontsize*$line_spacing, $page_width/2, 30); 
-        };
-    }
-
-    render_full_list($pq, $rr);
-    render_index_list($pq, $rr);
+    $pq->closepage;
+    pop $pq->{upon_end_page};
 
     ( $out, my $out_name ) = _open_output $out, 1;
     print "Writing PDF to $out_name ($out)\n";
