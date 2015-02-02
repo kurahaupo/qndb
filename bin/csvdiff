@@ -1,82 +1,57 @@
 #!/bin/bash
 
-dbdir=$HOME/Quakers/db
-dldirs=( $HOME/Downloads  $dbdir/.. $dbdir ) once=false
+. $HOME/Quakers/lib/qlib.bash
 
-pT="$dbdir/profile-%(%Y%m%d)T.csv"
-gT="$dbdir/google-%(%Y%m%d)T.csv"
-
+diff_ignore_dir="${dbdir}DIFF/"
 list_before=false
-
-printf -v p0 "$pT" 1393541773   # baseline comparison file (first snapshot)
-printf -v p1 "$pT" 1402216718   # snapshot on which the Green Book was based
-
-g=()
-p=()
+once=false
+smart_diff=true
 use_google=true
 use_profile=true
-smart_diff=true
+
+vim_opts=()
 
 true=1 false=0
 
-offset_times=()
+glist=()
+plist=()
+day_offsets=()
 
-for o do
+while (($#)) ; do
+    o=$1
+    shift
     case $o in
-    (--*-days-ago)              offset_times+=( ${o//[^0-9]/} ) ;;
-    (--1-day-ago|--yesterday)   offset_times+=( 1 ) ;;
+    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${o//[^0-9]/} ) ;;
+    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${o//[^0-9]/} )) ) ;;
+    (--today)                   day_offsets+=( 0 ) ;;
+    (--yesterday)               day_offsets+=( 1 ) ;;
+    (--last-week)               day_offsets+=( 7 ) ;;
     (--after)                   list_before=false ;;
     (--before)                  list_before=true ;;
-    (--bl|--baseline)           p+=("$p0") ;;
-    (--book|--book2014)         p+=("$p1") ;;
-    (--last-week)               offset_times+=( 7 ) ;;
-    (--ng|--no-google|--no-gmail)   use_google=false  ;;
+    (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
+    (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
+    (--ng|--no-gmail)           use_google=false  ;;
     (--np|--no-profile)         use_profile=false ;;
-    (--offset-time=*)           offset_times+=( ${o#--*=} ) ;;
+    (--offset-time=*)           day_offsets+=( ${o#--*=} ) ;;
     (--once)                    once=true ;;
     (--loop)                    once=false ;;
     (--ignore)                  ignore=true ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
-    (--today)                   offset_times+=( 0 ) ;;
-    (--ug|--use-google|--use-gmail) use_google=true  ;;
+    (--today)                   day_offsets+=( 0 ) ;;
+    (--ug|--use-gmail)          use_google=true  ;;
     (--up|--use-profile)        use_profile=true ;;
     (-*)                        dumpopts+=("$o") ;;
-    (*/google*|google*)         g+=($o) ;;
+    (*/google*|google*)         glist+=($o) ;;
     (*/profile*|profile*\
-    |*/mma-book*)               p+=($o) ;;
-    (*) echo >&2 "Unknown option '$o'" ; exit 64 ;;
+    |*/mma-book*)               plist+=($o) ;;
+    (*)                         echo >&2 "Unknown option '$o'" ; exit 64 ;;
     esac
 done
 
-((${#offset_times[@]})) || offset_times=(0)
+((${#day_offsets[@]})) || day_offsets=( 0 )
 
-echo "Offset times are: ${offset_times[*]}"
-
-do_comp() {
-    case $# in
-    (1) vim     "${ignore_file[@]}" \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1) \
-                ;;
-    (2)
-        vimdiff "${ignore_file[@]}" \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
-                ;;
-    (3) vimdiff "${ignore_file[@]}" \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$3" 2>&1 ) \
-                ;;
-    (4) vimdiff "${ignore_file[@]}" \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$1" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$2" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$3" 2>&1 ) \
-                <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "$4" 2>&1 ) \
-                ;;
-    (*) echo >&2 "Cannot diff $# files" ;;
-    esac
-}
+echo "Day-offsets are: ${day_offsets[*]}"
 
 mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
 
@@ -84,61 +59,60 @@ while
     printf 'Diff? '
     read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
 do
-    printf -v T "%(%s)T" -1
-    printf -v pt "$pT" $T
-    printf -v gt "$gT" $T
+    # update time-related vars to reflect "now" or "today"
+    set_current_vars
 
-    delay=false
-    for dd in "${dldirs[@]}"
-    do
-        mvs "$dd/google.csv"      "$gt"
-        mvs "$dd/all_members.csv" "$pt"
-    done
-    $delay && sleep 1.25
+    # make sure any new downloads are filed in proper locations
+    file_downloads
 
         ff=()
-    $list_before && ff+=( "${p[@]}" )
+    ((list_before)) &&
+        ff+=( "${plist[@]}" )
 
-        ff+=( "${g[@]}" )
-    ((use_google)) && {
-        printf -v gx "$gT" $T
-        ff+=( "$gx" )
-    }
+        ff+=( "${glist[@]}" )
+    ((use_google)) &&
+        ff+=( "$current_gmail" )
 
     ((use_profile)) &&
-    for t in "${offset_times[@]}"
+    for t in "${day_offsets[@]}"
     do
-        printf -v px "$pT" $((T-t*86400))
+        printf -v px "$pT" $((now-t*86400))
         ff+=( "$px" )
     done
-    ! $list_before && ff+=( "${p[@]}" )
+    ((! list_before)) &&
+        ff+=( "${plist[@]}" )
 
-    (( nff = ${#ff[@]} ))
-    if (( smart_diff )) && (( nff == 2 ))
+    ignore_opts=()
+    diff_ignore_file=()
+    if (( ignore ))
     then
-        csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
+        diff_ignore_file="${diff_ignore_dir}${ff[*]##*/}.ignore"
+        diff_ignore_file="${diff_ignore_file//' '/:}"
+        :>> "$diff_ignore_file"
+        ignore_opts+=( --diff-ignore-file="$diff_ignore_file" )
+        vim_opts+=( +':set nodiff foldcolumn=0 noscrollbind nocursorbind' )
+    fi
+
+    nff=${#ff[@]}
+    if (( smart_diff && nff == 2 && ! ignore ))
+    then
+        ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
             less -i
     else
-        ignore_opts=()
-        ignore_file=()
-        if (( ignore ))
-        then
-            ignore_file="$(dirname "$1")/DIFF ${*##*/}"
-            ignore_file="${ignore_file//' '/:}"
-            :>> "$ignore_file"
-            ignore_opts+=( --diff-ignore-file="$ignore_file" )
-        fi
+        ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
+        set -x
         for (( i=0 ; i<nff ; ++i )) do
             [[ ${ff[i]} = *.csv ]] || continue
-            exec {fd}< <( csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
+            exec {fd}< <( ${libdir}csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
             fz[i]=$fd
             ff[i]=/proc/$BASHPID/fd/$fd
         done
-        #do_comp "${ff[@]}"
-        vim "${ignore_file[@]}" "${ff[@]}"
+        set +x
+        vimdiff "${vim_opts[@]}" "${ff[@]}"
         for fd in ${fz[@]} ; do
             exec {fd}<&-
         done
     fi
-    $once && break
+
+    ((once)) && break
 done
