@@ -1,0 +1,118 @@
+#!/bin/bash
+
+. $HOME/Quakers/lib/qlib.bash
+
+diff_ignore_dir="${dbdir}DIFF/"
+list_before=false
+once=false
+smart_diff=true
+use_google=true
+use_profile=true
+
+vim_opts=()
+
+true=1 false=0
+
+glist=()
+plist=()
+day_offsets=()
+
+while (($#)) ; do
+    o=$1
+    shift
+    case $o in
+    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${o//[^0-9]/} ) ;;
+    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${o//[^0-9]/} )) ) ;;
+    (--today)                   day_offsets+=( 0 ) ;;
+    (--yesterday)               day_offsets+=( 1 ) ;;
+    (--last-week)               day_offsets+=( 7 ) ;;
+    (--after)                   list_before=false ;;
+    (--before)                  list_before=true ;;
+    (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
+    (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
+    (--ng|--no-gmail)           use_google=false  ;;
+    (--np|--no-profile)         use_profile=false ;;
+    (--offset-time=*)           day_offsets+=( ${o#--*=} ) ;;
+    (--once)                    once=true ;;
+    (--loop)                    once=false ;;
+    (--ignore)                  ignore=true ;;
+    (--smart)                   smart_diff=true ;;
+    (--stupid)                  smart_diff=false ;;
+    (--today)                   day_offsets+=( 0 ) ;;
+    (--ug|--use-gmail)          use_google=true  ;;
+    (--up|--use-profile)        use_profile=true ;;
+    (-*)                        dumpopts+=("$o") ;;
+    (*/google*|google*)         glist+=($o) ;;
+    (*/profile*|profile*\
+    |*/mma-book*)               plist+=($o) ;;
+    (*)                         echo >&2 "Unknown option '$o'" ; exit 64 ;;
+    esac
+done
+
+((${#day_offsets[@]})) || day_offsets=( 0 )
+
+echo "Day-offsets are: ${day_offsets[*]}"
+
+mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
+
+while
+    printf 'Diff? '
+    read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
+do
+    # update time-related vars to reflect "now" or "today"
+    set_current_vars
+
+    # make sure any new downloads are filed in proper locations
+    file_downloads
+
+        ff=()
+    ((list_before)) &&
+        ff+=( "${plist[@]}" )
+
+        ff+=( "${glist[@]}" )
+    ((use_google)) &&
+        ff+=( "$current_gmail" )
+
+    ((use_profile)) &&
+    for t in "${day_offsets[@]}"
+    do
+        printf -v px "$pT" $((now-t*86400))
+        ff+=( "$px" )
+    done
+    ((! list_before)) &&
+        ff+=( "${plist[@]}" )
+
+    ignore_opts=()
+    diff_ignore_file=()
+    if (( ignore ))
+    then
+        diff_ignore_file="${diff_ignore_dir}${ff[*]##*/}.ignore"
+        diff_ignore_file="${diff_ignore_file//' '/:}"
+        :>> "$diff_ignore_file"
+        ignore_opts+=( --diff-ignore-file="$diff_ignore_file" )
+        vim_opts+=( +':set nodiff foldcolumn=0 noscrollbind nocursorbind' )
+    fi
+
+    nff=${#ff[@]}
+    if (( smart_diff && nff == 2 && ! ignore ))
+    then
+        ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
+            less -i
+    else
+        ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
+        set -x
+        for (( i=0 ; i<nff ; ++i )) do
+            [[ ${ff[i]} = *.csv ]] || continue
+            exec {fd}< <( ${libdir}csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
+            fz[i]=$fd
+            ff[i]=/proc/$BASHPID/fd/$fd
+        done
+        set +x
+        vimdiff "${vim_opts[@]}" "${ff[@]}"
+        for fd in ${fz[@]} ; do
+            exec {fd}<&-
+        done
+    fi
+
+    ((once)) && break
+done

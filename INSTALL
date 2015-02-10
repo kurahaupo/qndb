@@ -1,0 +1,5 @@
+#!/bin/sh
+
+p=$(pwd)
+
+ln -s $p/bin $p/lib $HOME/Quakers/
