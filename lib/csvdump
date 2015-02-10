@@ -29,9 +29,7 @@ use constant sixteen_this_date => strftime "%Y%m%d", localtime $^T - 504921600;
 
 use constant CHECK_ARGS => 1;
 
-my $debug = 0;
-my $verbose = 1;
-my $why_not = 0;
+use verbose;
 
 ################################################################################
 
@@ -209,6 +207,7 @@ use PDF::scale_factors;
 {
 package PDF_paginator;
 
+use verbose;
 use PDF::scale_factors;
 
 sub _unmethod {
@@ -744,6 +743,8 @@ sub text_at($$%) {
 {
 package CSV::Common;
 
+use verbose;
+
 our $canon_address = 0;
 our $use_care_of = 1;
 our $only_explicitly_shared_email = 1;
@@ -931,6 +932,7 @@ Name,Given Name,Additional Name,Family Name,Yomi Name,Given Name Yomi,Additional
 package CSV::gmail;
 use parent -norequire => CSV::Common::;
 
+use verbose;
 use list_functions;
 
 #
@@ -1251,6 +1253,8 @@ uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_u
 {
 package CSV::qndb;
 use parent -norequire => CSV::Common::;
+
+use verbose;
 
 sub _hash_uid($) {
     my $z = shift;
@@ -1657,8 +1661,9 @@ up each entry onto a single line; tab-delimited
 
 {
 package WordDocTxt;
-
 use parent -norequire => CSV::Common::;
+
+use verbose;
 use list_functions 'uniq';
 
 sub new($\@\@) {
@@ -3436,6 +3441,7 @@ Label records
     {
     package CommonLabel;
 
+    use verbose;
     use PDF::scale_factors;
 
     sub new {
@@ -3526,6 +3532,8 @@ Label records
     {
     package ItemCountLabel;
     use parent -norequire => CommonLabel::;
+
+    use verbose;
 
     sub colour { $label_banner_colour }
 
