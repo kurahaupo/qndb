@@ -14,6 +14,7 @@ sub fake_require($) {
 
 sub import {
     my $self = shift;
+    my $not_faking = @_ && $_[0] eq '-' && shift;
     my $exportable = \@_;
     my $cpkg = caller;
     # Create an import method for the target package
@@ -29,7 +30,7 @@ sub import {
     };
     { no strict 'refs'; *{"${cpkg}::import"} = $im; };
     # Fake things so that when "use" does "require FILE", it thinks it's already loaded
-    fake_require $cpkg;
+    fake_require $cpkg if ! $not_faking;
 }
 
 1;

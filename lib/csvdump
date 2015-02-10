@@ -175,57 +175,6 @@ my %spelling_fixes = (
 
 ################################################################################
 
-{
-package export;
-# Fake things so that when "use" does "require FILE", it thinks it's already loaded
-sub fake_require($) {
-    my $cpkg = shift;
-    $cpkg =~ s#::#/#g;
-    $cpkg .= '.pm';
-    $INC{$cpkg} = __FILE__;
-}
-BEGIN { fake_require __PACKAGE__ }
-sub import {
-    my $self = shift;
-    my $exportable = \@_;
-    my $cpkg = caller;
-    # Create an import method for the target package
-    my $im = sub {
-        my $self = shift;
-        my $pkg = caller;
-        for my $n (@_ ? @_ : @$exportable) {
-            no strict 'refs';
-            my $f = UNIVERSAL::can($self,$n)
-                or die "'$pkg' cannot import function '$n' from '$self', which neither defines nor inherits it\n";
-            *{"${pkg}::$n"} = $f;
-        }
-    };
-    { no strict 'refs'; *{"${cpkg}::import"} = $im; };
-    # Fake things so that when "use" does "require FILE", it thinks it's already loaded
-    fake_require $cpkg;
-}
-}
-
-{
-package list_functions;
-use export qw( min max sum uniq first near flatten );
-sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
-sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
-sub sum(@) { my $r = shift; $r += $_ for @_; $r }
-sub uniq(@) { my %seen; grep { ! $seen{$_}++ } @_ }
-sub first(@) { @_ ? shift : () }
-sub near($$;$) { my ($a,$b) = @_; my $s = max(abs($a),abs($b)); abs($a-$b) < $s / ($_[2]||1000) }
-sub flatten(@) { map { ref $_ ? @$_ : $_ || () } @_ }
-}
-
-{
-package math_constants;
-use constant PHI => (sqrt(5)+1)/2;
-use constant PI => atan2(0,-1);
-use constant degrees_to_radians => PI/180;
-use export qw( PI degrees_to_radians PHI );
-}
-
 use list_functions;
 
 sub normalize_phone($);
