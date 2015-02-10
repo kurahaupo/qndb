@@ -1,5 +1,20 @@
-#!/bin/sh
+#!/bin/bash
 
-p=$(pwd)
+shopt -s extglob
 
-ln -s $p/bin $p/lib $HOME/Quakers/
+q=$HOME/Quakers/
+r=$q
+g=$PWD/
+
+while [[ $r = */* && $g = */* && ${r%%/*} = ${g%%/*} ]] ; do r=${r#*/} g=${g#*/} ; done
+r=${r//+([^\/])/..}
+g=$r$g
+
+if [[ -d .git ]]
+then
+    ln -sT "${g:-.}" $HOME/Quakers/.GIT
+    ln -svf .GIT/bin .GIT/lib "${q:-.}"
+else
+    for h in bin lib ; do [[ -h ${q}$h ]] && rm -v ${q}$h ; done
+    cp -avf "${g}bin" "${g}lib" "${q:-.}"
+fi
