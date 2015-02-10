@@ -177,8 +177,6 @@ my %spelling_fixes = (
 
 use list_functions;
 
-sub normalize_phone($);
-
 sub sort_by_surname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
@@ -934,6 +932,7 @@ use parent -norequire => CSV::Common::;
 
 use verbose;
 use list_functions;
+use phone_functions 'normalize_phone';
 
 #
 # Preference order for extracting fields; only use 'c/-' & 'parents' for
@@ -945,7 +944,7 @@ use list_functions;
 my @key_prefs = qw{ personal g work home home1 home2 shared post listing other };
 
 my %patch_types = (
-    phone => \&::normalize_phone,
+    phone => \&normalize_phone,
 );
 
 # GMail list
@@ -1255,6 +1254,7 @@ package CSV::qndb;
 use parent -norequire => CSV::Common::;
 
 use verbose;
+use phone_functions 'normalize_phone';
 
 sub _hash_uid($) {
     my $z = shift;
@@ -1281,9 +1281,9 @@ sub fix_one($) {
             uid_of_spouse               => \&_hash_uid,
             uids_of_parents             => \&_hash_uid,
             uid                         => \&_hash_uid,
-            fax                         => \&::normalize_phone,  # CSV::qndb
-            mobile_number               => \&::normalize_phone,  # CSV::qndb
-            phone_number                => \&::normalize_phone,  # CSV::qndb
+            fax                         => \&normalize_phone,  # CSV::qndb
+            mobile_number               => \&normalize_phone,  # CSV::qndb
+            phone_number                => \&normalize_phone,  # CSV::qndb
         };
     FIELD: for my $f (keys %$r) {
         $split_fields->{$f} or next FIELD;
@@ -1665,6 +1665,7 @@ use parent -norequire => CSV::Common::;
 
 use verbose;
 use list_functions 'uniq';
+use phone_functions 'normalize_phone';
 
 sub new($\@\@) {
     my ($class, $headers, $ra) = @_;
@@ -1720,7 +1721,7 @@ sub new($\@\@) {
         if ( (my $n = $f =~ s/[- ]//gr) =~ /^[0+]\d{7,}$/ ) {
             # it's (very probably) a phone number
             my $type = 'phone_number';
-            $n = ::normalize_phone($n);
+            $n = normalize_phone($n);
             if ($tag) {
                 if ($tag eq 'fax') {
                     $type = 'fax_number';
@@ -1909,6 +1910,7 @@ use constant is_word_doc => 1;
 
 sub birthdate { return shift->{birthdate} }
 
+#use phone_functions 'localize_phone';
 sub _phones($$) {
     my ($r, $k) = @_;
     my $p = $r->{$k} || return;
@@ -1942,63 +1944,6 @@ sub nz_friends_by_post { 'No' }
 }
 
 ################################################################################
-
-sub normalize_phone($) {
-    my $oo = my $z = shift @_;
-    for ($z) {
-        s/fa?x?(?!\w)(.*)/$1^/i;
-       #s/(?:cell|mob)\D*(.*)/$1^/i;
-        s/x/;/g;
-        s/[^+0-9;^]//g;
-        s/^00/+/ or
-        s/^0/+64/;
-        warn "NORMALIZED phone '$oo' -> '$_'\n" if $oo ne $_ && $verbose > 3;
-        return $_;
-    }
-}
-
-my $nbsp = "\x{a0}";  # non-breaking space, for spacing out phone numbers
-
-sub localize_phone($) {
-    my $o = shift @_;
-    my $oo = my $z = normalize_phone $o;
-    for ($z) {
-        s/^\+1      # NANP
-         |^\+27     # ZA
-         |^\+4\d    # GB+EU
-         |^\+6[145] # Oceania
-         |^\+7      # СССР
-         |^\+86     # CH
-         |^\+91     # IN
-         |^\+\d\d\d
-         /$& /x;
-        s/^\+1\s\d\d\d
-         |^\+27\s1\d\d
-         |^\+44\s1\d\d\d
-         |^\+44\s[2389]\d\d
-         |^\+61\s1\d00
-         |^\+61\s[23478]
-         |^\+64\s2\d
-         |^\+64\s508
-         |^\+64\s800
-         |^\+64\s83
-         |^\+64\s[34679]
-         |^\+7\s\d\d\d2*
-         |^\+\d\+\s\d\d
-         /$& /x;
-        s/^\+64\s*/0/;
-        s/\s/$nbsp/g;
-        s/;/ ext /;
-        s/\^/ (fax)/;
-        1 while
-        s/(?<=\d{3})(?=\d{6})/$nbsp/g;
-        s/(?<=\d{-3,4})(?=\d{3,4})/$nbsp/g;
-        warn "LOCALIZED phone '$o' -> '$oo' -> '$_'\n" if ($o ne $_ || $oo ne $_) && $verbose > 3;
-        return $_;
-    }
-}
-
-#sub unquote($) { my $z = shift; $z =~ s/""/"/g; $z }
 
 use POSIX 'strftime';
 
@@ -4143,6 +4088,7 @@ sub generate_labels($$;$) {
                      && $_->gtags( qr/^member[- ]+$mm/ )
                     } @$rrr ]; 
     }
+use phone_functions 'localize_phone';
 
 sub generate_book($$;$) {
     my $out = shift;
@@ -4399,7 +4345,7 @@ sub generate_book($$;$) {
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
         my $emails = join " ", uniq $r->listed_email;
-        my $phones = join "\n", map { s/(?<=\d) (?=\d)/$nbsp/gr } @phones;
+        my $phones = join "\n", map { s/(?<=\d) (?=\d)/\N{NBSP}/gr } @phones;
         my $addresses = join "\n", ( map { s/\n/, /gr } $r->listed_address );
 
         my @subcolumn_offset = map { $_ * ($column_width + $book_interdetail_spacing) } @detail_offsets{qw( phone name details )}, 1;
