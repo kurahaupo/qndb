@@ -4604,7 +4604,7 @@ sub generate_book($$;$) {
         }
 
         my @listings = map { $short_meeting_name{$_} && ($short_meeting_name{$_}[$mtg_abbrev_len] || $short_meeting_name{$_}[-1]) || $_ } map { s/\W+//gr } $r->gtags(qr/^listing[- ]+(?:\w\w\w?[- ]+|)(.*)/);
-        my @memberships = map { $pq->TB . $_ . $pq->TN } $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
+        my @memberships = $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
         my @emails = uniq $r->listed_email;
