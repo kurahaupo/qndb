@@ -195,19 +195,7 @@ sub preferred_sort(@) {
     goto &sort_by_givenname;
 }
 
-########################################
-# scale factors for sizes for PDF files
-
-{
-package scale_factors;
-use constant pt => 1;
-use constant px => 2/3;
-use constant in => 72;
-use constant mm => 72 / 25.4;
-sub import { my $pkg = caller; warn sprintf "Importing %s into %s\n", __PACKAGE__, $pkg; for (qw( pt px in mm )) { no strict 'refs'; *{"${pkg}::$_"} = *{"$_"}{CODE} } }
-BEGIN { $INC{"scale_factors.pm"} = __FILE__ }
-}
-use scale_factors;
+use PDF::scale_factors;
 
 ################################################################################
 #
@@ -219,7 +207,7 @@ use scale_factors;
 {
 package PDF_paginator;
 
-use scale_factors;
+use PDF::scale_factors;
 
 sub _unmethod {
     ref $_[0] && UNIVERSAL::isa( $_[0], __PACKAGE__ ) && shift;
@@ -3478,7 +3466,7 @@ Label records
     {
     package CommonLabel;
 
-    use scale_factors;
+    use PDF::scale_factors;
 
     sub new {
         my $class = shift;
@@ -3571,7 +3559,7 @@ Label records
 
     sub colour { $label_banner_colour }
 
-    use scale_factors;
+    use PDF::scale_factors;
 
     sub new {
         my $class = shift;
