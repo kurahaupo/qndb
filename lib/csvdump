@@ -4607,14 +4607,13 @@ sub generate_book($$;$) {
         my @memberships = $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
-        my @emails = uniq $r->listed_email;
         my ($w1, $h1, $c1, $t1);
         if ( $visible ) {
             ($w1, $h1, $c1, $t1) = $pq->text_flow($fontname, $fontsize, $line_spacing, $name, $column_width, $top, $left);
         } else {
             ($w1, $h1, $c1, $t1) = $pq->text_size($fontname, $fontsize, $line_spacing, $name, $column_width);
         }
-        for my $s (@page_xrefs, @memberships, @listings, @phones, @emails) {
+        for my $s (@page_xrefs, @memberships, @listings, @phones) {
             my ($w, $h) = $pq->text_size($fontname, $small_fontsize, $line_spacing, $s);
             if ($t1 < $h1 && $c1 + $book_interdetail_spacing + $w > $column_width) {
                 # Skip to next blank line if it won't fit to the right
