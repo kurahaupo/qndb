@@ -20,6 +20,8 @@ use Getopt::Long qw( :config auto_abbrev bundling );
 
 use Carp 'croak', 'carp';
 
+use string_with_components;
+
 use constant now => [ localtime $^T ];
 use constant this_year => strftime "%Y", localtime $^T;
 use constant this_date => strftime "%Y%m%d", localtime $^T;
@@ -732,39 +734,6 @@ sub text_at($$%) {
 }
 
 #sub DESTROY { }
-}
-
-################################################################################
-
-{
-package string_with_components;
-
-sub new {
-    my $class = shift;
-    my $formatted = shift;
-    bless ref $formatted && !@_ ? $formatted : { @_, formatted => $formatted }, $class;
-}
-
-use overload '""' => sub {
-    my $r = shift;
-    $r->{formatted} //= $r->formatted;
-};
-
-use overload 'eq' => sub {
-    my ($r1, $r2) = @_;
-    defined $r1 && defined $r2 || return 0;
-    !ref $r1   && return $r1              eq $r2->{formatted};
-    !ref   $r2 && return $r1->{formatted} eq $r2;
-                  return $r1->{formatted} eq $r2->{formatted}
-};
-
-use overload 'ne' => sub {
-    my ($r1, $r2) = @_;
-    defined $r1 && defined $r2 || return 1;
-    !ref $r1   && return $r1              ne $r2->{formatted};
-    !ref   $r2 && return $r1->{formatted} ne $r2;
-                  return $r1->{formatted} ne $r2->{formatted}
-};
 }
 
 ################################################################################
