@@ -549,7 +549,8 @@ sub text_flow($$$$$$$$;$) {
     my $text = $pq->text;
     my $lines = 1;
     my $ypos = $top - $lineheight;
-    my $width = my $col = 0;
+    my $width = 0;
+    $col //= 0;
     $pq->font( $fontname.$font_variants[$fontstyle], $fontsize );
     warn sprintf "TEXTFLOW position  →%.2fmm,↑%.2fmm\n",
             $left/mm, $ypos/mm,
