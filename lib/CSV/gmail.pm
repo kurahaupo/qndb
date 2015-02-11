@@ -66,7 +66,7 @@ use quaker_info;
 my @key_prefs = qw{ personal g work home home1 home2 shared post listing other };
 
 my %patch_types = (
-    phone => \&::normalize_phone,
+    phone => \&normalize_phone,
 );
 
 # GMail list

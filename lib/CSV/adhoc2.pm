@@ -15,6 +15,13 @@ up each entry onto a single line; tab-delimited
 package PDF::adhoc2;
 use parent 'CSV::Common';
 
+use Carp 'croak';
+
+use POSIX qw(strftime);
+use Data::Dumper;
+
+use constant this_year => strftime "%Y", localtime $^T;
+
 use list_functions 'uniq';
 use quaker_info;
 use verbose;
@@ -33,7 +40,7 @@ sub new($\@\@) {
     }
 
     my $yf = 'No';
-    my $wg = $headers{wg} || ::croak "Data record before first '%wg' record\n".::Dumper(\%headers);
+    my $wg = $headers{wg} || croak "Data record before first '%wg' record\n".::Dumper(\%headers);
     if ( $wg eq 'YF' ) { undef $wg; $yf = 'Yes' }
     my %family = (
                 __source_line => $. - 1,
@@ -123,8 +130,8 @@ sub new($\@\@) {
         if ( (my $n = $f) =~ s{\s*\((xx|\d\d)/(xx|\d\d)/(\d\d\d\d|\d\d)\)\s*(.*)}{}x ) {
             my ($d,$m,$y,$q) = ($1,$2,$3,$4);
             warn "CHILD [$f] -> name=[$n] date=$1/$2/$3 extra=[$4]\n" if $xdebug;
-            $y += int(::this_year/100)*100 if $y < 100;
-            $y -= 100 if $y > ::this_year;  # born in previous century
+            $y += int(this_year/100)*100 if $y < 100;
+            $y -= 100 if $y > this_year;  # born in previous century
             my @np = split /\s*\+\s*/, $n, -1;
             @np = split /\s+/, $n if @np < 2;
             my $sn;
