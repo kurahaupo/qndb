@@ -31,34 +31,7 @@ use constant CHECK_ARGS => 1;
 
 use verbose;
 
-use quaker_info;
-
 ################################################################################
-
-# The rule of thumb is to map towards the ambiguous abbreviations, rather than
-# away from them, so that we don't get silly things like "1 Scenic Doctor" or
-# "Drive Jones' Surgery" or "1 Street Mary's Road" or "1 Queen Saint".
-my %address_designators = (
-    Av        => 'Ave',
-    Avenue    => 'Ave',
-    Boulevard => 'Bvd',
-    Blvd      => 'Bvd',
-    Cr        => 'Cres',
-    Crescent  => 'Cres',
-    Doctor    => 'Dr',
-    Dve       => 'Dr',
-    Drive     => 'Dr',
-    Grove     => 'Gr',
-    Highway   => 'Hwy',
-    Mount     => 'Mt',
-    Place     => 'Pl',
-    Point     => 'Pt',
-    Road      => 'Rd',
-    Saint     => 'St',
-    Street    => 'St',
-    Tc        => 'Tce',
-    Terrace   => 'Tce',
-);
 
 # This is a hack -- this lookup should be done as part of the database export
 # process.
@@ -648,6 +621,31 @@ sub text_at($$%) {
 package CSV::Common;
 
 use verbose;
+
+# The rule of thumb is to map towards the ambiguous abbreviations, rather than
+# away from them, so that we don't get silly things like "1 Scenic Doctor" or
+# "Drive Jones' Surgery" or "1 Street Mary's Road" or "1 Queen Saint".
+my %address_designators = (
+    Av        => 'Ave',
+    Avenue    => 'Ave',
+    Boulevard => 'Bvd',
+    Blvd      => 'Bvd',
+    Cr        => 'Cres',
+    Crescent  => 'Cres',
+    Doctor    => 'Dr',
+    Dve       => 'Dr',
+    Drive     => 'Dr',
+    Grove     => 'Gr',
+    Highway   => 'Hwy',
+    Mount     => 'Mt',
+    Place     => 'Pl',
+    Point     => 'Pt',
+    Road      => 'Rd',
+    Saint     => 'St',
+    Street    => 'St',
+    Tc        => 'Tce',
+    Terrace   => 'Tce',
+);
 
 our $canon_address = 0;
 our $use_care_of = 1;
@@ -2147,6 +2145,7 @@ my $labels_ordered_in = 'columns';
         }};
     }
 
+use quaker_info qw( $mm_keys_re %mm_names );
 my @ORIG_ARGV = @ARGV;
 
 sub M($) { my $r = \$_[0]; sub { $$r = as_points $_[-1] } }
@@ -3998,6 +3997,7 @@ sub generate_labels($$;$) {
                     } @$rrr ]; 
     }
 use phone_functions 'localize_phone';
+use quaker_info qw( @mm_order %skip_mm_listing %mm_titles @wg_order %skip_wg_listing );
 
 sub generate_book($$;$) {
     my $out = shift;
