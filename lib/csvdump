@@ -31,103 +31,9 @@ use constant CHECK_ARGS => 1;
 
 use verbose;
 
+use quaker_info;
+
 ################################################################################
-
-my %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
-    'BP - Bay of Plenty',
-    'CH - Christchurch',
-    'DN - Dunedin',
-    'KP - Kapiti',
-    'MNI - Mid North Island',
-    'NT - Northern',
-    'PN - Palmerston North',
-    'WG - Whanganui Taranaki',
-  # 'WK - Waikato Hauraki',
-    'WN - Wellington',
-    'YF - Young Friends',
-    'NO - not in any meeting',
-;
-
-# Arrange Monthly Meetings in North-to-South order
-my @mm_order = qw( NT MNI WG PN KP WN CH DN NO );
-
-my %skip_mm_listing = (
-#       AK => 1,
-#       BOPA => 1,
-    );
-
-# Arrange Worship Groups in North-to-South order
-my @wg_order = (
-
-    'NT - Kaitaia',
-    'NT - Bay of Islands',
-    'NT - Whangarei',
-    'NT - North Shore',
-    'NT - Mt Eden',
-    'NT - West Auckland',
-    'NT - Howick',
-    'NT - Waiheke',
-    'NT - elsewhere',
-    'NT - overseas',
-
-    'MNI - Thames & Coromandel',
-   #'MNI - Thames',
-    'MNI - Waikato',
-    'MNI - Tauranga',
-   #'MNI - Rotorua',
-    'MNI - Rotorua-Taupo',
-    'MNI - Whakatane',
-    'MNI - elsewhere',
-    'MNI - overseas',
-
-    'PN - Palmerston North',
-    'PN - Hawkes Bay',
-    'PN - Levin',
-    'PN - elsewhere',
-    'PN - overseas',
-
-    'WG - Whanganui',
-    'WG - Taranaki',
-    'WG - elsewhere',
-    'WG - overseas',
-
-    'KP - Kapiti',
-    'KP - elsewhere',
-    'KP - overseas',
-
-    'WN - Wellington',
-    'WN - Wairarapa',
-    'WN - elsewhere',
-    'WN - overseas',
-
-    'CH - Golden Bay',
-    'CH - Marlborough',
-    'CH - Nelson',
-    'CH - Canterbury',
-    'CH - South Canterbury',
-    'CH - Westland',
-    'CH - elsewhere',
-    'CH - overseas',
-
-    'DN - Otago',
-    'DN - Southland',
-    'DN - elsewhere',
-    'DN - overseas',
-
-    'YF',
-    'YF - overseas',
-
-    'NO - not in any worship group',
-
-);
-
-my %skip_wg_listing = (
-    'YF - overseas' => 1,
-    );
-
-my $mm_keys_re = eval sprintf "qr/\\b(?:%s)\\b/o", join '|', keys %mm_names;
-
-my %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) } keys %mm_names;
 
 # The rule of thumb is to map towards the ambiguous abbreviations, rather than
 # away from them, so that we don't get silly things like "1 Scenic Doctor" or
@@ -933,6 +839,7 @@ use parent -norequire => CSV::Common::;
 use verbose;
 use list_functions;
 use phone_functions 'normalize_phone';
+use quaker_info;
 
 #
 # Preference order for extracting fields; only use 'c/-' & 'parents' for
@@ -1502,6 +1409,7 @@ sub _spouse_and_parents {
 }
 
 use list_functions 'uniq';
+use quaker_info '$mm_keys_re';
 
 sub monthly_meeting_area {
     my $r = shift;
@@ -1666,6 +1574,7 @@ use parent -norequire => CSV::Common::;
 use verbose;
 use list_functions 'uniq';
 use phone_functions 'normalize_phone';
+use quaker_info qw( $mm_keys_re %mm_names );
 
 sub new($\@\@) {
     my ($class, $headers, $ra) = @_;
