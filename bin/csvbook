@@ -27,6 +27,8 @@ for o do
     esac
 done
 
+$once && exec < <(echo)
+
 while
     desc=( "${book_opts[@]#--book-}" )
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
