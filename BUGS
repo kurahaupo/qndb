@@ -1,0 +1,29 @@
+
++   The "_____ MM in other parts of NZ" sections have repetitions of many (but not
+    all) people; this seems to be related to how many meetings they're related to,
+    which means there's a problem with the way they're extracted. A hacky fix would
+    be to apply "uniq" after sorting, but I'd really rather find out how they get
+    into the list multiple times to begin with.
+
++   NBSP (used in phone numbers) is behaving like ZWNJ, while ZWNJ is being
+    completely ignored:
+      + Phone numbers are being split on the NBSP's (noting that \N{NBSP} =~ /\s/)
+      + NBSP's are not showing as spaces (probably a rendering issue; perhaps
+        substitute \x20 during text-flow?
+      + Lists are not being split on ZWNJ's (noting that \N{ZWNJ} =~ /\S/)
+
++   In the index, the abbreviation for  "___ MM elsewhere in NZ" is just "other",
+    which doesn't say which MM they're away from; suggest using these instead:
+    ex-NT, ex-MNI, ex-PN, ex-KP, ex-WG, ex-WN, ex-CH & ex-DN.
+
++   The "not in any worship group" section should omit all meetings, and
+    disappear completely if empty. (It's mainly for debugging anyway.)
+
++   Meetings should be sorted to the front of any section they appear in, followed
+    by any other non-persons (roles, venues, etc); their main listing should
+    include their meeting schedule and cross-reference any contact persons.
+
++   avoid line-wrapping phone numbers & names by line-slipping columns instead
+
++   Consider adding an "in memoriam" section...
+
