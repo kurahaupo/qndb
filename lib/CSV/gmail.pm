@@ -63,7 +63,7 @@ use quaker_info;
 # NB: 'c/-' presents as 'c_'
 #     'G+' (GooglePlus) gets split into 'g'+(empty) and so presents as just 'g'
 #
-my @key_prefs = qw{ personal g work home home1 home2 shared post listing other };
+my @key_prefs = qw{ role personal g work home home1 home2 shared post listing other };
 
 my %patch_types = (
     phone => \&normalize_phone,
