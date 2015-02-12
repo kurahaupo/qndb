@@ -3373,7 +3373,12 @@ $do_test || $do_book || $do_diff || $do_diffable_dump || $do_labels || $do_qndb_
 # Actual work...
 #
 
-if ($do_diff) {
+if ($do_test) {
+    my $o = $output_name || ( $force_overwrite = -1,    # it's only a test file, after all;
+                              'test.pdf' );
+    generate_test( $o );
+}
+elsif ($do_diff) {
     $do_book || $do_diffable_dump || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
 
     my $f1 = shift @ARGV;
@@ -3382,10 +3387,6 @@ if ($do_diff) {
     my $rr1 = parse_file $f1;
     my $rr2 = parse_file $f2;
     generate_diff( $output_name, $rr1, $f1, $rr2, $f2 );
-}
-elsif ($do_test) {
-    my $o = $output_name || 'test.pdf';
-    generate_test( $o );
 }
 else {
     if (!@ARGV) {
@@ -3400,24 +3401,29 @@ else {
     #   if ($debug) {
     #       print Dumper($rr);
     #   }
-        if ($do_qndb_map) {
-            my $o = $output_name || $a =~ s/(?:\.\w+|)$/-qdb.csv/r;
-            generate_qndb_map( $o, $rr, $a );
-        }
         if ($do_book) {
-            my $o = $output_name || $a =~ s/(?:\.\w+|)$/-book.pdf/r;
+            # Force overwrite if the output filename is related to (but not the same as) the input filename
+            my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-book.pdf/r );
+            $o ne '-' && $o eq $a && $force_overwrite < 1 && die "Can't overwrite input file as output file\n";
             generate_book( $o, $rr, $a );
         }
         if ($do_labels) {
             # extra sanity-check
             $labels_ordered_in eq 'columns' || $labels_ordered_in eq 'rows' || die "Label ordering must be 'rows' or 'columns'\n";
-
-            my $o = $output_name || $a =~ s/(?:\.\w+|)$/\.pdf/r;
+            # Force overwrite if the output filename is related to (but not the same as) the input filename
+            my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/\.pdf/r );
+            $o ne '-' && $o eq $a && $force_overwrite < 1 && die "Can't overwrite input file as output file\n";
             generate_labels( $o, $rr, $a );
         }
         if ($do_diffable_dump) {
             my $o = $output_name || '-';
             diffably_dump_records( $o, $rr, $a );
+        }
+        if ($do_qndb_map) {
+            # Force overwrite if the output filename is related to (but not the same as) the input filename
+            my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-qdb.csv/r );
+            $o ne '-' && $o eq $a && $force_overwrite < 1 && die "Can't overwrite input file as output file\n";
+            generate_qndb_map( $o, $rr, $a );
         }
     }
 }

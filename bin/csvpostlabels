@@ -30,8 +30,7 @@ esac
 
 opts=(
         --skip-suppressed-post
-        --output="$postlabels"
-        --force-overwrite
+        ${postlabels:+--output="$postlabels" --force-overwrite}
      )
 
 #opts+=( --region=nt )
@@ -43,6 +42,7 @@ ${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$curren
 
 exit $?
 
+: <<\EoF
 printf -v current_gmail '%sQuakers/db/google-%(%Y%m%d)T.csv' "$HOME/" -1
 opts=( \
         --paper=avery-l7160 \
@@ -195,5 +195,5 @@ csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-in
 csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
 csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
 csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-
+EoF
 # vim: set nowrap :
