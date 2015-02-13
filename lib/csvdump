@@ -798,10 +798,7 @@ my $extra_para_spacing = 0.25;  # used between records in book format
 ########################################
 # Book formatting options
 
-#my $item_left_margin  = 5*mm;
-#my $item_right_margin = 5*mm;
-my $book_intercolumn_margin = 10*mm;     # $item_left_margin + $item_right_margin;
-                                    # min 10*mm, $page_left_margin, $page_right_margin;
+my $book_intercolumn_margin; #  = 10*mm;
 my $book_interdetail_spacing = 1.75*mm;
 
 my $book_sort_by_givenname;  # } will output BOTH lists if both these are selected
@@ -875,6 +872,7 @@ my $labels_ordered_in = 'columns';
                     page_right_margin  => 13*mm,
                     page_bottom_margin => 10*mm,
                     page_top_margin    => 10*mm,
+                    book_intercolumn_margin => 7*mm,
                 },
             };
 
@@ -886,11 +884,13 @@ my $labels_ordered_in = 'columns';
             $num_labels_across, $num_labels_down, $labels_ordered_in,
             $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
             $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
+            $book_intercolumn_margin,
         ) = @$p{qw{
             page_size page_height page_width
             num_across num_down ordered_in
             page_top_margin page_bottom_margin page_left_margin page_right_margin
             label_top_margin label_bottom_margin label_left_margin label_right_margin
+            book_intercolumn_margin
         }};
     }
 
