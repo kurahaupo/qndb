@@ -839,7 +839,6 @@ my $label_step_down;
 my $num_labels_across = 2;
 my $num_labels_down = 4;
 my $labels_ordered_in = 'columns';
-use quaker_info;
 
 ########################################
 
@@ -1217,6 +1216,8 @@ $verbose and warn sprintf "RUN: %s\n", join ' ', map { ! m{[^0-9A-Za-z!#%+,-./:=
 # Compute some derivative fallback values for parameters that can also be set
 # on commandline
 #
+
+use quaker_info '%mm_names';
 
 #@restrict_regions = map { split /[, ]+/, uc $_ } @restrict_regions;
 $_ = uc $_ for @restrict_regions;
@@ -1658,6 +1659,8 @@ sub parse_file($) {
         }
         #warn "DONE\n" if $verbose;
     }
+
+use quaker_info '$mm_keys_re';
 
     sub _skip_restricted_record($) {
         my $r = shift;
@@ -2678,56 +2681,7 @@ sub generate_labels($$;$) {
         return $col, $top;
     }
 
-                             # prefer this one ─╮╭─╮╭─╮╭────╮╭─╮╭─╮╭────╮╭────────────────╮
-                             #  ╭───────────────┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼────────────────╯
-    my $mtg_abbrev_len = 5;  #  ╰───────────────╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯▽
-    my %short_meeting_name = (
-
-          # 'CHelsewhere'       => [ undef, 'M', 'ME', 'CHE', 'CH-E', 'CH-NZ', 'CH-els', 'CH-else', ],
-          # 'CHoverseas'        => [ undef, 'M', 'MO', 'CHO', 'CH-O', 'CH-OS', ],
-          # 'DNelsewhere'       => [ undef, 'M', 'ME', 'DNE', 'DN-E', 'DN-NZ', 'DN-els', 'DN-else', ],
-          # 'DNoverseas'        => [ undef, 'M', 'MO', 'DNO', 'DN-O', 'DN-OS', ],
-          # 'KPelsewhere'       => [ undef, 'M', 'ME', 'KPE', 'KP-E', 'KP-NZ', 'KP-els', 'KP-else', ],
-          # 'KPoverseas'        => [ undef, 'M', 'MO', 'KPO', 'KP-O', 'KP-OS', ],
-          # 'MNIelsewhere'      => [ undef, 'M', 'ME', 'MNE', 'MN-E', 'MN-NZ', 'MN-els', 'MN-else', ],
-          # 'MNIoverseas'       => [ undef, 'M', 'MO', 'MNO', 'MN-O', 'MN-OS', 'MNI-OS', ],
-          # 'NTelsewhere'       => [ undef, 'N', 'NE', 'NTE', 'NT-E', 'NT-NZ', 'NT-els', 'NT-else', ],
-          # 'NToverseas'        => [ undef, 'N', 'NO', 'NTO', 'NT-O', 'NT-OS', ],
-          # 'WGelsewhere'       => [ undef, 'M', 'ME', 'WGE', 'WG-E', 'WG-NZ', 'WG-els', 'WG-else', ],
-          # 'WGoverseas'        => [ undef, 'M', 'MO', 'WGO', 'WG-O', 'WG-OS', ],
-          # 'WNelsewhere'       => [ undef, 'M', 'ME', 'WNE', 'WN-E', 'WN-NZ', 'WN-els', 'WN-else', ],
-          # 'WNoverseas'        => [ undef, 'M', 'MO', 'WNO', 'WN-O', 'WN-OS', ],
-
-            'BayofIslands'      => [ undef, 'B', 'BI', 'BoI', 'BoIs', 'BofIs', 'BofIsl', 'BofIsld', 'BofIslnd', 'BofIsland', 'BayofIslnd', 'BayofIslnds', ], # MNI
-            'Canterbury'        => [ undef, 'C', 'Cn', 'Cnb', 'Cnby', 'Cntby', 'Cantby', 'Cantbry', 'Cantbury', 'Cantrbury' ], # CH
-            'GoldenBay'         => [ undef, 'G', 'GB', 'GoB', 'GldB', 'GldnB', 'GldnBy', 'GoldenB', 'GoldnBay' ], # CH
-            'HawkesBay'         => [ undef, 'Ḣ', 'HB', 'HkB', 'HwkB', 'HwkBy', 'HawkBy', 'HawksBy', 'HawkesBy' ], # PN
-            'Howick'            => [ undef, 'H', 'Hw', 'Hwk', 'Hwck', 'Howck' ], # NT
-            'Kaitaia'           => [ undef, 'K', 'Kt', 'Kta', 'Kait', 'Ktaia', 'Kataia' ], # NT
-            'Kapiti'            => [ undef, 'K', 'Kp', 'Kpt', 'Kapt', 'Kapti' ], # KP
-            'Levin'             => [ undef, 'L', 'Lv', 'Lvn', 'Levn' ], # PN
-            'Marlborough'       => [ undef, 'M', 'Mb', 'Mbr', 'Mbro', 'Mboro', 'Mlboro', 'Marlbor', 'Marlboro', 'Marlborou', 'Marlbrough' ], # CH
-            'MtEden'            => [ undef, 'Ṁ', 'ME', 'MtE', 'MtEd', 'MtEdn' ], # NT
-            'Nelson'            => [ undef, 'N', 'Nn', 'Nsn', 'Nlsn', 'Nelsn' ], # CH
-            'NorthShore'        => [ undef, 'Ṅ', 'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre' ], # NT
-            'Otago'             => [ undef, 'O', 'Ot', 'Otg', 'Otgo' ], # DN
-            'PalmerstonNorth'   => [ undef, 'P', 'PN', 'PmN', 'PNth', 'PmNth', 'PmtNth', 'PmstonN', 'PlmrstnN', 'PalmstonN', 'PalmstnNth', 'PalmstnNrth', ], # PN
-            'RotoruaTaupo'      => [ undef, 'R', 'RT', 'RrT', 'RrTp', 'RrTpo', 'RruTpo', 'RruaTpo', 'RtruaTpo', 'RruaTaupo', 'RotoruaTpo', 'RotoruaTaup', ], # MNI
-            'SouthCanterbury'   => [ undef, 'Ṡ', 'SC', 'SCt', 'SCtb', 'SCntb', 'SCntby', 'SthCnby', 'SthCntby', 'SthCantby', 'SthCantbry', 'SthCantbury', 'SthCantrbury', 'SthCanterbury', 'SouthCantrbury' ], # CH
-            'Southland'         => [ undef, 'S', 'Sl', 'Sld', 'Sthl', 'Sthld', 'Sthlnd', 'Sthland', 'Southlnd' ], # DN
-            'Taranaki'          => [ undef, 'T', 'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki' ], # WG
-            'Tauranga'          => [ undef, 'Ť', 'Tg', 'Tga', 'Tnga', 'Trnga', 'Tranga', 'Taurnga' ], # MNI
-            'ThamesCoromandel'  => [ undef, 'Ṫ', 'TC', 'ThC', 'TmCo', 'ThmCo', 'ThmCor', 'ThmCoro', 'ThamesCo', 'ThamesCor', 'ThamesCoro', 'ThamesCmndl', 'ThamesCrmndl', 'ThamesCormndl', 'ThamesCoromndl', 'ThamesCoromandl' ], # NT
-            'Waiheke'           => [ undef, 'Ẁ', 'Wk', 'Wke', 'Whke', 'Wheke', 'Waihke' ], # NT
-            'Wairarapa'         => [ undef, 'Ẅ', 'Wr', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa' ], # WN
-            'Wellington'        => [ undef, 'Ẃ', 'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton' ], # WN
-            'WestAuckland'      => [ undef, '×', 'WA', 'WAk', 'WstA', 'WstAk', 'WstAkl', 'WstAuck', 'WestAuck', 'WAuckland', 'WestAuckld', 'WestAucklnd' ], # NT
-            'Westland'          => [ undef, 'Ẇ', 'Wl', 'Wld', 'Wlnd', 'Wland', 'Westld', 'Westlnd' ], # CH
-            'Whanganui'         => [ undef, 'Ŵ', 'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui' ], # WG
-            'Whangarei'         => [ undef, 'Ẉ', 'Wr', 'Wgr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei' ], # NT
-            'elsewhere',        => [ undef, '+', 'nz', '+',   '(nz)', 'other', '+',      '+',       '+',        'elsewhere', ], # elsewhere in NZ
-            'overseas',         => [ undef, '*', 'os', 'o/s', '*',    '(o/s)', 'o/seas', 'ovrseas', 'overseas', ], # not in NZ
-        );
+    my $mtg_abbrev_len = 5;
 
     #
     # You get listed in MM-elsewhere if
@@ -2742,6 +2696,8 @@ sub generate_labels($$;$) {
                      && $_->gtags( qr/^member[- ]+$mm/ )
                     } @$rrr ]; 
     }
+
+use quaker_info qw( %wg_abbrev @mm_order %mm_titles @wg_order %skip_mm_listing %skip_wg_listing );
 
 sub generate_book($$;$) {
     my $out = shift;
@@ -3120,7 +3076,8 @@ sub generate_book($$;$) {
             $name = $N.$name;
         }
 
-        my @listings = map { $short_meeting_name{$_} && ($short_meeting_name{$_}[$mtg_abbrev_len] || $short_meeting_name{$_}[-1]) || $_ } map { s/\W+//gr } $r->gtags(qr/^listing[- ]+(?:\w\w\w?[- ]+|)(.*)/);
+        my @listings = map { $wg_abbrev{$_} && $wg_abbrev{$_}[$mtg_abbrev_len] || $_ }
+                           $r->gtags(qr/^listing[- ]+(\w\w\w?\b.*)/);
         my @memberships = $r->gtags(qr/^member[- ]+(\w\w\w?)\b/);
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
