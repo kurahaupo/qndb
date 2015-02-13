@@ -356,14 +356,16 @@ sub text_size($$$$$;$) {
             warn sprintf "TEXTSIZE linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
                 if $verbose > 3 && $part_width > $width_limit-$col;
             while ( $part_width > $width_limit-$col ) {
-                $t =~ s#(?:\x{200c}|\s+)\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
+                $t =~ s#[\N{ZWNJ} ]+[^\N{ZWNJ} ]*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
                 $part_width = $text->advancewidth($t);
             }
             if ($t ne '' || $col > 0) {
-                (my $u = substr($part, length($t))) =~ s#^\s+|^\x{200c}##;
+                (my $u = substr($part, length($t))) =~ s#^[\N{ZWNJ} ]+##;
+                $t =~ s#\N{NBSP}# #g;
                 warn sprintf "TEXTSIZE wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
                     if $verbose > 3 && $u ne '';
                 unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
+                $part = $t;
             }
             else {
                 warn sprintf "TEXTSIZE cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
@@ -440,11 +442,12 @@ sub text_flow($$$$$$$$;$) {
             warn sprintf "TEXTFLOW linewrap text=[%s] ↔%.2f/%.2fmm\n", _qm($t), $part_width/mm, ($width_limit-$col)/mm,
                 if $verbose > 3 && $part_width > $width_limit-$col;
             while ( $part_width > $width_limit-$col ) {
-                $t =~ s#(?:\x{200c}|\s+)\S*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
+                $t =~ s#[\N{ZWNJ} ]+[^\N{ZWNJ} ]*$## or $col == 0 ? $t =~ s#.$## : ($t = '') or last;
                 $part_width = $text->advancewidth($t);
             }
             if ($t ne '' || $col > 0) {
-                (my $u = substr($part, length($t))) =~ s#^\s+|^\x{200c}##;
+                (my $u = substr($part, length($t))) =~ s#^[\N{ZWNJ} ]+##;
+                $t =~ s#\N{NBSP}# #g;
                 warn sprintf "TEXTFLOW wrapdone text=[%s]+[%s] ↔%.2f/%.2fmm\n", _qm($t), _qm($u), $part_width/mm, ($width_limit-$col)/mm,
                     if $verbose > 3 && $u ne '';
                 unshift @parts, "\n", "  $u" if $u ne ''; # or @parts && $parts[0] ne "\n";
@@ -454,8 +457,7 @@ sub text_flow($$$$$$$$;$) {
                 warn sprintf "TEXTFLOW cantwrap text=[%s] col=%.2fmm\n", $t, $col/mm if $verbose > 3;
             }
         }
-        $text->text($part, $underline ? ( -underline => 'auto' ) : (),
-                   );
+        $text->text($part, $underline ? ( -underline => 'auto' ) : ());
         $col += $part_width;
     }
     $width >= $col or $width = $col;
@@ -3022,7 +3024,7 @@ sub generate_book($$;$) {
             if (@page_xrefs == 1) {
                 @page_xrefs = $pq->TI . sprintf "p.%u", @page_xrefs;
             } elsif ( @page_xrefs > 1 ) {
-                @page_xrefs = $pq->TI . sprintf "pp.%s", join ",\x{200c}", @page_xrefs;
+                @page_xrefs = $pq->TI . sprintf "pp.%s", join ",\N{ZWNJ}", @page_xrefs;
             }
         }
 

@@ -4,6 +4,7 @@
     which means there's a problem with the way they're extracted. A hacky fix would
     be to apply "uniq" after sorting, but I'd really rather find out how they get
     into the list multiple times to begin with.
+    [FIXED]
 
 +   NBSP (used in phone numbers) is behaving like ZWNJ, while ZWNJ is being
     completely ignored:
@@ -11,6 +12,7 @@
       + NBSP's are not showing as spaces (probably a rendering issue; perhaps
         substitute \x20 during text-flow?
       + Lists are not being split on ZWNJ's (noting that \N{ZWNJ} =~ /\S/)
+    [FIXED]
 
 +   In the index, the abbreviation for  "___ MM elsewhere in NZ" is just "other",
     which doesn't say which MM they're away from; suggest using these instead:
