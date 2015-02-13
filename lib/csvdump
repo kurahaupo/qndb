@@ -201,7 +201,7 @@ sub _qm($) {
 #   available in all PDF readers and so need not be embedded in a PDF.[58] PDF
 #   viewers must know about the metrics of these fonts. Other fonts may be
 #   substituted if they are not embedded in a PDF.
-#   
+#
 ########################################
 
 my @base_fonts = (
@@ -252,10 +252,10 @@ sub font {
 }
 
 ########################################
-#   
+#
 #** on hijacking the Unicode Variant Selectors **
 #
-#   To achieve some basic text flow, we 
+#   To achieve some basic text flow, we
 #
 #   According to the Unicode Consortium, the 16 codepoints \ufe00..\ufe0f
 #   should act as suffixes to amend the glyph of the preceeding codepoint.
@@ -271,7 +271,7 @@ sub font {
 #
 #   Or we could instead pick a random high private-use range such as
 #   \ue0000..\ue001f
-#   
+#
 ########################################
 
 use constant {
@@ -868,7 +868,7 @@ my $labels_ordered_in = 'columns';
                     page_size          => 'a5',
                     page_height        => 210.224*mm,
                     page_width         => 148.651*mm,
-                    
+
                     page_left_margin   => 13*mm,
                     page_right_margin  => 13*mm,
                     page_bottom_margin => 10*mm,
@@ -2694,7 +2694,7 @@ sub generate_labels($$;$) {
         return [ grep { $_->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
                    || ! $_->gtags( qr/^listing[- ]+$mm/ )
                      && $_->gtags( qr/^member[- ]+$mm/ )
-                    } @$rrr ]; 
+                    } @$rrr ];
     }
 
 use quaker_info qw( %wg_abbrev @mm_order %mm_titles @wg_order %skip_mm_listing %skip_wg_listing );
