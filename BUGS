@@ -20,6 +20,7 @@
 
 +   The "not in any worship group" section should omit all meetings, and
     disappear completely if empty. (It's mainly for debugging anyway.)
+    [FIXED]
 
 +   Meetings should be sorted to the front of any section they appear in, followed
     by any other non-persons (roles, venues, etc); their main listing should
