@@ -2777,6 +2777,15 @@ sub generate_book($$;$) {
                 $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
 
+    my $TB   = $pq->TB;
+    my $TBI  = $pq->TBI;
+    my $TBIU = $pq->TBIU;
+    my $TBU  = $pq->TBU;
+    my $TI   = $pq->TI;
+    my $TIU  = $pq->TIU;
+    my $TU   = $pq->TU;
+    my $TN   = $pq->TN;
+
     my $render_column_heading = sub {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
         if (CHECK_ARGS) {
@@ -2805,7 +2814,7 @@ sub generate_book($$;$) {
         }
 
         my $heading_text = $render_context->{heading} or return 0, 0;
-        $heading_text = $pq->TB . $heading_text if  $render_context->{heading_bold};
+        $heading_text = $TB . $heading_text . $TN if $render_context->{heading_bold};
 
         my $heading_fontname = $render_context->{heading_font} || $fontname;
         my $heading_fontsize = $render_context->{heading_size} || $fontsize;
@@ -2949,11 +2958,11 @@ sub generate_book($$;$) {
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $B = $ismember ? $inactive ? $pq->TBIU : $pq->TBU
-                              : $inactive ? $pq->TBI  : $pq->TB;
+            my $B = $ismember ? $inactive ? $TBIU : $TBU
+                              : $inactive ? $TBI  : $TB;
             $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $ismember ? $inactive ? $pq->TIU : $pq->TU
-                              : $inactive ? $pq->TI  : $pq->TN;
+            my $N = $ismember ? $inactive ? $TIU : $TU
+                              : $inactive ? $TI  : $TN;
             $name = $N.$name;
         }
 
@@ -3025,10 +3034,11 @@ sub generate_book($$;$) {
         if ( $use_page_numbers ) {
             @page_xrefs = @{$r->{_page_xrefs} ||= []};
             if (@page_xrefs == 1) {
-                @page_xrefs = $pq->TI . sprintf "p.%u", @page_xrefs;
+                @page_xrefs = sprintf "p.%u", @page_xrefs;
             } elsif ( @page_xrefs > 1 ) {
-                @page_xrefs = $pq->TI . sprintf "pp.%s", join ",\N{ZWNJ}", @page_xrefs;
+                @page_xrefs = sprintf "pp.%s", join ",\N{ZWNJ}", @page_xrefs;
             }
+            $_ = $TI . $_ . $TN for @page_xrefs;
         }
 
         if ($verbose) {
@@ -3074,9 +3084,9 @@ sub generate_book($$;$) {
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $B = $inactive ? $pq->TBI : $pq->TB;
+            my $B = $inactive ? $TBI : $TB;
             $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $inactive ? $pq->TI  : $pq->TN;
+            my $N = $inactive ? $TI  : $TN;
             $name = $N.$name;
         }
 
