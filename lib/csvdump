@@ -2894,7 +2894,6 @@ sub generate_book($$;$) {
             $left = $page_left_margin/2;
         }
         $pq->text_at($margin_notes, { fn => $fontname, fs => $book_margin_fontsize, y => $top, x => $left, halign => 1, });
-        $pq->text_at($margin_notes, { fn => $fontname, fs => $book_margin_fontsize, y => $top, x => $left, halign => 1, });
     };
 
     my %detail_widths = (
@@ -2949,12 +2948,12 @@ sub generate_book($$;$) {
         my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
         my $order_initial = substr $order_name, 0, 1;
 
-        # record full name & family name of last entry on page
+        # record name info of last entry on page
         $page_data->{last} = {  initial     => $order_initial,
                                 oname       => $order_name,
                                 full_name   => $name,
                                 family_name => $family_name, };
-        # record full name & family name of first entry on page
+        # record name info of first entry on page
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
@@ -3075,12 +3074,12 @@ sub generate_book($$;$) {
         my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
         my $order_initial = substr $order_name, 0, 1;
 
-        # record full name & family name of last entry on page
+        # record name info of last entry on page
         $page_data->{last} = {  initial     => $order_initial,
                                 oname       => $order_name,
                                 full_name   => $name,
                                 family_name => $family_name, };
-        # record full name & family name of first entry on page
+        # record name info of first entry on page
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
