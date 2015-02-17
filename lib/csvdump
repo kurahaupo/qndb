@@ -2957,12 +2957,10 @@ sub generate_book($$;$) {
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $B = $ismember ? $inactive ? $TBIU : $TBU
-                              : $inactive ? $TBI  : $TB;
-            $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $ismember ? $inactive ? $TIU : $TU
-                              : $inactive ? $TI  : $TN;
-            $name = $N.$name;
+            my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
+            my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
+            $name =~ s/\b$family_name\z/$B$&$N/ if $family_name;
+            $name = $N.$name.$TN;
         }
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
@@ -3083,10 +3081,10 @@ sub generate_book($$;$) {
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $B = $inactive ? $TBI : $TB;
-            $name =~ s/\b$family_name\z/$B$&/ if $family_name;
-            my $N = $inactive ? $TI  : $TN;
-            $name = $N.$name;
+            my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
+            my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
+            $name =~ s/\b$family_name\z/$B$&$N/ if $family_name;
+            $name = $N.$name.$TN;
         }
 
         my @listings = map { $wg_abbrev{$_} && $wg_abbrev{$_}[$mtg_abbrev_len] || $_ }
