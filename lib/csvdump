@@ -2929,6 +2929,7 @@ sub generate_book($$;$) {
         }
 
         my $inactive = $r->gtags('inactive','child');
+        my $ismeeting = $r->gtags('meeting');
         my $ismember = $r->gtags('members');
         my $name = $r->name;
         my $family_name = $name->{family_name};
@@ -2959,8 +2960,12 @@ sub generate_book($$;$) {
         if ($name) {
             my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
             my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
-            $name =~ s/\b$family_name\z/$B$&$N/ if $family_name;
-            $name = $N.$name.$TN;
+            if ($ismeeting || !$family_name) {
+                $name = $B.$name.$TN;
+            }
+            else {
+                $name =~ s/(.*)($family_name)(.*)/$N$1$B$2$N$3$TN/;
+            }
         }
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
@@ -3053,6 +3058,7 @@ sub generate_book($$;$) {
         my $width = 0;
 
         my $inactive = $r->gtags('inactive','child');
+        my $ismeeting = $r->gtags('meeting');
         my $ismember = $r->gtags('members');
         my $name = $r->name;
         my $family_name = $name->{family_name};
@@ -3083,8 +3089,12 @@ sub generate_book($$;$) {
         if ($name) {
             my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
             my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
-            $name =~ s/\b$family_name\z/$B$&$N/ if $family_name;
-            $name = $N.$name.$TN;
+            if ($ismeeting || !$family_name) {
+                $name = $B.$name.$TN;
+            }
+            else {
+                $name =~ s/(.*)($family_name)(.*)/$N$1$B$2$N$3$TN/;
+            }
         }
 
         my @listings = map { $wg_abbrev{$_} && $wg_abbrev{$_}[$mtg_abbrev_len] || $_ }
