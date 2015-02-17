@@ -22,6 +22,10 @@
     disappear completely if empty. (It's mainly for debugging anyway.)
     [FIXED]
 
++   Margin note should read top-to-bottom on right edge and bottom-to-top on
+    left edge
+    [FIXED]
+
 +   Meetings should be sorted to the front of any section they appear in, followed
     by any other non-persons (roles, venues, etc); their main listing should
     include their meeting schedule and cross-reference any contact persons.

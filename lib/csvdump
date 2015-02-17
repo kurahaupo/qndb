@@ -2843,12 +2843,16 @@ sub generate_book($$;$) {
     push @{$pq->{upon_end_page}}, sub {
             my ($pq, $pagenum) = @_;
             my $page_data = $pq->{pagedata} or return;
-            my $margin_notes = $page_data->{margin_notes} or return;
+            my $margin_notes = $page_data->{margin_notes_list} || $page_data->{margin_notes} or return;
             my $right_page = $pagenum % 2;
             my $mm_lh = $book_margin_fontsize*$line_spacing;
             my $top =  $page_height - $page_top_margin - $mm_lh;
             my $left = $right_page ? $page_width-$page_right_margin/2
                                    : $page_left_margin/2;
+            if (ref $margin_notes) {
+                $margin_notes = $right_page ? join ", ",         @$margin_notes
+                                            : join ", ", reverse @$margin_notes;
+            }
             $pq->text_at($margin_notes, {   fn => $fontname,
                                             fs => $book_margin_fontsize,
                                             y => $top,
@@ -2930,7 +2934,6 @@ sub generate_book($$;$) {
             if ( ! $page_data->{seen_margin_note}{$margin_note}++ ) {
                 my $mn = $page_data->{margin_notes_list} ||= [];
                 push @$mn, $margin_note;
-                $page_data->{margin_notes} = join ', ', @$mn;
             }
         }
 
@@ -3056,7 +3059,6 @@ sub generate_book($$;$) {
             if ( ! $page_data->{seen_margin_note}{$margin_note}++ ) {
                 my $mn = $page_data->{margin_notes_list} ||= [];
                 push @$mn, $margin_note;
-                $page_data->{margin_notes} = join ', ', @$mn;
             }
         }
 
