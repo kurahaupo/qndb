@@ -36,14 +36,50 @@ use list_functions;
 sub sort_by_surname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
-    return sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
-               || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_
+    my @rr = sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
+                 || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_;
+    return @rr if not @rr && $rr[0]->can('gtags');
+    my @rr_roles;
+    my @rr_meetings;
+    my @rr_people;
+    for my $r ( @rr ) {
+        my ($t) = $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting', 'role' );
+        $t or next;
+        if ($t eq 'meeting') {
+            push @rr_meetings, $r;
+        }
+        elsif ($t eq 'role') {
+            push @rr_roles, $r;
+        }
+        else {
+            push @rr_people, $r;
+        }
+    }
+    return @rr_meetings, @rr_roles, @rr_people;
 }
 sub sort_by_givenname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
-    return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
-               || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_
+    my @rr = sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
+                 || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_;
+    return @rr if not @rr && $rr[0]->can('gtags');
+    my @rr_roles;
+    my @rr_meetings;
+    my @rr_people;
+    for my $r ( @rr ) {
+        my ($t) = $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting', 'role' );
+        $t or next;
+        if ($t eq 'meeting') {
+            push @rr_meetings, $r;
+        }
+        elsif ($t eq 'role') {
+            push @rr_roles, $r;
+        }
+        else {
+            push @rr_people, $r;
+        }
+    }
+    return @rr_meetings, @rr_roles, @rr_people;
 }
 sub preferred_sort(@) {
     goto &sort_by_givenname;
