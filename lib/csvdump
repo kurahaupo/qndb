@@ -3134,7 +3134,7 @@ sub generate_book($$;$) {
         }
 
         my @listings = map { $wg_abbrev{$_} && $wg_abbrev{$_}[$mtg_abbrev_len] || $_ }
-                           $r->gtags(qr/^listing[- ]+(\w\w\w?\b.*)/);
+                           $r->gtags(qr/^listing[- ]+(\w\w\w?\b.*)/) if ! $ismeeting;
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
 
