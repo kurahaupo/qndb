@@ -3196,7 +3196,7 @@ sub generate_book($$;$) {
         for my $wg ( @wg_order ) {
             $skip_wg_listing{$wg} and next;
             my ($mm, $heading) = split /[- ]+/, $wg, 2;
-            my $margin_note = $heading;
+            my $margin_note = $heading //= '';
 
             my $rrr;
             if ( $heading eq 'elsewhere' ) {
