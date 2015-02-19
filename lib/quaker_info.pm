@@ -67,6 +67,7 @@ our @wg_order = (
     'WG - overseas',
 
     'KP - Kapiti',
+    'KP - Paraparaumu',
     'KP - elsewhere',
     'KP - overseas',
 
