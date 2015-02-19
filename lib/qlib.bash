@@ -37,8 +37,6 @@ die() {
     exit $_e
 }
 
-set -x
-
 shopt -s extglob
 true=1 false=0
 
@@ -96,5 +94,3 @@ file_downloads() {
 
     return 0
 }
-
-set +x
