@@ -72,6 +72,7 @@ our @wg_order = (
 
     'WN - Wellington',
     'WN - Wairarapa',
+    'WN - Hutt Valley',
     'WN - elsewhere',
     'WN - overseas',
 
