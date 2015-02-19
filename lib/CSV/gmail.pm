@@ -249,7 +249,7 @@ sub listed_address($) {
             flatten
               first
                 map { $e->{$_} || () }
-                  'listing', 'meeting', @key_prefs;
+                  'meeting', 'listing', @key_prefs;
 }
 
 sub postal_address($) {
