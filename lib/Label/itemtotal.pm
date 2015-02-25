@@ -7,7 +7,11 @@ use utf8;
 
 package Label::itemtotal;
 use parent 'Label::common';
+
+use verbose;
+
 sub new {
+    warn sprintf "[%s] %s(%s)\n", __PACKAGE__, CORE::__SUB__, join ",", map { "'$_'" } @_ if $verbose > 2;
     my $class = shift;
     my ($inclusion_labels, $counts) = splice @_, 0, 2;
     bless {

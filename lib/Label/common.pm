@@ -19,6 +19,7 @@ my $debug = $ENV{PERL_debug_labels};
 BEGIN { $SIG{__DIE__} = \&Carp::confess if $ENV{PERL_debug_labels} };
 
 sub new {
+    warn sprintf "[%s] %s(%s)\n", __PACKAGE__, CORE::__SUB__, join ",", map { "'$_'" } @_ if $verbose > 2;
     my $class = shift;
     my $r = bless { @_ }, $class;
     warn "new label details: ".Dumper($r) if $debug;
@@ -28,6 +29,7 @@ sub new {
 use constant colour => 'black';
 
 sub draw_label {
+    warn sprintf "[%s] %s(%s)\n", __PACKAGE__, CORE::__SUB__, join ",", map { "'$_'" } @_ if $verbose > 2;
     my ($r, $pq, $top, $left, $label_on_page) = @_;
     my $text = $pq->text;
     $text->fillcolor($r->colour);

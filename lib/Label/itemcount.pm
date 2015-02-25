@@ -14,6 +14,7 @@ use PDF::scale_factors;
 our $label_banner_colour = 'orange';
 
 sub new {
+    warn sprintf "[%s] %s(%s)\n", __PACKAGE__, CORE::__SUB__, join ",", map { "'$_'" } @_ if $verbose > 2;
     my $class = shift;
     my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
     $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
@@ -30,6 +31,7 @@ sub new {
 sub colour { $label_banner_colour }
 
 sub draw_label {
+    warn sprintf "[%s] %s(%s)\n", __PACKAGE__, CORE::__SUB__, join ",", map { "'$_'" } @_ if $verbose > 2;
     my ($r, $pq, $top, $left, $label_on_page) = @_;
     my $text = $pq->text;
     my $first_label_on_page = $r->{first_on_page};
