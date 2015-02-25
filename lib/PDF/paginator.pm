@@ -256,15 +256,6 @@ use constant {
 
 our $TRE = qr/[\x{fe00}-\x{fe0f}]/;
 
-#   use constant TN     => "\x{fe00}";
-#   use constant TB     => "\x{fe01}";
-#   use constant TI     => "\x{fe02}";
-#   use constant TBI    => "\x{fe03}"; use constant TIB => TBI;
-#   use constant TU     => "\x{fe04}";
-#   use constant TBU    => "\x{fe05}"; use constant TUB => TBU;
-#   use constant TIU    => "\x{fe06}"; use constant TUI => TIU;
-#   use constant TBIU   => "\x{fe07}"; use constant { TBUI => TBIU, TIBU => TBIU, TIUB => TBIU, TUBI => TBIU, TUIB => TBIU };
-
 #
 # Assuming no height bound, how much space would a given chunk of text take,
 # if it were given to text_flow (below)?
