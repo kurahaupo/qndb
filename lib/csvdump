@@ -1668,7 +1668,7 @@ sub generate_labels($$;$) {
 
     my $use_item_count_labels = keys %households_by_inclusions > 1;
 
-    my $summary_totals_label = new Label::count::total:: "Totals", \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
+    my $summary_totals_label = new Label::count::total:: "Totals for copying", \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
 
     # Sort within each inclusion group
     @$_ = sort { $a->[0]{sort_by}  cmp $b->[0]{sort_by} } @$_ for values %households_by_inclusions;
