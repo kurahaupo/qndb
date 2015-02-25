@@ -37,7 +37,7 @@ opts=(
 
 file_downloads
 
-${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$current_gmail" &&
+${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
 { evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?
