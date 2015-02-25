@@ -1538,12 +1538,13 @@ Label records
 =cut
 
     {
-    package CommonLabel;
+    package Label::common;
 
     use verbose;
     use PDF::scale_factors;
 
     sub new {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my $class = shift;
         bless { @_ }, $class;
     }
@@ -1551,6 +1552,7 @@ Label records
     use constant colour => 'black';
 
     sub draw_label {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my ($r, $pq, $top, $left, $label_on_page) = @_;
         my $text = $pq->text;
         $text->fillcolor($r->colour);
@@ -1621,16 +1623,20 @@ Label records
     }
 
     {
-    package BlankLabel;
-    use parent -norequire => CommonLabel::;
+    package Label::blank;
+    use parent -norequire => Label::common::;
+    use verbose;
+
     sub one { state $x = bless {}, shift }
     sub new { die }
-    sub draw_label {}   # do nothing
+    sub draw_label {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
+    }   # do nothing
     }
 
     {
-    package ItemCountLabel;
-    use parent -norequire => CommonLabel::;
+    package Label::count::items;
+    use parent -norequire => Label::common::;
 
     sub colour { $label_banner_colour }
 
@@ -1638,6 +1644,7 @@ Label records
     use PDF::scale_factors;
 
     sub new {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my $class = shift;
         my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
         $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
@@ -1651,6 +1658,7 @@ Label records
         );
     }
     sub draw_label {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my ($r, $pq, $top, $left, $label_on_page) = @_;
         my $text = $pq->text;
         my $first_label_on_page = $r->{first_on_page};
@@ -1702,9 +1710,12 @@ Label records
     }
 
     {
-    package TotalCountLabel;
-    use parent -norequire => CommonLabel::;
+    package Label::count::total;
+    use parent -norequire => Label::common::;
+    use verbose;
+
     sub new {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my $class = shift;
         my ($inclusion_labels, $counts) = @_;
         bless {
@@ -1715,10 +1726,12 @@ Label records
     }
 
     {
-    package HouseHoldLabel;
-    use parent -norequire => CommonLabel::;
+    package Label::recipient;
+    use parent -norequire => Label::common::;
+    use verbose;
 
     sub new {
+        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
         my $class = shift;
         my ($inclusions, $postcode, @lines) = @_;
         bless {
@@ -1731,21 +1744,6 @@ Label records
     use constant colour => 'black';
 
     }
-
-##  {
-##  package InfoLabel;
-##  use parent -norequire => CommonLabel::;
-##  sub fix_one {
-##      my $r = shift;
-##      $r->SUPER::fix_one(@_);
-##      my @inserts = sort split /\s*,\s*/, $r->{inserts} // '';
-##      $r->{inserts} = join ',', @inserts;
-##      $r->{LIST_insert} = \@inserts;
-##      $r->{HAS_insert} = { map { ( $_ => 1 ) } @inserts };
-##      1;
-##  }
-##  }
-
 
     sub suppress_unwanted_records($) {
         my $rr = shift;
@@ -1855,7 +1853,7 @@ sub generate_labels($$;$) {
     if ($verbose > 2) {
         for my $hh (values %households_by_inclusions) {
             for my $h (@$hh) {
-                printf "NAME: %s SORT: %s INCLUDE: %s\n", $h->[0]->name, $h->[0]->{sort_by}, $h->[0]->{inclusions};
+                warn sprintf "NAME: %s SORT: %s INCLUDE: %s\n", $h->[0]->name, $h->[0]->{sort_by}, $h->[0]->{inclusions};
             }
         }
     }
@@ -1863,7 +1861,7 @@ sub generate_labels($$;$) {
 
     my $use_item_count_labels = keys %households_by_inclusions > 1;
 
-    my $summary_totals_label = new TotalCountLabel:: \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
+    my $summary_totals_label = new Label::count::total:: \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
 
     # Sort within each inclusion group
     @$_ = sort { $a->[0]{sort_by}  cmp $b->[0]{sort_by} } @$_ for values %households_by_inclusions;
@@ -1890,11 +1888,11 @@ sub generate_labels($$;$) {
                         $summary_totals_label = undef;
                     }
                     else {
-                        push @labels, one BlankLabel::;
+                        push @labels, one Label::blank::;
                     }
                 }
                 my $last_label_on_page = ::min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
-                push @labels, new ItemCountLabel::
+                push @labels, new Label::count::items::
                                     $inclusions,
                                     scalar @labels,
                                     $first_label_on_page,
@@ -1950,7 +1948,7 @@ sub generate_labels($$;$) {
             my @lines = grep {$_}
                             $names,
                             split /\s*\n/, $postal_address;
-            push @labels, new HouseHoldLabel:: ($inclusions, $postcode, @lines);
+            push @labels, new Label::recipient:: ($inclusions, $postcode, @lines);
         }
     }
     if ($summary_totals_label) {
@@ -2042,7 +2040,7 @@ sub generate_labels($$;$) {
     }
 
     ( $out, my $out_name ) = _open_output $out, 1;
-    print "Writing PDF to $out_name ($out)\n";
+    warn "Writing PDF to $out_name ($out)\n";
     print {$out} $pq->stringify;
     close $out or die "Error while writing to $out_name; $!\n";
 }
@@ -2862,9 +2860,7 @@ else {
 
     for my $a (@ARGV) {
         my $rr = parse_file $a;
-    #   if ($debug) {
-    #       print Dumper($rr);
-    #   }
+    #   warn Dumper($rr) if $verbose > 4 && $debug;
         if ($do_book) {
             # Force overwrite if the output filename is related to (but not the same as) the input filename
             my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-book.pdf/r );
