@@ -56,8 +56,10 @@ echo "Day-offsets are: ${day_offsets[*]}"
 mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
 
 while
+    $once || {
     printf 'Diff? '
     read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
+    }
 do
     # update time-related vars to reflect "now" or "today"
     set_current_vars
