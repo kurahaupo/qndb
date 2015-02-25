@@ -1726,8 +1726,9 @@ sub generate_labels($$;$) {
                 @hh = ( @parents, @children );
                 # If more than one child, just use "and family"
                 if (@hh > 3) {
+                    package AndFamily;
                     # This sub has static scope, which is intentional
-                    sub AndFamily::name {
+                    sub name {
                         my $r = shift;
                         $r->{composite_name} ||= state $f =
                             new string_with_components::
@@ -1737,7 +1738,7 @@ sub generate_labels($$;$) {
                                 sort_by_surname => 'zz',
                                 sort_by_givenname => 'zz';
                     }
-                    state $and_family = bless {}, AndFamily::;
+                    state $and_family = bless {};
                     @hh = (@hh[0,1], $and_family);
                 }
             }
