@@ -723,7 +723,7 @@ $mm_names{$_} or die "Invalid region '$_'\n" for @restrict_regions;
 
 warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
 
-$do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all;
+$do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all || 0;
 
 # Default exclusions for different generation types
 $skip_suppressed_listing //= $do_book;
