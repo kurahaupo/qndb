@@ -10,8 +10,6 @@ use parent 'Label::common';
 
 use Carp 'croak';
 
-our $label_banner_colour = 'orange';
-
 my ( $ref_bottom_margin,
      $ref_fontname,
      $ref_height,
@@ -41,8 +39,6 @@ sub import {
       $ref_num_labels_down ) = @_;
 }
 
-sub colour { $label_banner_colour }
-
 use verbose;
 use PDF::scale_factors;
 
@@ -60,6 +56,7 @@ sub new {
         @_
     );
 }
+
 sub draw_label {
     warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
     my ($r, $pq, $top, $left, $label_on_page) = @_;
@@ -96,7 +93,7 @@ sub draw_label {
         warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm if $verbose > 2;
         $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
         if ( $tiny_l == $label_on_page ) {
-            $text->fillcolor($label_banner_colour);
+            $text->fillcolor($r->colour);
             $text->text_right("O");
         }
         elsif ( $tiny_l >= $first_label_on_page && $tiny_l <= $last_label_on_page ) {

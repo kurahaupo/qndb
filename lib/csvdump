@@ -325,6 +325,7 @@ my $label_postcode_fontsize = 14*pt;
 
 my $label_banner_font = 'Helvetica';
 my $label_banner_scale = PHI;
+my $label_banner_colour = 'orange';
 
 my $label_width;
 my $label_height;
@@ -455,7 +456,7 @@ GetOptions
     'include-suppressed-listing!' => N$skip_suppressed_listing,
     'include-suppressed-post!'    => N$skip_suppressed_post,
     'include-unsubscribed'        => N$skip_unsub,
-    'instruction-color|instruction-colour=s' => \$Label::recipient::label_banner_colour,
+    'instruction-color|instruction-colour=s' => \$label_banner_colour,
     'label-height|lh=s'           => M$label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
     'label-step-down|lxh=s'       => M$label_step_down,
@@ -1541,8 +1542,9 @@ be reduced or eliminated as code is tidied.
 =cut
 
 use Label::common \($evenly_squash_to_fit, $label_banner_font,
-                    $label_banner_scale, $label_bottom_margin, $label_fontname,
-                    $label_fontsize, $label_height, $label_left_margin,
+                    $label_banner_colour, $label_banner_scale,
+                    $label_bottom_margin, $label_fontname, $label_fontsize,
+                    $label_height, $label_left_margin,
                     $label_postcode_fontsize, $label_right_margin,
                     $label_top_margin, $label_width, $line_spacing);
 use Label::blank;

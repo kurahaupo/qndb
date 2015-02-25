@@ -14,8 +14,10 @@ use verbose;
 use PDF::scale_factors;
 use list_functions 'min','max';
 
+
 my ($ref_evenly_squash_to_fit,
     $ref_banner_font,
+    $ref_banner_colour,
     $ref_banner_scale,
     $ref_bottom_margin,
     $ref_fontname,
@@ -32,9 +34,10 @@ my $seen_imports;
 sub import {
     my $pkg = shift;
     @_ == 0 && return;
-    @_ == 13 || croak "Wrong number of args";
+    @_ == 14 || croak "Wrong number of args";
     ( $ref_evenly_squash_to_fit,
       $ref_banner_font,
+      $ref_banner_colour,
       $ref_banner_scale,
       $ref_bottom_margin,
       $ref_fontname,
@@ -47,19 +50,20 @@ sub import {
       $ref_width,
       $ref_line_spacing ) = @_;
     ++$seen_imports;
-    for my $j ($ref_evenly_squash_to_fit,
-        $ref_banner_font,
-        $ref_banner_scale,
-        $ref_bottom_margin,
-        $ref_fontname,
-        $ref_fontsize,
-        $ref_height,
-        $ref_left_margin,
-        $ref_postcode_fontsize,
-        $ref_right_margin,
-        $ref_top_margin,
-        $ref_width,
-        $ref_line_spacing) {
+    for my $j ( $ref_evenly_squash_to_fit,
+                $ref_banner_font,
+                $ref_banner_colour,
+                $ref_banner_scale,
+                $ref_bottom_margin,
+                $ref_fontname,
+                $ref_fontsize,
+                $ref_height,
+                $ref_left_margin,
+                $ref_postcode_fontsize,
+                $ref_right_margin,
+                $ref_top_margin,
+                $ref_width,
+                $ref_line_spacing ) {
         $j && ref $j eq 'SCALAR' or croak "import passed '$j'";
     }
 }
@@ -71,7 +75,7 @@ sub new {
     bless { @_ }, $class;
 }
 
-use constant colour => 'black';
+sub colour { $$ref_banner_colour }
 
 sub draw_label {
     warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
