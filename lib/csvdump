@@ -325,7 +325,6 @@ my $label_postcode_fontsize = 14*pt;
 
 my $label_banner_font = 'Helvetica';
 my $label_banner_scale = PHI;
-my $label_banner_colour = 'orange';
 
 my $label_width;
 my $label_height;
@@ -456,7 +455,7 @@ GetOptions
     'include-suppressed-listing!' => N$skip_suppressed_listing,
     'include-suppressed-post!'    => N$skip_suppressed_post,
     'include-unsubscribed'        => N$skip_unsub,
-    'instruction-color|instruction-colour=s' => \$label_banner_colour,
+    'instruction-color|instruction-colour=s' => \$Label::recipient::label_banner_colour,
     'label-height|lh=s'           => M$label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
     'label-step-down|lxh=s'       => M$label_step_down,
@@ -1535,215 +1534,24 @@ sub generate_qndb_map($$;$) {
 
 Label records
 
+The block of variable refences is a crude way of exporting the variables to the
+module, rather than importing the variables from the module. Hopefully these will
+be reduced or eliminated as code is tidied.
+
 =cut
 
-    {
-    package Label::common;
-
-    use verbose;
-    use PDF::scale_factors;
-
-    sub new {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my $class = shift;
-        bless { @_ }, $class;
-    }
-
-    use constant colour => 'black';
-
-    sub draw_label {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my ($r, $pq, $top, $left, $label_on_page) = @_;
-        my $text = $pq->text;
-        $text->fillcolor($r->colour);
-
-        my @lines = @{$r->{lines}};
-        my $banner = $r->{banner};
-
-        @lines || $banner || return;
-
-        my $active_fontsize = $label_fontsize;
-        my $current_fontsize = $label_fontsize;
-
-        $pq->font( $label_fontname, $active_fontsize );
-
-        if ($evenly_squash_to_fit) {
-            # squash up when too many lines
-            # evenly squash up ALL lines when any line is too wide
-            my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-            my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-            $active_fontsize *= ::min 1,
-                                      $printable_label_height / ( @lines + ($banner && $label_banner_scale || 0) ) / ( $line_spacing * $active_fontsize ),
-                                      $printable_label_width / ::max 1,
-                                                                     $banner && $text->advancewidth($banner)*$label_banner_scale || 0,
-                                                                     map { $text->advancewidth($_) } @lines;
-        }
-
-        if (my $p = $r->{banner}) {
-            if (my @v = $p =~ m/\%\{(\w+)\}/g) {
-                warn "format '$p' keys [@v]\n" . Dumper($r) if $verbose > 2;
-                $p =~ s/\%\{(\w+)\}/%/g;
-                $p = sprintf $p, @$r{@v};
-            }
-            $active_fontsize = ::min $active_fontsize,
-                                     $label_height / ($label_banner_scale * $line_spacing + @lines * $line_spacing);
-
-            my $banner_fontsize = $active_fontsize*$label_banner_scale;
-            $pq->font( $label_banner_font, $current_fontsize = $banner_fontsize ) if $banner_fontsize != $current_fontsize;
-            $text->translate( $left, $top -= $banner_fontsize*$line_spacing );
-            $text->text($p);
-        }
-
-        if (@lines) {
-            for (0 .. $#lines) {
-                $pq->font( $label_fontname, $current_fontsize = $active_fontsize ) if $active_fontsize != $current_fontsize;
-                my $rescale = $label_width / $text->advancewidth($_);
-                if ( $rescale < 1 ) {
-                    # squeeze up to make room...
-                    $pq->font( $label_fontname, $current_fontsize = $active_fontsize * $rescale );
-                }
-                $text->translate( $left, $top - (@lines - $#lines + $_)*$active_fontsize*$line_spacing );
-                $text->text($lines[$_]);
-            }
-        }
-
-        if (my $p = $r->{postcode}) {
-            $pq->font( $label_fontname, $label_postcode_fontsize );
-            $text->translate( $left + $label_width, $top - $label_height + $label_postcode_fontsize );
-            $text->text_right($p);
-        }
-
-        warn sprintf "Page %u label %u -> lines=%u font=%.2fmm (%.2fpt)\n",
-                    $pq->pages,
-                    $label_on_page,
-                    0+@lines,
-                    $active_fontsize/mm, $active_fontsize/pt
-            if $verbose > 1;
-    }
-    }
-
-    {
-    package Label::blank;
-    use parent -norequire => Label::common::;
-    use verbose;
-
-    sub one { state $x = bless {}, shift }
-    sub new { die }
-    sub draw_label {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-    }   # do nothing
-    }
-
-    {
-    package Label::count::items;
-    use parent -norequire => Label::common::;
-
-    sub colour { $label_banner_colour }
-
-    use verbose;
-    use PDF::scale_factors;
-
-    sub new {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my $class = shift;
-        my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
-        $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
-        $class->SUPER::new(
-            banner          => sprintf( "%u", $last_label_on_page-$first_label_on_page+1, ),
-            lines           => $inclusions,
-            first_on_page   => $first_label_on_page,
-            last_on_page    => $last_label_on_page,
-            total_count     => $total_count,
-            @_
-        );
-    }
-    sub draw_label {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my ($r, $pq, $top, $left, $label_on_page) = @_;
-        my $text = $pq->text;
-        my $first_label_on_page = $r->{first_on_page};
-        my $last_label_on_page = $r->{last_on_page};
-        warn sprintf "Printing tiny labels #%u..%u", $first_label_on_page, $last_label_on_page if $verbose > 1;
-        my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-        my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
-        my $labels_per_page = $num_labels_across * $num_labels_down;
-
-        my $tiny_label_step_across = $printable_label_width / 3 / $num_labels_across;
-        my $tiny_label_step_down   = $printable_label_height / $num_labels_down;
-        my $tiny_fontsize = $tiny_label_step_down / $line_spacing;
-        warn sprintf "Tiny labels fontsize=%.2fmm (%.2fpt), step-across=%.2fmm, step-down=%.2fmm ",
-                    $tiny_fontsize/mm, $tiny_fontsize/pt,
-                    $tiny_label_step_across/mm,
-                    $tiny_label_step_down/mm
-            if $verbose > 2;
-        $pq->font( $label_fontname, $tiny_fontsize );
-        for my $tiny_l ( 0 .. $labels_per_page-1 ) {
-            my $tiny_col;
-            my $tiny_row;
-            if ($labels_ordered_in eq 'columns') {
-                $tiny_row  = $tiny_l             % $num_labels_down;
-                $tiny_col  = ($tiny_l-$tiny_row) / $num_labels_down;
-            }
-            else {
-                $tiny_col  = $tiny_l             % $num_labels_across;
-                $tiny_row  = ($tiny_l-$tiny_col) / $num_labels_across;
-            }
-            my $tiny_top  = $top  - $label_top_margin                               - $tiny_label_step_down   * $tiny_row;
-            my $tiny_right = $left + $label_left_margin + $printable_label_width*2/3 + $tiny_label_step_across * ($tiny_col+1);
-            warn sprintf "Printing tiny label #%s →%.2fmm,↑%.2fmm", $tiny_l, $tiny_right/mm, $tiny_top/mm if $verbose > 2;
-            $text->translate( $tiny_right, $tiny_top - $tiny_label_step_down );
-            if ( $tiny_l == $label_on_page ) {
-                $text->fillcolor($label_banner_colour);
-                $text->text_right("O");
-            }
-            elsif ( $tiny_l >= $first_label_on_page && $tiny_l <= $last_label_on_page ) {
-                $text->fillcolor('black');
-                $text->text_right("X");
-            }
-            else {
-                $text->fillcolor('black');
-                $text->text_right("-");
-            }
-        }
-        $r->SUPER::draw_label($pq, $top, $left, $label_on_page);
-    }
-    }
-
-    {
-    package Label::count::total;
-    use parent -norequire => Label::common::;
-    use verbose;
-
-    sub new {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my $class = shift;
-        my ($inclusion_labels, $counts) = @_;
-        bless {
-            banner => "Totals",
-            lines => [ map { sprintf "%3u× %s", $counts->[$_], $inclusion_labels->[$_] } grep { $counts->[$_] } 0..$#$inclusion_labels ],
-        }, $class;
-    }
-    }
-
-    {
-    package Label::recipient;
-    use parent -norequire => Label::common::;
-    use verbose;
-
-    sub new {
-        warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
-        my $class = shift;
-        my ($inclusions, $postcode, @lines) = @_;
-        bless {
-                inclusions => $inclusions,
-                lines    => \@lines,
-                postcode => $postcode,
-            }, $class;
-    }
-
-    use constant colour => 'black';
-
-    }
+use Label::common \($evenly_squash_to_fit, $label_banner_font,
+                    $label_banner_scale, $label_bottom_margin, $label_fontname,
+                    $label_fontsize, $label_height, $label_left_margin,
+                    $label_postcode_fontsize, $label_right_margin,
+                    $label_top_margin, $label_width, $line_spacing);
+use Label::blank;
+use Label::count::items \($label_bottom_margin, $label_fontname, $label_height,
+                          $label_left_margin, $label_right_margin,
+                          $label_top_margin, $label_width, $labels_ordered_in,
+                          $line_spacing, $num_labels_across, $num_labels_down);
+use Label::count::total;
+use Label::recipient;
 
     sub suppress_unwanted_records($) {
         my $rr = shift;
@@ -1858,10 +1666,9 @@ sub generate_labels($$;$) {
         }
     }
 
-
     my $use_item_count_labels = keys %households_by_inclusions > 1;
 
-    my $summary_totals_label = new Label::count::total:: \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
+    my $summary_totals_label = new Label::count::total:: "Totals", \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
 
     # Sort within each inclusion group
     @$_ = sort { $a->[0]{sort_by}  cmp $b->[0]{sort_by} } @$_ for values %households_by_inclusions;
