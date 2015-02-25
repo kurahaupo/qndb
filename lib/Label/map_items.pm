@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use utf8;
 
-package Label::count::items;
+package Label::map_items;
 use parent 'Label::common';
 
 use Carp 'croak';

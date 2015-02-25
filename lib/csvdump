@@ -1546,10 +1546,10 @@ use Label::common \($evenly_squash_to_fit, $label_banner_font,
                     $label_postcode_fontsize, $label_right_margin,
                     $label_top_margin, $label_width, $line_spacing);
 use Label::blank;
-use Label::count::items \($label_bottom_margin, $label_fontname, $label_height,
-                          $label_left_margin, $label_right_margin,
-                          $label_top_margin, $label_width, $labels_ordered_in,
-                          $line_spacing, $num_labels_across, $num_labels_down);
+use Label::map_items \($label_bottom_margin, $label_fontname, $label_height,
+                       $label_left_margin, $label_right_margin,
+                       $label_top_margin, $label_width, $labels_ordered_in,
+                       $line_spacing, $num_labels_across, $num_labels_down);
 use Label::count::total;
 use Label::recipient;
 
@@ -1699,7 +1699,7 @@ sub generate_labels($$;$) {
                     }
                 }
                 my $last_label_on_page = ::min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
-                push @labels, new Label::count::items::
+                push @labels, new Label::map_items::
                                     $inclusions,
                                     scalar @labels,
                                     $first_label_on_page,
