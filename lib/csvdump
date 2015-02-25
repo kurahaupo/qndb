@@ -234,6 +234,7 @@ my $skip_suppressed_post = undef;       # default to "yes" for do_labels
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
+my $postal_control_tag = 'overseas';
 my @restrict_regions;
 my @selection_tags;
 
@@ -744,6 +745,7 @@ warn "WRITE BINMODE=@wr_binmode\n" if $verbose > 1 && @wr_binmode;
 
 $book_sort_by_surname //= ! $book_sort_by_givenname;
 
+# punctuation in tags is ignored by gtags()
 s/^\W*// for @selection_tags,
              @inclusion_tags;
 
@@ -1634,6 +1636,9 @@ sub generate_labels($$;$) {
             join('; ', @inclusion_labels)
         if $verbose;
 
+    my $next_inclusion_group = 'E0';
+    my %inclusion_groups;
+    my %group_counts;
     my %inclusion_counts;
     my %households_by_inclusions;
     HOUSEHOLD: for my $hh (@$households) {
@@ -1646,14 +1651,21 @@ sub generate_labels($$;$) {
                             grep { my $t = $_; grep { $_->gtags($t) } @hh; }
                                 @inclusion_tags
             or next HOUSEHOLD;
-        my $inclusions = join ', ', @inclusions;
-        $hh[0]->{inclusions} = $inclusions;
+        $hh[0]->{inclusions} = \@inclusions;
         my $postal_address = $hh[0]->postal_address;
         # What sort-order within the tag group?
         my @sort_by = qw( country postcode city suburb street streetnum );
         $hh[0]->{sort_by} = join "\t", map { $postal_address->{$_} || '' } @sort_by;
         # and done
-        push @{$households_by_inclusions{$inclusions}}, \@hh;
+        $hh[0]->{inclusion_group} =
+        my $igroup = $inclusion_groups{join ',', @inclusions} ||= ++$next_inclusion_group;
+        ++$group_counts{$igroup};
+        if ( $postal_control_tag && grep { $_->gtags($postal_control_tag) } @hh ) {
+            # are they overseas?
+            push @inclusions, "\x{fe01}(Special Postage)";
+        }
+        my $group_by = join ', ', @inclusions;
+        push @{$households_by_inclusions{$group_by}}, \@hh;
         ++$inclusion_counts{$_} for @inclusions;
     }
 
@@ -1670,7 +1682,8 @@ sub generate_labels($$;$) {
 
     my $use_item_count_labels = keys %households_by_inclusions > 1;
 
-    my $summary_totals_label = new Label::count::total:: "Totals for copying", \@inclusion_labels, [@inclusion_counts{@inclusion_labels}];
+    my @summary_labels = ( Label::count::total::->new( "Make copies",     \@inclusion_labels,            [@inclusion_counts{@inclusion_labels}]       ),
+                           Label::count::total::->new( "Stuff envelopes", ['E1'..$next_inclusion_group], [@group_counts{'E1'..$next_inclusion_group}] ) );
 
     # Sort within each inclusion group
     @$_ = sort { $a->[0]{sort_by}  cmp $b->[0]{sort_by} } @$_ for values %households_by_inclusions;
@@ -1682,8 +1695,9 @@ sub generate_labels($$;$) {
     # generate the lines to be put on each household's label, and
     # create inclusion labels
     my @labels;
-    for my $inclusions ( sort { @{$households_by_inclusions{$b}} <=> @{$households_by_inclusions{$a}} } keys %households_by_inclusions ) {
-        my @households = @{$households_by_inclusions{$inclusions}};
+    for my $group_by ( sort { @{$households_by_inclusions{$b}} <=> @{$households_by_inclusions{$a}} } keys %households_by_inclusions ) {
+        my @households = @{$households_by_inclusions{$group_by}};
+        my $inclusions = $households[0][0]{inclusions};
         for my $hi ( 0..$#households ) {
             my $hh = $households[$hi];
             if ($use_item_count_labels and $hi == 0 || @labels % $labels_per_page == 0) {
@@ -1692,9 +1706,8 @@ sub generate_labels($$;$) {
                     # No point putting a count-label in last position on page,
                     # where its count would be zero, so put the summary totals
                     # label here, or otherwise just leave it blank.
-                    if ($summary_totals_label) {
-                        push @labels, $summary_totals_label;
-                        $summary_totals_label = undef;
+                    if (@summary_labels) {
+                        push @labels, pop @summary_labels;
                     }
                     else {
                         push @labels, one Label::blank::;
@@ -1703,7 +1716,8 @@ sub generate_labels($$;$) {
                 my $last_label_on_page = ::min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
                 push @labels, new Label::map_items::
                                     $inclusions,
-                                    scalar @labels,
+                                    $group_counts{$hh->[0]{inclusion_group}}, #scalar(@households),
+                                    $hh->[0]{inclusion_group},
                                     $first_label_on_page,
                                     $last_label_on_page;
             }
@@ -1761,9 +1775,9 @@ sub generate_labels($$;$) {
             push @labels, new Label::recipient:: ($inclusions, $postcode, @lines);
         }
     }
-    if ($summary_totals_label) {
-        push @labels, $summary_totals_label;
-        $summary_totals_label = undef;
+    if (@summary_labels) {
+        push @labels, @summary_labels;
+        @summary_labels = ();
     }
 
     #print "LABELS:\n", Dumper(\@labels) if $verbose > 4 && $debug;

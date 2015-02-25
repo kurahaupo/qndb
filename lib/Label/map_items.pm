@@ -45,14 +45,14 @@ use PDF::scale_factors;
 sub new {
     warn sprintf "%s(%s)\n", (caller(0))[3], join ",", map { "'$_'" } @_ if $verbose > 4 && $debug;
     my $class = shift;
-    my ($inclusions, $total_count, $first_label_on_page, $last_label_on_page) = splice @_,0,4;
+    my ($inclusions, $total_count, $inclusion_group, $first_label_on_page, $last_label_on_page) = splice @_,0,5;
     $inclusions = [ split /,\s*/, $inclusions ] if ! ref $inclusions;
+    my $count_on_this_page = $last_label_on_page-$first_label_on_page+1;
     $class->SUPER::new(
-        banner          => sprintf( "%u", $last_label_on_page-$first_label_on_page+1, ),
+        banner          => sprintf( "%s (%u/%u)", $inclusion_group, $count_on_this_page, $total_count ),
         lines           => $inclusions,
         first_on_page   => $first_label_on_page,
         last_on_page    => $last_label_on_page,
-        total_count     => $total_count,
         @_
     );
 }

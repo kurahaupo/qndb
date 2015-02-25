@@ -2,31 +2,76 @@
 
 . $HOME/Quakers/lib/qlib.bash
 
-inc=(
-        --select-and-include='Newsletter=!post NT news'
-        --select-and-include='Minutes=!post NT minutes'
-        --optional-include='Mt Eden notes=@listing - NT - Mt Eden'
-        --optional-include='Hold for pick-up=!suppress post'
-        --optional-include='Overseas Postage=#overseas'
-    )
+inc=()
 
-#inc+=( --optional-include='Email flyer=#has-email' )
+askyn() {
+    printf '%s? ' "$*"
+    while
+        read -rsn1 yn || return 2
+        yn=${yn^}
+        [[ $yn != [YN] ]]
+    do
+        [[ $yn = Q ]] && exit
+    done
+    printf '%s\n' $yn
+    [[ $yn = Y ]]
+}
 
-#inc+=( --optional-include='Do not send book=have book' )
-
-#for i in 'Bay of Islands' elsewhere Howick Kaitaia 'Mt Eden' 'North Shore' overseas Waiheke Whangarei
-#do
-#    inc+=( "--select-and-include=$i=@listing - NT - $i" )
-#done
-
-case $1 in
-(go)
-    printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.csv' "$HOME/" $now
-    ;;
-(*)
+if [[ $1 = -* ]]
+then
     postlabels=${current_gmail%.csv}-labels.pdf
-    ;;
-esac
+    for x do
+        case $x in
+        (nz-all)            inc+=( --select='#all' ) ;;
+        (nt-bayis|nt-boi)   inc+=( --select='@listing - NT - Bay of Islands' ) ;;
+        (nt-hwick)          inc+=( --select='@listing - NT - Howick' ) ;;
+        (nt-ktaia)          inc+=( --select='@listing - NT - Kaitaia' ) ;;
+        (nt-mtedn)          inc+=( --select='@listing - NT - Mt Eden' ) ;;
+        (nt-nshor)          inc+=( --select='@listing - NT - North Shore' ) ;;
+        (nt-wakld)          inc+=( --select='@listing - NT - Waiheke' ) ;;
+        (nt-wheke)          inc+=( --select='@listing - NT - West Auckland' ) ;;
+        (nt-whrei)          inc+=( --select='@listing - NT - Whangarei' ) ;;
+        (nt-oseas)          inc+=( --select='@listing - NT - overseas' ) ;;
+        (nt-elsew)          inc+=( --select='@listing - NT - elsewhere' ) ;;
+        (nt-all)            inc+=(     --select-and-include='NT notice=!post NT everyone'       ) ;;
+        (nt-news)           inc+=(       --select-and-include='NT news=!post NT news'           ) ;;
+        (nt-minutes)        inc+=(    --select-and-include='NT minutes=!post NT minutes'        ) ;;
+        (me-minutes)        inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes'   ) ;;
+        (me-everyone)       inc+=(      --optional-include='MtEdn info=@listing - NT - Mt Eden' ) ;;
+        (reminder)          inc+=(   --optional-include='reminder note=!post reminder'          ) ;;
+        (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
+        (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
+        (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ;;
+        (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
+        esac
+    done
+else
+
+    if askyn 'scan whole country'
+    then
+        inc+=( --select='#all' )
+    elif askyn 'scan for additional NT people' 
+    then
+        for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
+        do
+            inc+=( --select="@listing - NT - $i" )
+        done
+    fi
+
+    askyn 'NT everyone'     && inc+=(     --select-and-include='NT notice=!post NT everyone'       )
+    askyn 'NT news'         && inc+=(       --select-and-include='NT news=!post NT news'           )
+    askyn 'NT mins'         && inc+=(    --select-and-include='NT minutes=!post NT minutes'        )
+    askyn 'MtEdn mins'      && inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes'   )
+    askyn 'MtEdn everyone'  && inc+=(      --optional-include='MtEdn info=@listing - NT - Mt Eden' )
+    askyn 'Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'          )
+    askyn 'Email flyer'     && inc+=(     --optional-include='Email flyer=#has-email'              )
+    askyn 'NZ Friends'      && inc+=(    --select-and-include='NZ Friends=!post NZ Friends'        )
+
+    askyn 'scan for overseas' && inc+=( --optional-include='Overseas Postage=#overseas' )
+
+    askyn 'Keep postlabels.pdf' &&
+            printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now
+fi
 
 opts=(
         --skip-suppressed-post
@@ -49,151 +94,5 @@ opts=( \
         --preset=avery-l7160 \
      )
 
-
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NZ Friends' --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --include='NZ Friends' --include='NT news' --include='NT minutes' --include='Mt Eden minutes' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --optional-include='Email flyer=#has-email' --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='!post NT news=Newsletter' --optional-include='#has-email=Email flyer' "$current_gmail"
-csvdump --labels --select-and-include='!post NT news=Newsletter' --optional-include='#has-email=Email flyer' "$current_gmail"
-csvdump --labels --select-and-include='!post NT news=Newsletter' --optional-include='#has-email=Email flyer' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='NT news' --select-and-include='NT minutes' --select-and-include='Mt Eden minutes' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Email flyer=#has-email' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --optional-include='Overseas Postage=#overseas' --optional-include='Pls Confirm Note=!post reminder' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='!post NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='!post NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Mt Eden=!post Mt Eden minutes' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
-csvdump --labels --select-and-include='Newsletter=!post NT news' --select-and-include='Minutes=!post NT minutes' --select-and-include='Post Everyone=!post NT everyone' --select-and-include='Email Everyone=!send NT everyone' --optional-include='Overseas Postage=#overseas' --force-overwrite "$current_gmail"
 EoF
 # vim: set nowrap :
