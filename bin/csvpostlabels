@@ -17,9 +17,10 @@ askyn() {
     [[ $yn = Y ]]
 }
 
+postlabels=${current_gmail%.csv}-labels.pdf
+
 if [[ $1 = -* ]]
 then
-    postlabels=${current_gmail%.csv}-labels.pdf
     for x do
         case $x in
         (nz-all)            inc+=( --select='#all' ) ;;
@@ -66,8 +67,6 @@ else
     askyn 'Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'          )
     askyn 'Email flyer'     && inc+=(     --optional-include='Email flyer=#has-email'              )
     askyn 'NZ Friends'      && inc+=(    --select-and-include='NZ Friends=!post NZ Friends'        )
-
-    askyn 'scan for overseas' && inc+=( --optional-include='Overseas Postage=#overseas' )
 
     askyn 'Keep postlabels.pdf' &&
             printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now
