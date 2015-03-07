@@ -534,5 +534,21 @@ sub text_at($$%) {
     return ();
 }
 
+#
+# Given a chunk of text, convert it into a list of [text, font, style, offset]
+# elements, which can be incrementally added to, for size, and rendered at a
+# particular position.
+#
+# $pq->flow("Hello", { w => 20*mm })->bold->flow("Bye")->normal->
+#
+
+sub flow($$$$) {
+    my $pq = shift;
+    require PDF::stash::;
+    my $t = new PDF::stash:: ($pq);
+    $t = $t->flow(@_) if @_;
+    return $t;
+}
+
 #sub DESTROY { }
 1;
