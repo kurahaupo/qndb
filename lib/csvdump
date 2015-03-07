@@ -8,7 +8,7 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin", "$FindBin::Bin/../lib";
 
-use Fcntl qw( SEEK_SET );
+use Fcntl qw( SEEK_CUR SEEK_SET );
 use POSIX qw(strftime);
 use Data::Dumper;
 
@@ -510,7 +510,7 @@ GetOptions
     'tsv'                         => sub { $csv_fs_char = "\t"; $csv_escape_char = $csv_quote_char = ""; },
     'utf16be|u16b'                => sub { $presume_decoding = $use_encoding = 'UTF-16BE' },
     'utf16le|u16l'                => sub { $presume_decoding = $use_encoding = 'UTF-16LE' },
-    'utf8|u8'                     => sub { $presume_decoding = $use_encoding = 'UTF-8' },
+    'utf8|u8|u'                   => sub { $presume_decoding = $use_encoding = 'UTF-8' },
     'v+'                          => \&set_verbose,
     'verbose=s'                   => \&set_verbose,
     'why-not|why-skipped'         => sub { set_verbose 'why='.$_[-1] },
@@ -782,66 +782,123 @@ sub open_file_for_reading($) {
         }
     }
 
+    my $s = '';
+    my $seekable;
+    my $seek_to = 0;
+    my $look_ahead = sub {
+        my ($n) = @_;
+        # Open the file if it isn't yet
+        open $in, '<:raw', $in_name or die "Can't open $in_name; $!\n" if !$in;
+        # Note whether it's seekable; do this before attempting to read any data
+        # so that we don't disrupt buffering later.
+        $seekable //= seek $in, 0, SEEK_CUR;
+        # Read & return the requested number of bytes
+        $n -= length $s;
+        if ( $n > 0 ) {
+            local $/ = \$n;
+            $s .= (<$in> // '');
+        }
+        return $s;
+    };
+    my $look_match = sub {
+        my ($m) = @_;
+        my $l = length $m;
+        while ( $l > length $s ) {
+            $s eq substr($m,0,length $s) or return;
+            $look_ahead->(1+length $s);
+        }
+        substr($s,0,$l) eq $m or return;
+        $seek_to = $l;
+        return 1;
+    };
+
     warn "STARTING file '$in_name'\n" if $verbose;
 
     my @rd_binmode;
     my $rd_crlf = 1;
-    if ($force_decoding) {
-        #
-        # we were told to expect a specific encoding; trust the user...
-        # (this might be necessary if the input is a pipe, so we can't rewind it)
-        #
-        push @rd_binmode, ":encoding($force_decoding)" if $force_decoding ne 'OCTET';
-    }
+    my $decoding;
+
+    #
+    # Override all autodetection including Byte Order Marks, when given
+    # --force-decode=XXXX; this isn't normally needed, but might be
+    # necessary if the input can't be rewound such as for a pipe, or if
+    # by pure bad luck the input appears to start with a BOM when in fact
+    # that's data.
+    #
+    # In this case, we don't need to inspect the input stream at all...
+    #
+    if    ( $force_decoding                   ) { $decoding = $force_decoding }
+
+    #
+    # Deduce the encoding by reading the first chunk and looking for a Unicode
+    # Byte Order Mark (BOM, \ufeff).
+    #
+    elsif ( $look_match->("\xef\xbf\xbe"    ) ) { $decoding = 'UTF-8' }
+    elsif ( $look_match->("\xff\xfe\x00\x00") ) { $decoding = 'UTF-32LE' }
+    elsif ( $look_match->("\x00\x00\xfe\xff") ) { $decoding = 'UTF-32BE' }
+    elsif ( $look_match->("\xfe\xff"        ) ) { $decoding = 'UTF-16BE' }
+    elsif ( $look_match->("\xff\xfe"        ) ) { $decoding = 'UTF-16LE' }
+
+    #
+    # In the absence of a BOM, use the decoding given as --decoding=XXXX.
+    #
+    elsif ( $presume_decoding                 ) { $decoding = $presume_decoding }
+
+    #
+    # Guess based on the input stream: assume UTF-8 if nothing in the stream
+    # conflicts with it; otherwise infer the word size and endianness from the
+    # pattern of NULs.
+    #
     else {
         #
-        # deduce the encoding by reading the first 8KiB and looking for BOM and FS
+        # If seekable use a big chunk to improve detection reliability; if
+        # not seekable use a small chunk to maximize the chance that
+        # pushback will work.
         #
-        open $in, '<:raw', $in_name or die "Can't open $in_name; $!\n" if !$in;
-        local $/ = \8192;
-        my $s = <$in>;
-        my $seek_to = 0;
-        my $decoding;
-
-        $fsep = $&, $echar = $qchar = "" if !$fsep && $s =~ m/\t/;
-
-        # Unicode \ufeff is Byte Order Mark, which looks like these:
-        if ( $s =~ m{^     \xef\xbf\xbe
-                    |^ (?: \x00\x00  |) \xfe\xff
-                    |^     \xff\xfe (?: \x00\x00 |)
-                    }x ) {
-            # found a BOM
-            my $rd_bom = $&;
-            $seek_to = length($rd_bom);
-            state $bom_to_encoding = {
-                    "\xef\xbf\xbe"     => 'UTF-8',
-                    "\xfe\xff"         => 'UTF-16BE',
-                    "\x00\x00\xfe\xff" => 'UTF-32BE',
-                    "\xff\xfe"         => 'UTF-16LE',
-                    "\xff\xfe\x00\x00" => 'UTF-32LE',
-            };
-            $decoding = $bom_to_encoding->{$rd_bom};
-        }
-        elsif ( $presume_decoding && $presume_decoding ne 'OCTET' ) { $decoding = $presume_decoding; }
-        else {
-            if ( $s !~ m{ [^\x80-\xff][\x80-\xbf]
-                        | [\xc0-\xff][^\x80-\xbf]
-                        | [\xe0-\xff].[^\x80-\xbf]
-                        | [\xf0-\xff]..[^\x80-\xbf]
-                        | [\xf8-\xff]...[^\x80-\xbf]
-                        | [\xfc-\xff]....[^\x80-\xbf]
-                        | [\x00\xc0\xc1\xfe\xff]      }x ) { $decoding = 'UTF-8';    }
-            elsif ( $s =~ m{^ \x00\x00\x00[\x20-\x7f] }x ) { $decoding = 'UTF-32BE'; }
-            elsif ( $s =~ m{^ \x00[\x20-\x7f]         }x ) { $decoding = 'UTF-16BE'; }
-            elsif ( $s =~ m{^ [\x20-\x7f]\x00\x00\x00 }x ) { $decoding = 'UTF-32LE'; }
-            elsif ( $s =~ m{^ [\x20-\x7f]\x00         }x ) { $decoding = 'UTF-16LE'; }
-            else                                           { $decoding = '';         }
-            warn sprintf "Guessing %s for %s (no BOM)\n", $decoding || 'OCTET', $in_name;
-        }
-        push @rd_binmode, ":encoding($decoding)" if $decoding;
-        seek $in, $seek_to, SEEK_SET or die "Cannot seek within $in_name; $!\n(char-set auto-detection unavailable)\n";
-        $rd_crlf = $s =~ m{\r\n} ? 1 : 0;
+        # (This assumes that the first row starts with an ASCII character,
+        # which is usually valid if the first row is actually a header with
+        # field labels.)
+        #
+        my $s = $look_ahead->( $seekable ? 8192 : 512 );
+        if ( $s !~ m{ [^\x80-\xff][\x80-\xbf]
+                    | [\xc0-\xff][^\x80-\xbf]
+                    | [\xe0-\xff].[^\x80-\xbf]
+                    | [\xf0-\xff]..[^\x80-\xbf]
+                    | [\xf8-\xff]...[^\x80-\xbf]
+                    | [\xfc-\xff]....[^\x80-\xbf]
+                    | [\x00\xc0\xc1\xfe\xff]      }x ) { $decoding = 'UTF-8';    }
+        elsif ( $s =~ m{^ \x00\x00\x00[\x20-\x7f] }x ) { $decoding = 'UTF-32BE'; }
+        elsif ( $s =~ m{^ \x00[\x20-\x7f]         }x ) { $decoding = 'UTF-16BE'; }
+        elsif ( $s =~ m{^ [\x20-\x7f]\x00\x00\x00 }x ) { $decoding = 'UTF-32LE'; }
+        elsif ( $s =~ m{^ [\x20-\x7f]\x00         }x ) { $decoding = 'UTF-16LE'; }
+        else                                           { $decoding = 'OCTET';    }
+        warn sprintf "Guessing %s for %s (no BOM)\n", $decoding, $in_name;
     }
+
+    #
+    # Take this opportunity to look for tab characters to infer their use
+    # as the field separator, and for carriage-return characters to infer
+    # cr-lf line endings.
+    #
+    $fsep = $&, $echar = $qchar = "" if !$fsep && $look_ahead->(512) =~ m/\t/;
+    $rd_crlf //= $look_ahead->(512) =~ m{\r\n} ? 1 : 0;
+
+    #
+    # Seek (or push-back) to start of input, but after any BOM.
+    #
+    # Note that seeking may cause a buffer flush even if it's unsuccessful,
+    # which might then cause the pushback to fail, so avoid trying to seeking
+    # if we already know it will fail.
+    #
+    if ($seek_to != length $s) {
+        if ( not $seekable && seek $in, $seek_to, SEEK_SET ) {
+            for ( unpack 'C*', reverse substr $s, $seek_to ) {
+                $in->ungetc($_) or die "Can neither seek nor pushback within $in_name; $!\n"
+            }
+        }
+    }
+
+    push @rd_binmode, ":encoding($decoding)" if $decoding && $decoding ne 'OCTET';
     push @rd_binmode, ":crlf" if $rd_crlf;
     unshift @rd_binmode, ':raw' if @rd_binmode;
     warn "READ BINMODE=@rd_binmode\n" if $verbose > 1 && @rd_binmode;
