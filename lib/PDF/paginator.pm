@@ -95,12 +95,6 @@ sub text {
     $p->{text} ||= $p->page->text();
 }
 
-sub corefont {
-    my $p = shift;
-    my $name = shift;
-    $p->{fontcache}{$name} ||= $p->pdf->corefont($name);
-}
-
 sub pages {
     my $p = shift;
     $p->pdf->pages || 0
@@ -167,7 +161,7 @@ my @base_fonts = (
 );
 #
 # These font variant suffixes only apply to Helvetica & Courier; Times has
-# Italic rather than Oblique (see above), while Symbol & Zapf Fingbats have no
+# Italic rather than Oblique (see above), while Symbol & Zapf Dingbats have no
 # variants.
 #
 
@@ -177,13 +171,6 @@ my %font_variants = (
         Times     => [ undef, 'Times-Bold',     'Times-Italic',      'Times-BoldItalic'      ],
         Courier   => [ undef, 'Courier-Bold',   'Courier-Oblique',   'Courier-BoldOblique'   ],
     );
-sub font_variant($$;$) {
-    &_unmethod;
-    my ($basefont, $bold, $italic) = @_;
-    my $variation = ( ( $bold || 0 ) | ( $italic ? 2 : 0 ) ) & 3;
-    my $f = $font_variants{$basefont};
-    return $f && $f->[$variation] || $basefont;
-}
 
 use constant {
         b_Bold      => 1,
@@ -192,9 +179,9 @@ use constant {
         b_scale     => 8,
     };
 
-sub font {
-    my $p = shift;
-    my $name = shift;
+sub font($$$$;$) {
+    my $pq = shift;
+    my $basefont = shift;
     my $size = shift;
     my $variation = $_[0] || 0;
     if ( @_ >= 2 ) {
@@ -202,7 +189,10 @@ sub font {
         $variation |= b_Bold   if $_[0];
         $variation |= b_Italic if $_[1];
     }
-    $p->text->font($p->corefont($name),$size);
+    my $fv = $font_variants{$basefont};
+    my $name = $fv && $fv->[$variation] || $basefont;
+    my $f = $pq->{fontcache}{$name} ||= $pq->pdf->corefont($name);
+    $pq->text->font($f,$size);
 }
 
 ########################################
