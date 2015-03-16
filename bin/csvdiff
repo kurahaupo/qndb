@@ -99,7 +99,7 @@ do
     if (( smart_diff && nff == 2 && ! ignore ))
     then
         ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
-            less -i
+            less -iR
     else
         ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
         set -x

@@ -251,6 +251,7 @@ my $do_book_listing_by_mm;
 my $do_book_listing_by_wg;
 my $do_diff = 0;
 my $do_diffable_dump = 0;
+my $do_tag_report = 0;
 my $do_labels = 0;
 my $do_qndb_map = 0;
 my $book_phones_first = 1;
@@ -506,6 +507,7 @@ GetOptions
     'skip-unsubscribed'           => \$skip_unsub,
     'sort-book-by-givenname'      => \$book_sort_by_givenname,
     'sort-book-by-surname'        => \$book_sort_by_surname,
+    'tag-report'                  => \$do_tag_report,
     'test'                        => \$do_test,
     'tsv'                         => sub { $csv_fs_char = "\t"; $csv_escape_char = $csv_quote_char = ""; },
     'utf16be|u16b'                => sub { $presume_decoding = $use_encoding = 'UTF-16BE' },
@@ -1340,6 +1342,26 @@ use quaker_info '$mm_keys_re';
         return 0;
     }
 
+    my $C_plain = "\e[49m";
+    my $C_black = "\e[30m";
+    my $C_red   = "\e[31m";
+    my $C_green = "\e[32m";
+    my $C_yellow= "\e[33m";
+    my $C_blue  = "\e[34m";
+    my $C_purple= "\e[35m";
+    my $C_cyan  = "\e[34m";
+    my $C_white = "\e[37m";
+
+    my $B_plain = "\e[49m";
+    my $B_black = "\e[40m";
+    my $B_red   = "\e[41m";
+    my $B_green = "\e[42m";
+    my $B_yellow= "\e[43m";
+    my $B_blue  = "\e[44m";
+    my $B_purple= "\e[45m";
+    my $B_cyan  = "\e[44m";
+    my $B_white = "\e[47m";
+
     sub show_one_diff($$$$) {
         my ($out, $r1, $r2, $ofields) = @_;
         state $fmt = "%-18.18s %-32s %-3.3s %s";
@@ -1395,9 +1417,22 @@ use quaker_info '$mm_keys_re';
                         for my $i ( 0 .. ::max $#v1, $#v2 ) {
                             my $vl1 = $v1[$i] || '';
                             my $vl2 = $v2[$i] || '';
-                            next if $diff_quietly && $vl1 eq $vl2;
-                            my $cmp = ( $vl1 eq '' ? '-' : '=' ) . ( $vl1 eq $vl2 ? '=' : '!' ) . ( $vl2 eq '' ? '-' : '=' );
-                            printf "$fmt\n", $said_label++ ? '' : "$f", $vl1 || ' (add)', $cmp, $vl2 || ' (del)';
+                            $f = '' if $said_label++;
+                            if ( $vl1 eq '' ) {
+                                if ( $vl2 eq '' ) {
+                                    next if $diff_quietly;
+                                    printf "$fmt\n", $f, '', 'x', '';
+                                } else {
+                                    printf "$C_green$fmt$C_plain\n", $f, "(add)", "→", $vl2;
+                                }
+                            } elsif ( $vl2 eq '' ) {
+                                    printf "$C_red$fmt$C_plain\n", $f, $vl1, "←", "(del)";
+                            } elsif ( $vl1 eq $vl2 ) {
+                                next if $diff_quietly;
+                                printf "$fmt\n", $f, $vl1, "=", $vl2;
+                            } else {
+                                printf "$C_yellow$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
+                            }
                         }
                     }
                 }
@@ -1508,6 +1543,93 @@ sub diffably_dump_records($$;$) {
         };
         print $out "\n";
         _dump_one $out, $r, \@ofields;;
+    }
+    close $out or die "Error while writing to $out_name; $!\n";
+}
+
+################################################################################
+#
+# Scan for tags, and report a summary and list of anomalies
+#
+
+sub generate_tag_report($$;$) {
+    my $out = shift;
+    my $rr = shift;
+    my $in_name = shift || '(stdin)';
+
+    warn sprintf "DUMP: checking tags on %u records from %s\n", scalar @$rr, $in_name if $verbose;
+
+    ( $out, my $out_name ) = _open_output $out;
+    my @records = @$rr;
+    RECORD: for my $r (@records) {
+        my $errors = 0;
+        #
+        # Check #all vs #admin #attender etc
+        #
+        {
+        my @t = $r->gtags(qw( admin attenders child inactive meeting members newsletter-only role ));
+        if (@t == 0) {
+            if ( $r->gtags('all') ) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* #all without other #tags\n";
+            }
+        } else {
+            if ( !$r->gtags('all') ) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* #tags without #all\n";
+            }
+            if (@t > 1) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* multiple #tags (@t)\n";
+            }
+        }
+        }
+
+        #
+        # Check #member vs @member - xx 
+        #
+        {
+        my @t = $r->gtags(qr(^member[- ]+(\w{2,3})[- ]+));
+        if ( $r->gtags('member') ) {
+            if (@t == 0) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* #member without \@member-*\n";
+            }
+        } else {
+            if (@t > 0) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* \@member-* without #member\n";
+            }
+        }
+        }
+
+        #
+        # Check that children are under 16
+        #
+        {
+        my $b = $r->birthdate =~ s/\D//gr;
+        my $age = die;
+        if ( $r->gtags('child') ) {
+
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "Birthday is $b\n";
+                die;
+
+            if ($age >= 16) {
+                _dump_one $out, $r, [] if !$errors++;
+                print $out "* too old to be child, age=$age\n";
+            }
+        } else {
+            if ($b) {
+                if ($age < 16) {
+                    _dump_one $out, $r, [] if !$errors++;
+                    print $out "* too yound to be adult, age=$age\n";
+                }
+            }
+        }
+        }
+
+        print $out "\n" if $errors;
     }
     close $out or die "Error while writing to $out_name; $!\n";
 }
@@ -2710,7 +2832,7 @@ sub generate_test($) {
 # Sanity-check command-line args
 #
 
-$do_test || $do_book || $do_diff || $do_diffable_dump || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
+$do_test || $do_book || $do_diff || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
 
 #
 # Actual work...
@@ -2722,7 +2844,7 @@ if ($do_test) {
     generate_test( $o );
 }
 elsif ($do_diff) {
-    $do_book || $do_diffable_dump || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
+    $do_book || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
 
     my $f1 = shift @ARGV;
     my $f2 = shift @ARGV || '-';
@@ -2737,7 +2859,7 @@ else {
         $output_name ||= '-';
     }
     ! $output_name or
-    $do_book + $do_labels + $do_diffable_dump + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
+    $do_book + $do_labels + $do_diffable_dump + $do_tag_report + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
 
     for my $a (@ARGV) {
         my $rr = parse_file $a;
@@ -2759,6 +2881,12 @@ else {
         if ($do_diffable_dump) {
             my $o = $output_name || '-';
             diffably_dump_records( $o, $rr, $a );
+        }
+        if ($do_tag_report) {
+            # Force overwrite if the output filename is related to (but not the same as) the input filename
+            my $o = $output_name || '-';
+            $o ne '-' && $o eq $a && $force_overwrite < 1 && die "Can't overwrite input file as output file\n";
+            generate_tag_report( $o, $rr, $a );
         }
         if ($do_qndb_map) {
             # Force overwrite if the output filename is related to (but not the same as) the input filename
