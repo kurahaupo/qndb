@@ -34,7 +34,7 @@ use verbose;
 use list_functions;
 
 sub sort_by_surname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
     my @rr = sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
                  || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_;
@@ -58,7 +58,7 @@ sub sort_by_surname(@) {
     return @rr_meetings, @rr_roles, @rr_people;
 }
 sub sort_by_givenname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { ::croak "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
     my @rr = sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
                  || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_;
@@ -1050,7 +1050,7 @@ sub parse_file($) {
         my $ov = $verbose;
         {
             # Fixed fields: name, sort-keys, birthday
-            my $v = $r->name || do { warn "UNNAMED RECORD\n" . ::Dumper($r); '(unknown)' };
+            my $v = $r->name || do { warn "UNNAMED RECORD\n" . Dumper($r); '(unknown)' };
             if ($show_hyperlinks and my $ru = $r->uid) {
                 if ($ru !~ /^GEN/) {
                     my $rl = show_qonu($ru);
@@ -1181,8 +1181,8 @@ sub parse_file($) {
             my $off;
             my $len = 0;
             for my $o ( $mo, map { $mo+$_, $mo-$_ } 1 .. $ml+1 ) {
-                my $i = ::max($s1, $s2-$o);
-                my $e = ::min($e1, $e2-$o);
+                my $i = max($s1, $s2-$o);
+                my $e = min($e1, $e2-$o);
                 #warn sprintf "CHECK LIST1[%d..%d] against LIST2[%d..%d]\n", $i, $e, $i+$o, $e+$o if $verbose;
                 for (; $i <= $e ;++$i) {
                     if ( $cmp->($l1->[$i], $l2->[$i+$o]) ) {
@@ -1414,7 +1414,7 @@ use quaker_info '$mm_keys_re';
                         }
                         my $said_label;
                         _diff_align { $_[0] ne '' && $_[0] eq $_[1] } @v1, @v2;
-                        for my $i ( 0 .. ::max $#v1, $#v2 ) {
+                        for my $i ( 0 .. max $#v1, $#v2 ) {
                             my $vl1 = $v1[$i] || '';
                             my $vl2 = $v2[$i] || '';
                             $f = '' if $said_label++;
@@ -1481,7 +1481,7 @@ sub generate_diff($$$$$) {
     ( $out, my $out_name ) = _open_output $out;
 
     if ($can_map_uid) {
-        for my $uid ( ::uniq @u2, @u1 ) {
+        for my $uid ( uniq @u2, @u1 ) {
             my $suid = show_qonu($uid);
             my $i1 = $ku1{$uid};
             my $r1 = defined $i1 && $rr1[$i1];
@@ -1497,7 +1497,7 @@ sub generate_diff($$$$$) {
         }
     }
     elsif ($can_map_name) {
-        for my $name ( ::uniq @n2, @n1 ) {
+        for my $name ( uniq @n2, @n1 ) {
             my $i1 = $kn1{$name};
             my $r1 = defined $i1 && $rr1[$i1];
             my $i2 = $kn2{$name};
@@ -1892,7 +1892,7 @@ sub generate_labels($$;$) {
                         push @labels, one Label::blank::;
                     }
                 }
-                my $last_label_on_page = ::min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
+                my $last_label_on_page = min( @households-$hi+$first_label_on_page, $labels_per_page ) - 1;
                 push @labels, new Label::map_items::
                                     $inclusions,
                                     $group_counts{$hh->[0]{inclusion_group}}, #scalar(@households),
@@ -2092,16 +2092,16 @@ sub generate_labels($$;$) {
         $col //= -1;    # start at top of first column
         $top //= 0;
         if (CHECK_ARGS) {
-            @_ == 6 || @_ == 8 or ::croak "Wrong number of args";
-            UNIVERSAL::isa($pq, PDF::paginator::) or ::croak "arg 1 is not a PDF::paginator";
-            is_code $render_one or ::croak "arg 2 is not a sub";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_array    $rr               or ::croak         "arg 4 is not an array";
-          # is_array_of $rr, CSV::gmail:: or ::croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
-            is_number $items_across or ::croak "arg 5 is not a number (items-across)";
-            is_bool $visible or ::croak "arg 6 is not a bool (visible)";
-            is_number $col or ::croak "arg 7 is not a number (column number)";
-            is_number $top or ::croak "arg 8 is not a number (top-position)";
+            @_ == 6 || @_ == 8 or croak "Wrong number of args";
+            UNIVERSAL::isa($pq, PDF::paginator::) or croak "arg 1 is not a PDF::paginator";
+            is_code $render_one or croak "arg 2 is not a sub";
+            is_hash($render_context) or croak "arg 3 is not a hashref";
+            is_array    $rr               or croak         "arg 4 is not an array";
+          # is_array_of $rr, CSV::gmail:: or croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
+            is_number $items_across or croak "arg 5 is not a number (items-across)";
+            is_bool $visible or croak "arg 6 is not a bool (visible)";
+            is_number $col or croak "arg 7 is not a number (column number)";
+            is_number $top or croak "arg 8 is not a number (top-position)";
         }
         my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
         my $column_step = ($printable_page_width + $book_intercolumn_margin)  / $items_across;
@@ -2154,15 +2154,15 @@ sub generate_labels($$;$) {
         my ( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top ) = @_;
         $visible //= 1;
         if (CHECK_ARGS) {
-            @_ == 6 or @_ == 8 or ::croak "Wrong number of args";
-            UNIVERSAL::isa($pq, PDF::paginator::) or ::croak "arg 1 is not a PDF::paginator";
-            is_code $render_one or ::croak "arg 2 is not a sub";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_array_of($rr, CSV::gmail::) or ::croak "arg 4 is not an array (of GMail records)";
-            is_number $items_across or ::croak "arg 5 is not a number";
-            is_bool $visible or ::croak "arg 6 is not a flag (visible)";
-            is_number $col or ::croak "arg 7 is not a number (column number)" if @_ > 6;
-            is_number $top or ::croak "arg 8 is not a number (top-position)" if @_ > 6;
+            @_ == 6 or @_ == 8 or croak "Wrong number of args";
+            UNIVERSAL::isa($pq, PDF::paginator::) or croak "arg 1 is not a PDF::paginator";
+            is_code $render_one or croak "arg 2 is not a sub";
+            is_hash($render_context) or croak "arg 3 is not a hashref";
+            is_array_of($rr, CSV::gmail::) or croak "arg 4 is not an array (of GMail records)";
+            is_number $items_across or croak "arg 5 is not a number";
+            is_bool $visible or croak "arg 6 is not a flag (visible)";
+            is_number $col or croak "arg 7 is not a number (column number)" if @_ > 6;
+            is_number $top or croak "arg 8 is not a number (top-position)" if @_ > 6;
         }
         if ($book_sort_by_surname) {
             @$rr = sort_by_surname @$rr;
@@ -2264,7 +2264,7 @@ sub generate_book($$;$) {
     my $email_fontname = $book_email_fontname;
     my $fontsize = $book_fontsize;
     my $small_fontsize = $book_fontsize; #*2/3;
-    my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
+    my $lineheight = $fontsize * min 1, $line_spacing/(1+$extra_para_spacing);
 
     warn sprintf "Pagination info\n"
                . "page size: %.2fmm × %.2fmm (%s)\n"
@@ -2287,17 +2287,17 @@ sub generate_book($$;$) {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
         if (CHECK_ARGS) {
             if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
+                @_ == 7 or croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
             } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
+                @_ == 5 or croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
             }
-            UNIVERSAL::isa($pq, PDF::paginator::) or ::croak "arg 1 is not a PDF::paginator";
-            ! defined $r or ::croak "arg 2 should be undef but is not\n";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
+            UNIVERSAL::isa($pq, PDF::paginator::) or croak "arg 1 is not a PDF::paginator";
+            ! defined $r or croak "arg 2 should be undef but is not\n";
+            is_hash($render_context) or croak "arg 3 is not a hashref";
+            is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ >= 4;
+            is_bool $visible or croak "arg 5 is not a flag (visible)" if @_ >= 5;
+            is_number $top or croak "arg 6 is not a number (top-position)" if $visible;
+            is_number $left or croak "arg 7 is not a number (left-position)" if $visible;
         }
         if ($verbose) {
             if ($visible) {
@@ -2412,17 +2412,17 @@ sub generate_book($$;$) {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
         if (CHECK_ARGS) {
             if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
+                @_ == 7 or croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
             } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
+                @_ == 5 or croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
             }
-            UNIVERSAL::isa($pq, PDF::paginator::) or ::croak "arg 1 is not a PDF::paginator ref";
-            UNIVERSAL::isa($r, CSV::gmail::) or ::croak "arg 2 is not a gmail record";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
+            UNIVERSAL::isa($pq, PDF::paginator::) or croak "arg 1 is not a PDF::paginator ref";
+            UNIVERSAL::isa($r, CSV::gmail::) or croak "arg 2 is not a gmail record";
+            is_hash($render_context) or croak "arg 3 is not a hashref";
+            is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ >= 4;
+            is_bool $visible or croak "arg 5 is not a flag (visible)" if @_ >= 5;
+            is_number $top or croak "arg 6 is not a number (top-position)" if $visible;
+            is_number $left or croak "arg 7 is not a number (left-position)" if $visible;
         }
 
         my $inactive = $r->gtags('inactive','child');
@@ -2497,7 +2497,7 @@ sub generate_book($$;$) {
                 $h3 += $h4;
             }
         }
-        my $item_height = $lineheight*$extra_para_spacing + ::max $h1, $h2, $h3;
+        my $item_height = $lineheight*$extra_para_spacing + max $h1, $h2, $h3;
         if ($verbose) {
             my $fmt = $visible ? "RENDER details ↕%.2fmm=%.2f*%.2f*(%.2f,%.2f,%.2f) ↔%.2fmm ↑%.2fmm →%.2fmm"
                                : "SIZING details ↕%.2fmm=%.2f*%.2f*(%.2f,%.2f,%.2f) ↔%.2fmm";
@@ -2515,17 +2515,17 @@ sub generate_book($$;$) {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
         if (CHECK_ARGS) {
             if ($visible) {
-                @_ == 7 or ::croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
+                @_ == 7 or croak sprintf "Wrong number of args; expected %d with 'visible', got %d", 7, 0+@_;
             } else {
-                @_ == 5 or ::croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
+                @_ == 5 or croak sprintf "Wrong number of args; expected %d with 'invisible', got %d", 5, 0+@_;
             }
-            UNIVERSAL::isa($pq, PDF::paginator::) or ::croak "arg 1 is not a PDF::paginator ref";
-            UNIVERSAL::isa($r, CSV::gmail::) or ::croak "arg 2 is not a gmail record";
-            is_hash($render_context) or ::croak "arg 3 is not a hashref";
-            is_number $column_width or ::croak "arg 4 is not a number (item-width)" if @_ >= 4;
-            is_bool $visible or ::croak "arg 5 is not a flag (visible)" if @_ >= 5;
-            is_number $top or ::croak "arg 6 is not a number (top-position)" if $visible;
-            is_number $left or ::croak "arg 7 is not a number (left-position)" if $visible;
+            UNIVERSAL::isa($pq, PDF::paginator::) or croak "arg 1 is not a PDF::paginator ref";
+            UNIVERSAL::isa($r, CSV::gmail::) or croak "arg 2 is not a gmail record";
+            is_hash($render_context) or croak "arg 3 is not a hashref";
+            is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ >= 4;
+            is_bool $visible or croak "arg 5 is not a flag (visible)" if @_ >= 5;
+            is_number $top or croak "arg 6 is not a number (top-position)" if $visible;
+            is_number $left or croak "arg 7 is not a number (left-position)" if $visible;
         }
 
         # retrieve pagenum cross references
@@ -2791,7 +2791,7 @@ sub generate_test($) {
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
     my $fontname = $book_fontname;
     my $fontsize = $book_fontsize;
-    my $lineheight = $fontsize * ::min 1, $line_spacing/(1+$extra_para_spacing);
+    my $lineheight = $fontsize * min 1, $line_spacing/(1+$extra_para_spacing);
 
     warn sprintf "Pagination info\n"
                . "page size: %.2fmm × %.2fmm (%s)\n"
