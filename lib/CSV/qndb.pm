@@ -302,7 +302,7 @@ sub monthly_meeting_area {
       #     ;
       # }
     }
-    return sort uniq @x;
+    return uniq sort @x;
 }
 
 sub nz_friends_by_post {
@@ -319,7 +319,7 @@ sub nz_friends_by_post {
       #     ;
       # }
     }
-    return sort uniq @x;
+    return uniq sort @x;
 }
 
 sub listed_email($) {
@@ -368,7 +368,7 @@ sub listed_email($) {
     else {
         s#^([^@]*)\+\S*(\@.*)$#$1$2# for @a;
     }
-    return sort uniq @a;
+    return uniq sort @a;
 }
 
 sub all_addresses($) {
