@@ -1389,7 +1389,7 @@ use quaker_info '$mm_keys_re';
                     $said_title++;
                     printf $out "$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
                 }
-                FIELD: for my $f ( @$ofields ) {
+                FIELD: for my $f ( my @zof = @$ofields ) {
                     my (@v1, @v2);
                     for my $z ( [$r1, \@v1], [$r2, \@v2] ) {
                         my $r = $z->[0];
@@ -1405,6 +1405,7 @@ use quaker_info '$mm_keys_re';
                         }
                         else {
                             warn "Missing field '$f' in $r\n" if $verbose;
+                            @v = "Missing field '$f'";
                         }
                         @{ $z->[1] } = map { split /\n/, $_ } grep { defined $_ && "$_" ne '' } @v;
                     }
