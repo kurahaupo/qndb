@@ -1181,8 +1181,8 @@ sub parse_file($) {
             my $off;
             my $len = 0;
             for my $o ( $mo, map { $mo+$_, $mo-$_ } 1 .. $ml+1 ) {
-                my $i = max($s1, $s2-$o);
-                my $e = min($e1, $e2-$o);
+                my $i = max $s1, $s2-$o;
+                my $e = min $e1, $e2-$o;
                 #warn sprintf "CHECK LIST1[%d..%d] against LIST2[%d..%d]\n", $i, $e, $i+$o, $e+$o if $verbose;
                 for (; $i <= $e ;++$i) {
                     if ( $cmp->($l1->[$i], $l2->[$i+$o]) ) {
