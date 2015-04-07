@@ -2,4 +2,13 @@
 
 . $HOME/Quakers/lib/qlib.bash
 
+file_downloads
+
+for (( i=$# ; i >= 1 ; --i )) do
+    case ${!i} in
+    --google  ) set -- "${@:1:i-1}" "$current_gmail"   "${@:i+1}" ;;
+    --profile ) set -- "${@:1:i-1}" "$current_profile" "${@:i+1}" ;;
+    esac
+done
+
 exec ${libdir}csvdump "$@"
