@@ -36,11 +36,12 @@ sub set_verbose {
             $vtag = '';
         }
         $vtag !~ /\W/ or croak "Invalid verbosity setting '$l'";
+        # L-value for-list
         for my $vv ( $vtag eq 'debug' ? $debug :
                      $vtag eq 'why'   ? $why_not :
                      $vtag eq ''      ? values %vx :
                                         $vx{$vtag} ) {
-            if (! defined $q || $q eq '') {
+            if (! defined $q) {
                 ++$vv;
             } else {
                 $vv = $q;
