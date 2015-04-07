@@ -33,53 +33,40 @@ use verbose;
 
 use list_functions;
 
-sub sort_by_surname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
-    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
-    my @rr = sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
-                 || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_;
-    return @rr if not @rr && $rr[0]->can('gtags');
+sub group_by_type(@) {
+    return @_ if not @_ && $_[0]->can('gtags');
     my @rr_roles;
     my @rr_meetings;
     my @rr_people;
-    for my $r ( @rr ) {
-        my ($t) = $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting', 'role' );
-        $t or next;
-        if ($t eq 'meeting') {
+    my @rr_others;
+    for my $r ( @_ ) {
+        if ($r->gtags('meeting')) {
             push @rr_meetings, $r;
         }
-        elsif ($t eq 'role') {
+        elsif ($r->gtags('role', 'admin')) {
             push @rr_roles, $r;
         }
-        else {
+        elsif ($r->gtags('members', 'attenders', 'child', 'inactive')) {
             push @rr_people, $r;
         }
+        else {
+            push @rr_others, $r;
+        }
     }
-    return @rr_meetings, @rr_roles, @rr_people;
+    return @rr_meetings, @rr_roles, @rr_people, @rr_others;
+}
+
+sub sort_by_surname(@) {
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
+    return sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
+               || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_;
 }
 sub sort_by_givenname(@) {
     if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
     if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
-    my @rr = sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
-                 || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_;
-    return @rr if not @rr && $rr[0]->can('gtags');
-    my @rr_roles;
-    my @rr_meetings;
-    my @rr_people;
-    for my $r ( @rr ) {
-        my ($t) = $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting', 'role' );
-        $t or next;
-        if ($t eq 'meeting') {
-            push @rr_meetings, $r;
-        }
-        elsif ($t eq 'role') {
-            push @rr_roles, $r;
-        }
-        else {
-            push @rr_people, $r;
-        }
-    }
-    return @rr_meetings, @rr_roles, @rr_people;
+    return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
+               || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_;
 }
 sub preferred_sort(@) {
     goto &sort_by_givenname;
@@ -231,10 +218,12 @@ my $skip_newsletters_only = undef;      # default to "yes" for do_book
 my $skip_suppressed_listing = undef;    # default to "yes" for do_book
 my $skip_suppressed_email = 0;
 my $skip_suppressed_post = undef;       # default to "yes" for do_labels
+my $skip_unlisted = 1;
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
 my $postal_control_tag = 'overseas';
+my @restrict_classes;
 my @restrict_regions;
 my @selection_tags;
 
@@ -412,6 +401,7 @@ GetOptions
     'book-phones-first'           => \$book_phones_first,
     'canonical-addresses!'        => \$CSV::Common::canon_address,
     'care-of!'                    => \$CSV::Common::use_care_of,
+    'class|only-class=s'          => sub { push @restrict_classes, split /[, ]+/, pop },
     'explicitly-shared!'          => \$CSV::Common::only_explicitly_shared_email,
     'csv'                         => sub { $csv_fs_char = ',' },
     'debug|x'                     => sub { set_verbose 'debug='.$_[-1] },
@@ -459,7 +449,8 @@ GetOptions
     'include-suppressed-email!'   => N$skip_suppressed_email,
     'include-suppressed-listing!' => N$skip_suppressed_listing,
     'include-suppressed-post!'    => N$skip_suppressed_post,
-    'include-unsubscribed'        => N$skip_unsub,
+    'include-unlisted!'           => N$skip_unlisted,
+    'include-unsubscribed!'       => N$skip_unsub,
     'instruction-color|instruction-colour=s' => \$label_banner_colour,
     'label-height|lh=s'           => M$label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
@@ -506,7 +497,8 @@ GetOptions
     'skip-suppressed-email!'      => \$skip_suppressed_email,
     'skip-suppressed-listing!'    => \$skip_suppressed_listing,
     'skip-suppressed-post!'       => \$skip_suppressed_post,
-    'skip-unsubscribed'           => \$skip_unsub,
+    'skip-unlisted!'              => \$skip_unlisted,
+    'skip-unsubscribed!'          => \$skip_unsub,
     'sort-book-by-givenname'      => \$book_sort_by_givenname,
     'sort-book-by-surname'        => \$book_sort_by_surname,
     'tag-report'                  => \$do_tag_report,
@@ -1289,6 +1281,24 @@ use quaker_info '$mm_keys_re';
             if ( @$skips && $r->gtags(@$skips) ) {
                 warn sprintf "Skipping TAGGED %s tagged with [%s]\n", $r->debuginfo, join "; ", @$skips if $why_not;
                 return 1;
+            }
+            if ( @restrict_classes ) {
+                if (! $r->gtags( @restrict_classes )) {
+                    warn sprintf "Skipping EXCLASS %s not in [%s]\n", $r->debuginfo, join "; ", @restrict_classes;
+                    return 1;
+                }
+            }
+            if ($skip_unlisted) {
+                if (! $r->gtags( 'meeting', 'role', 'admin', 'members', 'attenders', 'child', 'inactive' )) {
+                    if ( $why_not ) {
+                        if ($r->gtags( 'newsletter-only' )) {
+                            warn sprintf "Skipping NEWS-ONLY %s\n", $r->debuginfo;
+                        } else {
+                            warn sprintf "Skipping NON-PERSON %s\n", $r->debuginfo;
+                        }
+                    }
+                    return 1;
+                }
             }
         }
       # elsif ( UNIVERSAL::isa($r, PDF::adhoc2::) ) {
@@ -2232,12 +2242,12 @@ sub generate_labels($$;$) {
             is_number $top or croak "arg 8 is not a number (top-position)" if @_ > 6;
         }
         if ($book_sort_by_surname) {
-            @$rr = sort_by_surname @$rr;
+            @$rr = group_by_type sort_by_surname @$rr;
             $render_context->{ORDER} = 'surname';
             ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
         }
         if ($book_sort_by_givenname) {
-            @$rr = sort_by_givenname @$rr;
+            @$rr = group_by_type sort_by_givenname @$rr;
             $render_context->{ORDER} = 'given_name';
             ($col, $top) = render_columnated_list( $pq, $render_one, $render_context, $rr, $items_across, $visible, $col, $top );
         }
