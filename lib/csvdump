@@ -250,6 +250,7 @@ my $do_book_listing_all;
 my $do_book_listing_by_mm;
 my $do_book_listing_by_wg;
 my $do_diff = 0;
+my $do_birthday_dump = 0;
 my $do_diffable_dump = 0;
 my $do_tag_report = 0;
 my $do_labels = 0;
@@ -426,6 +427,7 @@ GetOptions
     'diff-by-uid'                 => sub { $diff_by = 'uid' },
     'diff-ignore-file=s'          => \$diff_ignore_file,
     'dump|diffable-dump'          => \$do_diffable_dump,
+    'birthday-dump'               => \$do_birthday_dump,
     'encode-octet|encode-byte|eb' => sub { $use_encoding = 'OCTET' },
     'encode-utf16be|eu16b'        => sub { $use_encoding = 'UTF-16BE' },
     'encode-utf16le|eu16l'        => sub { $use_encoding = 'UTF-16LE' },
@@ -1064,8 +1066,8 @@ sub parse_file($) {
             printf $out "%s: %s\n", "sort-by-surname", $r->{composite_name}->{sort_by_surname};
             printf $out "%s: %s\n", "sort-by-givenname", $r->{composite_name}->{sort_by_givenname};
             if ( my $bd = $r->birthdate ) {
-                if ( ! $suppress_adult_birthdays
-                    || $bd =~ m#^(\d{4})\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$# && "$1$2$3" ge sixteen_years_ago && "$1$2$3" le this_date && "$1$2$3" ge '18900000') {
+                my ($y,$m,$d,$ymd) = ($1,$2,$3,"$1$2$3") if $bd =~ m#^(\d{4})\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#;
+                if ( ! $suppress_adult_birthdays || $ymd gt sixteen_years_ago ) {
                     $bd = show_date($bd);
                     printf $out "%s: %s\n", 'Birthday', $bd;
                 }
@@ -1547,6 +1549,74 @@ sub diffably_dump_records($$;$) {
         };
         print $out "\n";
         _dump_one $out, $r, \@ofields;;
+    }
+    close $out or die "Error while writing to $out_name; $!\n";
+}
+
+################################################################################
+#
+# Dump records in a textual form that can be read by automail to send birthday
+# greetings.
+#
+
+sub birthday_dump_records($$;$) {
+    my $out = shift;
+    my $rr = shift;
+    my $in_name = shift || '(stdin)';
+
+    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
+
+    ( $out, my $out_name ) = _open_output $out;
+    my @ofields = _choose_ofields;
+    my @records = @$rr;
+    #print Dumper(\@records);
+    @records = preferred_sort @records;
+    #print Dumper(\@records);
+    RECORD: for my $r (@records) {
+        $r->can('gtags') && $r->gtags('suppress birthday') ||
+        _skip_restricted_record $r and do {
+            warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD;
+        };
+
+        my $name = $r->name;
+        if (!$name ) {
+            warn "UNNAMED RECORD\n" . Dumper($r);
+            next RECORD
+        }
+        my $bd = $r->birthdate;
+        if (!$bd) {
+            warn sprintf "BIRTHDAY: date not recorded %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD;
+        }
+        my ( $y, $m, $d, $ymd ) = ( $1, $2, $3, "$1$2$3" )
+            if $bd =~ m#^(\d{4})\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#
+            || $bd =~ m#^()\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#;
+        if ( ! $ymd ) {
+            warn sprintf "BIRTHDAY: not valid date %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD;
+        }
+        if ($r->gtags("suppress birthday")) {
+            warn sprintf "BIRTHDAY: suppressing %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD;
+        }
+        if ( $suppress_adult_birthdays && $ymd le sixteen_years_ago ) {
+            warn sprintf "BIRTHDAY: not-child %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD
+        }
+        my $emails = join ",", uniq $r->listed_email;
+        if (!$emails) {
+            warn sprintf "BIRTHDAY: email not recorded %s\n", $r->debuginfo if $verbose > 2;
+            next RECORD;
+        }
+
+        my @meetings = $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ );
+        @meetings = uniq @meetings if @meetings > 1;
+        my $xdate = join ".", $y ? 'xdate='.$y : 'zdate=0000', $m, $d;
+        my $dpat = strftime "%d-%b", 0,0,0,$d,$m-1,$y?$y-1900:2000;
+        my @areas = map { "area=" . uc $_ } sort @meetings;
+
+        printf $out "%s\n", join("\t", join(",", 'rcpt', $dpat, $xdate, @areas), $emails, $name);
     }
     close $out or die "Error while writing to $out_name; $!\n";
 }
@@ -2836,7 +2906,7 @@ sub generate_test($) {
 # Sanity-check command-line args
 #
 
-$do_test || $do_book || $do_diff || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
+$do_test || $do_book || $do_diff || $do_birthday_dump || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
 
 #
 # Actual work...
@@ -2848,7 +2918,7 @@ if ($do_test) {
     generate_test( $o );
 }
 elsif ($do_diff) {
-    $do_book || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
+    $do_book || $do_birthday_dump || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map and die "Can't combine --diff with anything else\n";
 
     my $f1 = shift @ARGV;
     my $f2 = shift @ARGV || '-';
@@ -2863,7 +2933,7 @@ else {
         $output_name ||= '-';
     }
     ! $output_name or
-    $do_book + $do_labels + $do_diffable_dump + $do_tag_report + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
+    $do_book + $do_labels + $do_birthday_dump + $do_diffable_dump + $do_tag_report + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
 
     for my $a (@ARGV) {
         my $rr = parse_file $a;
@@ -2881,6 +2951,10 @@ else {
             my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/\.pdf/r );
             $o ne '-' && $o eq $a && $force_overwrite < 1 && die "Can't overwrite input file as output file\n";
             generate_labels( $o, $rr, $a );
+        }
+        if ($do_birthday_dump) {
+            my $o = $output_name || '-';
+            birthday_dump_records( $o, $rr, $a );
         }
         if ($do_diffable_dump) {
             my $o = $output_name || '-';
