@@ -1004,7 +1004,7 @@ sub parse_file($) {
             $force_overwrite || ! -e $output or die "Output file '$output' already exists; use --force-overwrite\n";
             open my $outx, ">@binmode", $output or die "Can't create $output; $!\n";
             print $outx @bom if @bom;
-            return $outx, $output;
+            return $outx, $output, 1;
         }
         else {
             state %first;
@@ -1013,7 +1013,7 @@ sub parse_file($) {
                 binmode $output, "@binmode" or warn "Can't set binmode on $output (@binmode); $!\n" if @binmode;
                 print $output @bom if @bom;
             }
-            return $output, '(stdout)';
+            return $output, '(stdout)', undef;
         }
     }
 
@@ -1489,7 +1489,7 @@ sub generate_diff($$$$$) {
 
     $can_map_uid or $can_map_name or die "Can map by neither UID nor Name, due to missing values of both\n";
 
-    ( $out, my $out_name ) = _open_output $out;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out;
 
     if ($can_map_uid) {
         for my $uid ( uniq @u2, @u1 ) {
@@ -1523,6 +1523,7 @@ sub generate_diff($$$$$) {
             show_one_diff $out, $r1, $r2, \@ofields;
         }
     }
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -1541,7 +1542,7 @@ sub diffably_dump_records($$;$) {
 
     warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
 
-    ( $out, my $out_name ) = _open_output $out;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
     #print Dumper(\@records);
@@ -1555,7 +1556,7 @@ sub diffably_dump_records($$;$) {
         print $out "\n";
         _dump_one $out, $r, \@ofields;
     }
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -1571,7 +1572,7 @@ sub birthday_dump_records($$;$) {
 
     warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
 
-    ( $out, my $out_name ) = _open_output $out;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
     #print Dumper(\@records);
@@ -1623,7 +1624,7 @@ sub birthday_dump_records($$;$) {
 
         printf $out "%s\n", join("\t", join(",", 'rcpt', $dpat, $xdate, @areas), $emails, $name);
     }
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -1638,7 +1639,7 @@ sub generate_tag_report($$;$) {
 
     warn sprintf "DUMP: checking tags on %u records from %s\n", scalar @$rr, $in_name if $verbose;
 
-    ( $out, my $out_name ) = _open_output $out;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @records = @$rr;
     RECORD: for my $r (@records) {
         my $errors = 0;
@@ -1710,7 +1711,7 @@ sub generate_tag_report($$;$) {
 
         print $out "\n" if $errors;
     }
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -1729,7 +1730,7 @@ sub generate_qndb_map($$;$) {
     my $out = shift;
     my $rr = shift;
     my $in_name = shift || '(stdin)';
-    ( $out, my $out_name ) = _open_output $out;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my %rr = map { ( $_->uid => $_ ) } @$rr;
     print $out "Name,Group Membership,Custom Field 1 - Type,Custom Field 1 - Value,Custom Field 2 - Type,Custom Field 2 - Value,Custom Field 3 - Type,Custom Field 3 - Value\n";
     my @records = preferred_sort @$rr;
@@ -1762,7 +1763,7 @@ sub generate_qndb_map($$;$) {
         }
         printf $out "%s,%s,qdb,%s,qdb-spouse,%s,qdb-parent,%s,qdb-child,%s\n", $fullname, join(' ::: ', @groups), $qdb, $spouse, join(' ::: ', @uids_of_parents), join(' ::: ', @uids_of_kids);
     }
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -2121,10 +2122,10 @@ sub generate_labels($$;$) {
         }
     }
 
-    ( $out, my $out_name ) = _open_output $out, 1;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
     warn "Writing PDF to $out_name ($out)\n";
     print {$out} $pq->stringify;
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
@@ -2850,10 +2851,10 @@ sub generate_book($$;$) {
     $pq->closepage;
     delete $pq->{upon_end_page};
 
-    ( $out, my $out_name ) = _open_output $out, 1;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
     print "Writing PDF to $out_name ($out)\n";
     print {$out} $pq->stringify;
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 };
 
@@ -2899,10 +2900,10 @@ sub generate_test($) {
     $pq->closepage;
     delete $pq->{upon_end_page};
 
-    ( $out, my $out_name ) = _open_output $out, 1;
+    ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
     print "Writing PDF to $out_name ($out)\n";
     print {$out} $pq->stringify;
-    close $out or die "Error while writing to $out_name; $!\n";
+    close $out or die "Error while writing to $out_name; $!\n" if $close_when_done;
 }
 
 ################################################################################
