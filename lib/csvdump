@@ -977,11 +977,11 @@ sub parse_file($) {
                 push @{$r->{XREF_children}}, $k;
             }
             if (my ($uid_of_spouse) = $r->uid_of_spouse) {
-                my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid#%s, who does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
+                my $s = $record_by_uid{$uid_of_spouse} or do { warn sprintf "READ-XREF: uid#%s (%s) claims spouse uid#%s, who does not exist\n", $uid, $r->name, $uid_of_spouse; next; };
                 $r->{XREF_spouse} = $s;
                 $s->isa(CSV::Common::) or die "Not a CSV::Common record\n".Dumper($s);
-                my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has no spouse\n", $uid, $r->name, $uid_of_spouse; next; };
-                $s2uid eq $uid or do { warn sprintf "Record with uid#%s (name:%s) claims spouse with uid #%s, who has a different spouse with uid#%s\n", $uid, $r->name, $uid_of_spouse, $s2uid; next; };
+                my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "READ-XREF: uid#%s (%s) claims spouse uid#%s (%s), who claims no spouse\n", $uid, $r->name, $uid_of_spouse, $s->name; next; };
+                $s2uid eq $uid or do { warn sprintf "READ-XREF: uid#%s (%s) claims spouse uid#%s (%s), who claims a different spouse uid#%s (%s)\n", $uid, $r->name, $uid_of_spouse, $s->name, $s2uid, eval { $record_by_uid{$s2uid}->name || "unnamed" } || "nonexistent"; next; };
                 $s->{XREF_spouse} = $r;
                #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
             }
