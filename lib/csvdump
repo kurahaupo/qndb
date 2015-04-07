@@ -1224,10 +1224,12 @@ use quaker_info '$mm_keys_re';
 
         if (@restrict_regions) {
             my $skip = 0;
+            my $where;
+            my @mt;
             if ( $r->can('gtags') ) {
+                $where = 'gmail';
                 $r->isa(CSV::qndb::) and die "gtags shouldn't work on QNDB record; method=".$r->can('gtags');
-              # if ( my @mt = map { m{^(?:member|listing|send|post)[- ]+($mm_keys_re)\s} ? $1 : () } $r->gtags ) { ... }
-                if ( my @mt = $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
+                if ( @mt = $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
                     grep { my $reg = $_; grep { $_ eq $reg } @mt } @restrict_regions
                     or $skip = 1;
                 }
@@ -1236,7 +1238,8 @@ use quaker_info '$mm_keys_re';
                 }
             }
             else {
-                if ( my @mt = map {
+                $where = 'profile';
+                if ( @mt = map {
                                     my $a = $r->{$_} || '';
                                     $a =~ m{^($mm_keys_re|YF)\b} ? $1 : ()
                                 } qw{   formal_membership
@@ -1256,24 +1259,24 @@ use quaker_info '$mm_keys_re';
                 }
             }
             if ($skip) {
-                warn sprintf "Skipping line#%s cause=%s name=%s, mm=%s fm=%s\n",
-                            $r->{__source_line}, $skip, $r->{composite_name},
-                            ref $r->{monthly_meeting_area} ? join ',', @{$r->{monthly_meeting_area}} : $r->{monthly_meeting_area} || '(none)',
-                            $r->{formal_membership} || '(none)',
-                    if $why_not || $verbose > 2;
+                warn sprintf "Skipping REGION %s doesn't have %s%s\n",
+                            $r->debuginfo,
+                            @mt ? 'any of the wanted regions ('.join(', ', @mt).')' : 'any regions',
+                            $where,
+                    if $why_not;
                 return 1;
             }
         }
         if ( $r->can('gtags') ) {
             if ($need_region) {
                 if ( ! $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
-                    warn sprintf "Skipping line#%s uid#%s name=%s NO LISTING\n", $r->{__source_line}, $r->uid, $r->name if $why_not;
+                    warn sprintf "Skipping NOREGION %s\n", $r->debuginfo if $why_not;
                     return 1;
                 }
             }
             if ($skip_archived) {
                 if ( my @s = $r->gtags( qr/^archive - (.*)/ ) ) {
-                    warn "Skipping line#$r->{__source_line} ".$r->name." ARCHIVE @s\n" if $why_not;
+                    warn sprintf "Skipping ARCHIVED %s [%s]\n", $r->debuginfo, "@s" if $why_not;
                     return 1;
                 }
             }
@@ -1289,7 +1292,7 @@ use quaker_info '$mm_keys_re';
                 \@skips;
             };
             if ( @$skips && $r->gtags(@$skips) ) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." because found [@$skips]\n" if $why_not;
+                warn sprintf "Skipping TAGGED %s tagged with [%s]\n", $r->debuginfo, join "; ", @$skips if $why_not;
                 return 1;
             }
         }
@@ -1301,7 +1304,7 @@ use quaker_info '$mm_keys_re';
             ! $r->{formal_membership} &&
             ! ( $r->{show_me_in_young_friends_listing}
              && $r->{show_me_in_young_friends_listing} eq 'Yes' ))) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." because [no mm area, no formal membership, and no yf listing]\n" if $why_not;
+                warn sprintf "Skipping UNLISTED %s [no MM membership, WG listing, or YF listing]\n", $r->debuginfo if $why_not;
                 return 1;
                 #$r->name =~ /Bakke/ and die Dumper($r);
             }
@@ -1331,11 +1334,11 @@ use quaker_info '$mm_keys_re';
                 [ \%ignore_uid, \%ignore_name ]
             };
             if ($things_to_ignore->[0]{$r->uid}) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring uid]\n" if $why_not;
+                warn sprintf "Skipping IGNORED %s [ignoring uid]\n", $r->debuginfo if $why_not;
                 return 1;
             }
             if ($things_to_ignore->[1]{lc $r->name}) {
-                warn "Skipping line#$r->{__source_line} ".$r->name." [ignoring name]\n" if $why_not;
+                warn sprintf "Skipping IGNORED %s [ignoring name]\n", $r->debuginfo if $why_not;
                 return 1;
             }
         }

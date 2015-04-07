@@ -164,6 +164,15 @@ sub uid($) {
 sub uid_of_children_under_16 { () }     # not supported by all record types
 sub uid_of_spouse { () }                # not supported by all record types
 
+sub debuginfo($) {
+    my $r = shift;
+    sprintf "%s uid=%s [%s]",
+            $r->name || '(nameless)',
+            $r->uid || '(unnumbered)',
+            (join "; ", grep { $_ } '#'.$r->{__source_line}, $r->listed_email, $r->mobile_number || $r->phone_number),
+            ;
+}
+
 sub DESTROY {}  # don't autoload!
 
 #use Carp qw( croak confess );

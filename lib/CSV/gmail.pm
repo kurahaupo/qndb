@@ -161,8 +161,8 @@ sub fix_one($) {
     $r->{home_phone} ||= '';
     $r->{mobile_phone} ||= '';
 
-    $r->name or do { warn "Ignoring line#$r->{__source_line} ".($r->uid || '(unnumbered)')." nameless record" if $why_not; return 0 };  # ignore records without names
-    $r->gtags('explanatory texts') and do { warn "Ignoring line#$r->{__source_line} explanatory text ".($r->name) if $why_not; return 0 };
+    $r->name or do { warn sprintf "Skipping NAMELESS %s\n", $r->debuginfo if $why_not; return 0 };  # ignore records without names
+    $r->gtags('explanatory texts') and do { warn sprintf "Skipping EXPLANATORY %s\n", $r->debuginfo if $why_not; return 0 };
     1;
 }
 

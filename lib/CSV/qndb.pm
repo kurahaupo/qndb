@@ -409,4 +409,7 @@ sub postal_address($) {
 #    _notno $r->{receive_local_newsletter_by_email};
 #}
 
+sub phone_number { $_[0]->{phone_number} }
+sub mobile_number { $_[0]->{mobile_number} }
+
 1;
