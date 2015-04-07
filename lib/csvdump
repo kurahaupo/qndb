@@ -706,6 +706,8 @@ $verbose and *STDERR{IO}->autoflush(1);
 
 $verbose and warn sprintf "RUN: %s\n", join ' ', map { ! m{[^0-9A-Za-z!#%+,-./:=@^_~]|^\#} ? $_ : ! m/['\\]/ ? "'$_'" : ! m/["\\\$]/ ? '"'.$_.'"' : s{[^0-9A-Za-z!#%+,-./:=@^_~]}{\\$&}gr } $0, @ORIG_ARGV;
 
+$why_not ||= $verbose > 2;
+
 ########################################
 #
 # Compute some derivative fallback values for parameters that can also be set
