@@ -965,14 +965,7 @@ sub parse_file($) {
         $record_by_uid{$_->uid} = $_ for @r;
         $! = 0;
     }
-  # warn "getline returned false; $!\n";
-  # warn sprintf "%s at position: %2\$u %2\$#x\n", $in_name, tell($in);
-  # if ( defined(my $x = <$in>) ) {
-  #     warn sprintf "next line of input from %s: %s\n", $in_name, $x;
-  # }
-  # else {
-  #     warn sprintf "reached end of file on %s\n", $in_name;
-  # }
+
     warn sprintf "READ: parsed %u records from %u lines in %s\n", scalar(@records), $num_lines, $in_name if $verbose;
     warn sprintf "READ: file position now at %#x in %s\n", tell($in), $in_name if $verbose > 1;
     close $in or die "Error while reading $in_name; $!\n";
@@ -1475,7 +1468,7 @@ sub generate_diff($$$$$) {
     my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
     my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
 
-    my @rr2 = preferred_sort grep { !_skip_restricted_record $_} @$rr2;
+    my @rr2 = preferred_sort grep { !_skip_restricted_record $_ } @$rr2;
     my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
     my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
 
@@ -1548,7 +1541,7 @@ sub diffably_dump_records($$;$) {
             next RECORD;
         };
         print $out "\n";
-        _dump_one $out, $r, \@ofields;;
+        _dump_one $out, $r, \@ofields;
     }
     close $out or die "Error while writing to $out_name; $!\n";
 }
