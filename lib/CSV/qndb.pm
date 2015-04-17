@@ -32,6 +32,7 @@ my %country_map = qw(
      14 Austria
      38 Canada
      43 China
+     70 France
     143 NZ
     154 PNG
     201 Tonga
