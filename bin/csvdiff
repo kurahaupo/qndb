@@ -43,7 +43,8 @@ while (($#)) ; do
     (--up|--use-profile)        use_profile=true ;;
     (-*)                        dumpopts+=("$o") ;;
     (*/google*|google*)         glist+=($o) ;;
-    (*/profile*|profile*\
+    (*/*\
+    |*/profile*|profile*\
     |*/mma-book*)               plist+=($o) ;;
     (*)                         echo >&2 "Unknown option '$o'" ; exit 64 ;;
     esac
