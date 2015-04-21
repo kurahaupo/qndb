@@ -1417,7 +1417,7 @@ use quaker_info '$mm_keys_re';
                             warn "Missing field '$f' in $r\n" if $verbose;
                             @v = "Missing field '$f'";
                         }
-                        @{ $z->[1] } = map { split /\n/, $_ } grep { defined $_ && "$_" ne '' } @v;
+                        @{ $z->[1] } = map { split /\n|(?<=\bc\/-)\s+/, $_ } grep { defined $_ && "$_" ne '' } @v;
                     }
                     if ( $#v1 != $#v2 || grep { $v1[$_] ne $v2[$_] } 0..$#v1 ) {
                         if (!$said_title++) {
