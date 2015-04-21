@@ -367,6 +367,7 @@ sub fix_one($) {
                 $a->{country} = $iso_country_codes{uc $a->{country}} if $a->{country} and exists $iso_country_codes{uc $a->{country}};
             }
             $a->{formatted} =~ s#\s*\n*NZ$##o;
+            $a->{streetnum} = $a->{street} && $a->{street} =~ s#^(\S*\d\S*)\s+## && $1 || '';
             $a = new string_with_components::
                     $r->_canon_address($a->{formatted}, scalar grep { $care_of->{$_} && $care_of->{$_} >= $min_care_of } @types ),
                     types       => \@types,
@@ -379,7 +380,6 @@ sub fix_one($) {
                     postcode    => $a->{postal_code},
                     country     => $a->{country},
                     ;
-            $a->{streetnum} = $a->{street} && $a->{street} =~ s#^(\S*\d\S*)\s+## && $1 || '';
             push @{$r->{"LIST_address"}}, $a;
             for my $type (@types) {
                 push @{$r->{"LIST_${type}_address"}}, $a;
