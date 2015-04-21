@@ -331,6 +331,8 @@ my %iso_country_codes = (
     ZA => 'South Africa',
     ZM => 'Zambia',
     ZW => 'Zimbabwe',
+
+    PNG => 'Papua New Guinea',
 );
 
 $iso_country_codes{NZ} = '';    # leave out country for "local" mail
@@ -362,7 +364,7 @@ sub fix_one($) {
         @a && $a[0]{formatted} or next ADDRESS;
         for my $a (@a) {
             if ($a->{country}) {
-                $a->{country} = $iso_country_codes{uc $a->{country}} if $a->{country} =~ /^\w\w$/ and exists $iso_country_codes{uc $a->{country}};
+                $a->{country} = $iso_country_codes{uc $a->{country}} if $a->{country} and exists $iso_country_codes{uc $a->{country}};
             }
             $a->{formatted} =~ s#\s*\n*NZ$##o;
             $a = new string_with_components::
