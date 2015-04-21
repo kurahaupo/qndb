@@ -399,9 +399,6 @@ sub fix_one($) {
             s#\W+#_#g for @types;
 
             my $value = delete $r->{"${kind}_${n}_value"} || next ATTEMPT;
-            for my $type (@types) {
-                $r->{"${type}_${kind}"} = $value;
-            }
             for my $v2 (split ' ::: ', $value) {
                 $v2 =~ s# :(:::+) # $1 #;
                 $v2 = $patch->($v2) if $patch;
@@ -583,7 +580,7 @@ sub mobile_number($) {
 
 sub fax($) {
     my $r = shift;
-    $r->{home_fax_phone} || $r->{fax_phone} || $r->{work_fax_phone};
+    map { $r->_list($_.'_phone') } qw{ home_fax fax work_fax };
 }
 
 sub show_me_in_young_friends_listing($) {
