@@ -98,8 +98,8 @@ sub fix_one($) {
         my $postcode      = $r->{postcode};
         my $country       = $r->{country};
 
-        $_ and s/\s*,\s*/\n/
-            for $care_of, $property_name, $street, $suburb, $city;
+        $_ and s/\s*,\s*/\n/g
+            for $property_name, $street, $suburb, $city;
         $care_of = "c/- $1"
             if $property_name =~ s<^c/[-o]\s+(\S.*)\n?><>i;
         $_ = $r->_titlecase($_) for $suburb, $city;
@@ -111,7 +111,7 @@ sub fix_one($) {
         if ( $po_box ) {
             if ( $po_box =~ /^\d+$/ ) {
                 $po_box = "PO Box $po_box";
-                my $fulladdr = join "\n", grep {$_} $care_of, $po_box, $suburb, $city;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, $suburb, $city;
                 $fulladdr .= ' '.$postcode if $postcode;
                 $fulladdr .= "\n".$country if $country;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -119,6 +119,7 @@ sub fix_one($) {
                     new string_with_components::
                         $fulladdr,
                         care_of         => $care_of,
+                        property_name   => $property_name,
                         po_box          => $po_box,
                         city            => $suburb || $city,
                         postcode        => $postcode,
@@ -129,7 +130,7 @@ sub fix_one($) {
                 my $xcountry = @lines > 1 && $lines[-1] !~ /\d$/ ? pop @lines : $country;
                 my $xpostcode = @lines && $lines[-1] =~ s/\s+([- 0-9]{3,9}\d)$// ? $1 : $postcode;
                 my $xcity = pop @lines || $suburb || $city;
-                my $fulladdr = join "\n", grep {$_} $care_of, $po_box, @lines, $xcity;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, @lines, $xcity;
                 $fulladdr .= ' '.$xpostcode if $xpostcode;
                 $fulladdr .= "\n".$xcountry if $xcountry;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -137,6 +138,7 @@ sub fix_one($) {
                     new string_with_components::
                         $fulladdr,
                         care_of         => $care_of,
+                        property_name   => $property_name,
                         po_box          => $po_box,
                         city            => $xcity,
                         postcode        => $xpostcode,
@@ -153,14 +155,14 @@ sub fix_one($) {
                 $r->{X_rd_address} =
                     new string_with_components::
                         $fulladdr,
-                        care_of       => $care_of,
-                        property_name => $property_name,
-                        streetnum     => $streetnum,
-                        street        => $qstreet,
-                        rd_no         => $rd_no,
-                        city          => $suburb || $city,
-                        postcode      => $postcode,
-                        country       => $country;
+                        care_of         => $care_of,
+                        property_name   => $property_name,
+                        streetnum       => $streetnum,
+                        street          => $qstreet,
+                        rd_no           => $rd_no,
+                        city            => $suburb || $city,
+                        postcode        => $postcode,
+                        country         => $country;
             }
             else {
                 ($rd_no, my @lines) = split /\s*,\s*/, $rd_no;
