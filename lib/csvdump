@@ -1223,7 +1223,7 @@ use quaker_info '$mm_keys_re';
             if ( $r->can('gtags') ) {
                 $where = 'gmail';
                 $r->isa(CSV::qndb::) and die "gtags shouldn't work on QNDB record; method=".$r->can('gtags');
-                if ( @mt = $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
+                if ( @mt = $r->gtags( qr/^(?:member|listing|send|post)[- ]+($mm_keys_re|YF)\b/ ) ) {
                     grep { my $reg = $_; grep { $_ eq $reg } @mt } @restrict_regions
                     or $skip = 1;
                 }
@@ -1238,6 +1238,8 @@ use quaker_info '$mm_keys_re';
                                     $a =~ m{^($mm_keys_re|YF)\b} ? $1 : ()
                                 } qw{   formal_membership
                                         monthly_meeting_area
+                                        receive_local_newsletter_by_post
+                                        receive_local_newsletter_by_email
                                        } ) {
                                     # Also, maybe:
                                     # - receive_local_newsletter_by_post
