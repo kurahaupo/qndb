@@ -31,10 +31,25 @@ while
     desc=( "${book_opts[@]#--book-}" )
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
     $once || {
-    printf >&2 'Book [%s]? ([il][amw]|yes|quit) ' "${desc[*]}"
+    printf >&2 'Book [%s]? ([il][amw]|yes|quit|help) ' "${desc[*]}"
     read oo && [[ $oo != @(q|quit|stop|exit|halt|fg) ]]
     }
 do
+
+    [[ help = "$oo"* && $oo = h* || $oo = '?'* ]] && { cat <<EndOfHelp ; continue ; }
+bundles of letters:
+ i - index
+ l - listing
+ a - unified (single group)
+ m - group by MM
+ w - group by WG
+eg:
+ iam wl - unified index, index by MM, listing by WG
+ ia lmw - unified index, listing by MM, listing by WG
+ i - unified index, index by MM, index by WG
+ a - unified index & unified listing
+EndOfHelp
+
     # make sure any new downloads are filed in proper locations
     file_downloads
 
