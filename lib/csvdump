@@ -108,9 +108,6 @@ sub show_date($) {
             $_ = (strftime "%d %b", 0,0,0,$md[1],$md[0]-1,-120,0,0)." ($_) (xmd)";
         }
     }
-#   elsif ( m/./ ) {
-#       warn "Date '$_' could not be matched" if $verbose > 2;
-#   }
     warn "FIXED date $_" if $verbose > 3;
     return $_;
     }
@@ -981,7 +978,6 @@ sub parse_file($) {
                 my ($s2uid) = $s->uid_of_spouse or do { warn sprintf "READ-XREF: uid#%s (%s) claims spouse uid#%s (%s), who claims no spouse\n", $uid, $r->name, $uid_of_spouse, $s->name; next; };
                 $s2uid eq $uid or do { warn sprintf "READ-XREF: uid#%s (%s) claims spouse uid#%s (%s), who claims a different spouse uid#%s (%s)\n", $uid, $r->name, $uid_of_spouse, $s->name, $s2uid, eval { $record_by_uid{$s2uid}->name || "unnamed" } || "nonexistent"; next; };
                 $s->{XREF_spouse} = $r;
-               #$r->isa(CSV::Common::) or die "Not a CSV::Common record ".Dumper($r);
             }
         }
     }
@@ -1022,7 +1018,7 @@ sub parse_file($) {
 
     sub _choose_ofields() {
         my @ofields;
-        # 'name' is not required; always printed, separately from fields list
+        # 'name' is not required; as it's always printed, separately from the list of fields
         push @ofields, qw( monthly_meeting_area formal_membership inactive ) unless $names_only || $suppress_status;
         push @ofields, qw( show_me_in_young_friends_listing ) unless $names_only || $suppress_yf_listing;
         push @ofields, qw( listed_email phone_number mobile_number fax listed_address postal_address ) unless $names_only;
@@ -1067,15 +1063,12 @@ sub parse_file($) {
             my @v;
             if (my $ff = $r->can($f)) {
                 @v = $ff->($r);
-                #push @v, "can($f)";
             }
             elsif (exists $r->{"LIST_$f"}) {
                 @v = @{ $r->{"LIST_$f"} };
-                #push @v, "_list($f)";
             }
             elsif (exists $r->{$f}) {
                 @v = $r->{$f} // ();
-                #push @v, "{$f}";
             }
             else {
                 if ($verbose > 1) {
@@ -1101,7 +1094,6 @@ sub parse_file($) {
         }
         if ($show_relationships) {
             if ( my $s = $r->{XREF_spouse} ) {
-                #$s->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($s);
                 my $v = $s->name || '(unknown)';
                 if ($show_hyperlinks and my $su = $s->uid) {
                     my $sl = show_qonu($su);
@@ -1111,7 +1103,6 @@ sub parse_file($) {
             }
             if (my $pp = $r->{XREF_parents}) {
                 for my $p ( preferred_sort @$pp ) {
-                    #$p->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($p);
                     my $v = $p->name || '(unknown)';
                     if ($show_hyperlinks and my $pu = $p->uid) {
                         my $pl = show_qonu($pu);
@@ -1122,7 +1113,6 @@ sub parse_file($) {
             }
             if (my $cc = $r->{XREF_children}) {
                 for my $c ( preferred_sort @$cc ) {
-                    #$c->isa(CSV::Common::) or die "Not a CSV::Common record: ".Dumper($c);
                     my $v = $c->name || '(unknown)';
                     if ($show_hyperlinks and my $cu = $c->uid) {
                         my $cl = show_qonu($cu);
@@ -1132,7 +1122,6 @@ sub parse_file($) {
                 }
             }
         }
-      # die Dumper($r) if $r->name =~ /Beryl\s*Riley/;
         print $out Dumper($r) if $verbose > 4 && $debug;
         $verbose = $ov;
     }
@@ -1148,21 +1137,15 @@ sub parse_file($) {
     # If there are no equal elements, just pad the two lists to the same length.
     sub _diff_align(&\@\@) {
         my ($cmp, $l1, $l2) = @_;
-        #my $verbose = $#$l1 + $#$l2 > 6;
         my @stack = [ 0, $#$l1, 0, $#$l2 ];
-        #flush STDOUT if $verbose;
-        #warn "START\n" if $verbose;
         while (my $q = pop @stack) {
-            #warn "STEP: ".Dumper(["RANGE", $q, "LIST1", $l1, "LIST2", $l2, "STACK", \@stack]) if $verbose;
             my ( $s1, $e1, $s2, $e2) = @$q;
             my $d = ($e1-$s1) - ($e2-$s2);
             if ($s1 > $e1) {
-                #warn sprintf "INSERT %u into LIST1 at %u\n", -$d, $e1+1 if $verbose;
                 splice @$l1, $e1+1, 0, (undef) x -$d;
                 next;
             }
             if ($s2 > $e2) {
-                #warn sprintf "INSERT %u into LIST2 at %u\n", $d, $e2+1 if $verbose;
                 splice @$l2, $e2+1, 0, (undef) x $d;
                 next;
             }
@@ -1175,7 +1158,6 @@ sub parse_file($) {
             for my $o ( $mo, map { $mo+$_, $mo-$_ } 1 .. $ml+1 ) {
                 my $i = max $s1, $s2-$o;
                 my $e = min $e1, $e2-$o;
-                #warn sprintf "CHECK LIST1[%d..%d] against LIST2[%d..%d]\n", $i, $e, $i+$o, $e+$o if $verbose;
                 for (; $i <= $e ;++$i) {
                     if ( $cmp->($l1->[$i], $l2->[$i+$o]) ) {
                         my ($z) = grep { !$cmp->($l1->[$_], $l2->[$_+$o]) } $i .. $e;  # index of next non-matching element
@@ -1192,12 +1174,10 @@ sub parse_file($) {
             }
             if (defined $pos) {
                 # found a common subset; perform alignment on the parts either side
-                #warn sprintf "COMMON %u at LIST1[%u..%u] and at LIST2[%u..%u]\n", $len, $pos, $pos+$len-1, $pos+$off, $pos+$off+$len-1 if $verbose;
                 push @stack, [ $s1,       $pos-1, $s2,            $pos+$off-1 ],
                              [ $pos+$len, $e1,    $pos+$off+$len, $e2         ];
             }
             else {
-                #warn sprintf "ALLDIFF\n" if $verbose;
                 if ($d<0) {
                     splice @$l1, $e1+1, 0, (undef) x -$d;
                 }
@@ -1206,7 +1186,6 @@ sub parse_file($) {
                 }
             }
         }
-        #warn "DONE\n" if $verbose;
     }
 
 use quaker_info '$mm_keys_re';
@@ -1308,9 +1287,6 @@ use quaker_info '$mm_keys_re';
                 }
             }
         }
-      # elsif ( UNIVERSAL::isa($r, PDF::adhoc2::) ) {
-      #     return 0;
-      # }
         else {
             if ($skip_meetings && (! $r->{monthly_meeting_area} &&
             ! $r->{formal_membership} &&
@@ -1318,7 +1294,6 @@ use quaker_info '$mm_keys_re';
              && $r->{show_me_in_young_friends_listing} eq 'Yes' ))) {
                 warn sprintf "Skipping UNLISTED %s [no MM membership, WG listing, or YF listing]\n", $r->debuginfo if $why_not;
                 return 1;
-                #$r->name =~ /Bakke/ and die Dumper($r);
             }
         }
         if ( $diff_ignore_file ) {
@@ -1390,7 +1365,6 @@ use quaker_info '$mm_keys_re';
                 my $uid2  = $r2->uid;
                 my $suid2 = show_qonu($uid2);
                 if ( $name1 ne $name2) {
-                    #printf $out "\n$fmt\n", 'RENAME', $name1, '===', $name2, $suid1 || $suid2;
                     printf $out "\nRENAME #%-8s %s === %s  %s\n", $uid2 || $uid1, $name1, $name2, $suid1 || $suid2;
                     $said_title++;
                     if ( $suid1 && $suid2 && $uid1 ne $uid2 ) {
@@ -1550,9 +1524,7 @@ sub diffably_dump_records($$;$) {
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
-    #print Dumper(\@records);
     @records = preferred_sort @records;
-    #print Dumper(\@records);
     RECORD: for my $r (@records) {
         _skip_restricted_record $r and do {
             warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if $verbose > 2;
@@ -1580,9 +1552,7 @@ sub birthday_dump_records($$;$) {
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
-    #print Dumper(\@records);
     @records = preferred_sort @records;
-    #print Dumper(\@records);
     RECORD: for my $r (@records) {
         $r->can('gtags') && $r->gtags('suppress birthday') ||
         _skip_restricted_record $r and do {
@@ -1935,7 +1905,6 @@ sub generate_labels($$;$) {
 
     keys %households_by_inclusions > 0 or warn "No households selected; remember to use the GMail dump rather than the Profile dump\n";
 
-    #print "DEBUG: households_by_inclusions:\n", Dumper(\%households_by_inclusions) if $verbose > 4 && $debug;
     if ($verbose > 2) {
         for my $hh (values %households_by_inclusions) {
             for my $h (@$hh) {
@@ -1951,8 +1920,6 @@ sub generate_labels($$;$) {
 
     # Sort within each inclusion group
     @$_ = sort { $a->[0]{sort_by}  cmp $b->[0]{sort_by} } @$_ for values %households_by_inclusions;
-
-    #print "DEBUG: sorted households_by_inclusions:\n", Dumper(\%households_by_inclusions) if $verbose > 4 && $debug;
 
     my $labels_per_page = $num_labels_across * $num_labels_down;
 
@@ -2043,8 +2010,6 @@ sub generate_labels($$;$) {
         push @labels, @summary_labels;
         @summary_labels = ();
     }
-
-    #print "LABELS:\n", Dumper(\@labels) if $verbose > 4 && $debug;
 
     my $pq = new PDF::paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
     $page_width = $pq->{page_width};
@@ -2144,7 +2109,6 @@ sub generate_labels($$;$) {
         is_array($array) or return 0;
         my $c = $_[1] || return 1;
         for my $elem ( @$array ) {
-          # defined $elem or next;
             $c->validate($elem)       or return 0 if UNIVERSAL::can($c, 'validate');
             $c->($elem)               or return 0 if is_code($c);
             $elem =~ $c               or return 0 if is_regex($c);
@@ -2182,7 +2146,6 @@ sub generate_labels($$;$) {
             is_code $render_one or croak "arg 2 is not a sub";
             is_hash($render_context) or croak "arg 3 is not a hashref";
             is_array    $rr               or croak         "arg 4 is not an array";
-          # is_array_of $rr, CSV::gmail:: or croak sprintf "arg 4 is not an array (of GMail records); ref=%s", @$rr ? ref $rr->[0] || '(void)' : '(empty)';
             is_number $items_across or croak "arg 5 is not a number (items-across)";
             is_bool $visible or croak "arg 6 is not a bool (visible)";
             is_number $col or croak "arg 7 is not a number (column number)";
@@ -2469,10 +2432,8 @@ sub generate_book($$;$) {
         my $to_letter = $page_data->{last}{initial};
         my $margin_notes = join '-', $from_letter, $to_letter eq $from_letter ? () : $to_letter;
         if ($right_page) {
-           #$margin_notes = $page_data->{last}{initial} || '-' ; #'R'.$pq->pagenum;
             $left = $page_width-$page_right_margin/2;
         } else {
-           #$margin_notes = $page_data->{first}{initial} || '-' ; #'L'.$pq->pagenum;
             $left = $page_left_margin/2;
         }
         $pq->text_at($margin_notes, { fn => $fontname, fs => $book_margin_fontsize, y => $top, x => $left, halign => 1, });
@@ -2490,8 +2451,6 @@ sub generate_book($$;$) {
     $detail_offsets[$_] += $detail_offsets[$_-1] for 1..$#detail_offsets;
 
     my %detail_offsets; @detail_offsets{@detail_order} = @detail_offsets;
-
-    #my %detail_order = map { ( $detail_order[$_] => $_ ) } 0..$#detail_order;
 
     my $render_person_details = sub {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
@@ -2697,7 +2656,6 @@ sub generate_book($$;$) {
         return $column_width, $item_height;
     };
 
-    #@$rr = grep { ! $_->gtags( qr/^meeting/ ) } @$rr;       # only humans in main listing
     if ($do_book_listing_all) {
         warn "doing book LISTING - all\n" if $verbose;
         # Margin name index letters
@@ -2719,7 +2677,6 @@ sub generate_book($$;$) {
         for my $mm ( @mm_order ) {
             $skip_mm_listing{$mm} and next;
             my $rrr = $by_mm{$mm} or next;
-           #my $rrr = [grep { $_->gtags( qr/^(?:listing|member)[- ]+$mm/ ) } @$rr];
             warn sprintf "doing book LISTING - for MM '%s'\n", $mm if $verbose;
             my $heading = $mm_titles{$mm};
             my %render_context = (  margin_note     => $heading,
@@ -2770,8 +2727,6 @@ sub generate_book($$;$) {
             else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
             ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 1, 1, $col, $top);
             ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rrr, 1, 1, $col, $top);
-
-          # $pq->closepage; $col = -1; $top = 0;
         }
         $pq->closepage;
     }
@@ -2847,8 +2802,6 @@ sub generate_book($$;$) {
             else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
             ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 3, 1, $col, $top);
             ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rrr, 3, 1, $col, $top);
-
-          # $pq->closepage; $col = -1; $top = 0;
         }
         $pq->closepage;
     }
@@ -2948,7 +2901,6 @@ else {
 
     for my $a (@ARGV) {
         my $rr = parse_file $a;
-    #   warn Dumper($rr) if $verbose > 4 && $debug;
         if ($do_book) {
             # Force overwrite if the output filename is related to (but not the same as) the input filename
             my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-book.pdf/r );
