@@ -512,11 +512,11 @@ GetOptions
     'why-not|why-skipped'         => sub { set_verbose 'why='.$_[-1] },
 
     'help|h'                      => sub { print <<EndOfHelp ; exit 0 },
-$0 --book-{index|listing}-{all|by-{mm|wg}} [book-options|pdf-output-options|generic-options]...
-$0 --labels [label-options|pdf-output-options|generic-options]...
-$0 --diff [diff-options|dump-options|text-output-options|generic-options]...
-$0 --dump [dump-options|text-output-options|generic-options]...
-$0 --qndb-map [qndb-map-options|text-output-options|generic-options]...
+$0 --book-{index|listing}-{all|by-{mm|wg}} [ "book", "pdf-output" & "generic" options ]...
+$0 --labels [ "label", "pdf-output" & "generic" options ]...
+$0 --diff [ "diff", "dump", "text-output" & "generic" options ]...
+$0 --dump [ "dump", "text-output" & "generic" options ]...
+$0 --qndb-map [ "qndb-map", "text-output" & "generic" options ]...
 
 For additional options see:
     $0 --help-book
@@ -536,14 +536,14 @@ For additional options see:
 EndOfHelp
 
     'help-diff'                   => sub { print <<EndOfHelp; exit 0 },
-diff-options:
+"diff" options:
     --names-only
     --names-only
     --diff-quietly
     --diff-by-any
     --diff-by-name
     --diff-by-uid
-    (plus dump-options)
+    (plus all "dump" options)
 
 See:
     $0 --help-dump
@@ -552,7 +552,7 @@ See:
 EndOfHelp
 
     'help-dump'                   => sub { print <<EndOfHelp; exit 0 },
-dump-options:
+"dump" options:
     --[no-]names-only
     --[no-]{show|hide}-adult-birthdays
     --[no-]{show|hide}-hyperlinks
@@ -563,7 +563,7 @@ dump-options:
     --[no-]{show|hide}-uid
     --[no-]{show|hide}-status
     --[no-]{show|hide}-yf-listing
-    (plus text-output-options)
+    (plus all "text-output" options)
 
 See also:
     $0 --help-output
@@ -573,7 +573,7 @@ EndOfHelp
     'help-qndb'                   => sub { print <<EndOfHelp; exit 0 },
 qndb-map-options (with --qndb-map):
     (none yet)
-    (plus text-output-options)
+    (plus all "text-output" options)
 
 See:
     $0 --help-output
@@ -581,7 +581,7 @@ See:
 EndOfHelp
 
     'help-book'                   => sub { print <<EndOfHelp; exit 0 },
-book-options:
+"book" options:
     --book-index-all
     --book-index-by-mm
     --book-index-by-wg
@@ -591,7 +591,7 @@ book-options:
     --book-names-first          tabulate main list as: name, phone, address
     --book-phones-first         tabulate main list as: phone, name, address
     --sort-book-by-{surname|givenname}  NB: will output BOTH lists if both these are selected
-    (plus pdf-output-options)
+    (plus all "pdf-output" options)
 
 See:
     $0 --help-pdf
@@ -610,7 +610,7 @@ label-options (with --labels):
     --labels-ordered-in-{columns|rows}
     --num-labels-across=NUM     --nla=NUM
     --num-labels-down=NUM       --nld=NUM
-    (plus pdf-output-options)
+    (plus all "pdf-output" options)
 
 See:
     $0 --help-pdf
@@ -626,7 +626,7 @@ pdf-output-options
 EndOfHelp
 
     'help-output'                 => sub { print <<EndOfHelp; exit 0 },
-text-output-options:
+"text-output" options:
     --[no-]output-bom       --[no-]bom
     --[no-]output-crlf      --[no-]crlf
     --encoding={OCTET|UTF-{8|16|16LE|16BE|32|32LE|32BE}}
@@ -644,13 +644,11 @@ text-output-options:
 EndOfHelp
 
     'help-generic'                => sub { print <<EndOfHelp; exit 0 },
-generic-options:
+"generic" options:
     -v[v...] | --verbose | -q | --quiet
     -x | --debug                    enable debugging output
     --[no-]force-overwrite -f       clobber preexisting output files
-    (plus input-options)
-    (plus record-selection-options)
-    (plus record-tuning-options)
+    (also includes all "input", "record-selection" and "record-tuning" options)
 
 See also:
     $0 --help-input
@@ -659,7 +657,7 @@ See also:
 EndOfHelp
 
     'help-input'                  => sub { print <<EndOfHelp; exit 0 },
- input-options:
+"input" options:
     --decoding                  assume input encoding if it cannot be deduced
     --force-decoding            assume input encoding overriding any deduction
     --decoding={OCTET|UTF-{8|16|16LE|16BE|32|32LE|32BE}}
@@ -675,7 +673,7 @@ EndOfHelp
 EndOfHelp
 
     'help-selection'              => sub { print <<EndOfHelp; exit 0 },
- record-selection-options:
+"record-selection" options:
     --[only-]region=REGION[,REGION...]          exclude records not in any of the REGIONs
     --all-regions           --any-region        include records with any region
     --no-need-region --no-hide-no-region     --include-no-region include records without a region
@@ -692,7 +690,7 @@ EndOfHelp
 EndOfHelp
 
     'help-tuning'                 => sub { print <<EndOfHelp; exit 0 },
- record-tuning-options:
+"record-tuning" options:
        --canonical-addresses --no-raw-addresses     convert address elements to canonical abbreviations (e.g. Street -> St)
     --no-canonical-addresses    --raw-addresses     don't convert address elements to canonical abbreviations (e.g. Street -> St)
        --care-of                                    include 'c/-' where it would be inferred from the "type" field
