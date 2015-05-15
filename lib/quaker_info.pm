@@ -112,14 +112,14 @@ our %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) 
                                 #         ╭─────────┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─────────╯
 our %wg_abbrev = (              #         ╰─────────╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯▽
 
-        'NT - Bay of Islands'       => [ undef, 'B',   'BI', 'BoI', 'BoIs', 'BofIs', 'BofIsl', 'BofIsld', 'BofIslnd', 'BofIsland', 'BayofIslnd', 'BayofIslnds', 'BayofIslands', 'Bayof Islands', 'Bay of Islands', ], # NT
+        'NT - Bay of Islands'       => [ undef, 'B',   'BI', 'BoI', 'BayI', 'BayIs', 'BayOfl', 'BayOfIs', 'BayOfIsl', 'BayIsland', 'BayOfIslnd', 'BayOfIslnds', 'BayOfIslands', 'Bay ofIslands', 'Bay of Islands', ], # NT
         'NT - Howick'               => [ undef, 'Ḣ',   'Hw', 'Hwk', 'Hwck', 'Howck', 'Howick', ], # NT
         'NT - Kaitaia'              => [ undef, undef, 'Kt', 'Kta', 'Ktai', 'Ktaia', 'Kaitai', 'Kaitaia', ], # NT
         'NT - Mt Eden'              => [ undef, 'Ṁ',   'ME', 'MtE', 'MtEd', 'MtEdn', 'MtEden', 'Mt Eden', ], # NT
         'NT - North Shore'          => [ undef, 'Ṅ',   'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre', 'NorthShore', 'North Shore', ], # NT
         'NT - Waiheke'              => [ undef, 'Ẁ',   'WI', 'WkI', 'Whke', 'Wheke', 'Waihke', 'Waiheke', ], # NT
-        'NT - West Auckland'        => [ undef, '×',   'WA', 'WAk', 'WstA', 'WstAk', 'WstAkl', 'WstAuck', 'WestAuck', 'WAuckland', 'WestAuckld', 'WestAucklnd', 'WestAuckland', 'West Auckland', ], # NT
-        'NT - Whangarei'            => [ undef, 'Ẉ',   'Wr', 'Wgr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei', 'Whangarei', ], # NT
+        'NT - West Auckland'        => [ undef, '×',   'WA', 'WAk', 'WAkl', 'WAkld', 'WestAk', 'WstAuck', 'WestAuck', 'WAuckland', 'WestAuckld', 'WestAucklnd', 'WestAuckland', 'West Auckland', ], # NT
+        'NT - Whangarei'            => [ undef, 'Ẉ',   'Wr', 'Whr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei', 'Whangarei', ], # NT
         'NT - elsewhere'            => [ undef, undef, '+N', '+NT', 'exNT', 'ex-NT', ],
         'NT - overseas'             => [ undef, undef, '*N', '*NT', 'osNT', 'os-NT', 'o/s-NT', ],
 
@@ -187,6 +187,10 @@ CHECK {
             $a // next;
             push @{$chk{$a}}, $k;
         }
+    }
+    # make "overseas" just a part of "elsewhere"
+    for my $mm (@mm_order) {
+        $wg_abbrev{"$mm - overseas"} = $wg_abbrev{"$mm - elsewhere"}
     }
     for my $a ( grep { @{$chk{$_}} > 1 } sort keys %chk ) {
         my $v = $chk{$a};
