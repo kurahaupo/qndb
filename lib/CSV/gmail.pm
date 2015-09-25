@@ -559,7 +559,7 @@ sub monthly_meeting_area($) {
 
 sub formal_membership($) {
     my $r = shift;
-    return                           $r->gtags('members of overseas meetings') ? '* Overseas'  : (),
+    return                           $r->gtags('members of overseas meetings', 'foreign members') ? '* Overseas'  : (),
             map { $mm_names{uc $_} } $r->gtags( qr/^member - ($mm_keys_re)/ );
 }
 
