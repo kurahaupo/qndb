@@ -945,13 +945,15 @@ sub parse_file($) {
     my $num_lines = $. - 1;
     my @records;
     my %record_by_uid;
+    my $fpos = tell $in;
     $! = 0;
     RECORD: while ( my $ra = $csv->getline($in) ) {
         $num_lines = $. - 1;
         print "Read line#$num_lines: " . Dumper($ra) if $verbose > 5 && $debug;
-        my @r = $filetype->new(\@headers, $ra);
+        my @r = $filetype->new(\@headers, $ra, $fpos);
         push @records, @r;
         $record_by_uid{$_->uid} = $_ for @r;
+        $fpos = tell $in;
         $! = 0;
     }
 

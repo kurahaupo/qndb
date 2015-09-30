@@ -47,12 +47,13 @@ our $canon_address = 0;
 our $use_care_of = 1;
 our $only_explicitly_shared_email = 1;
 
-sub new($\@\@) {
-    $#_ == 2 or croak "Wrong number of parameters to CSV::Common::new";
-    my ($class, $headers, $ra) = @_;
+sub new($\@\@$) {
+    $#_ == 3 or croak "Wrong number of parameters to CSV::Common::new";
+    my ($class, $headers, $ra, $fpos) = @_;
     $#$ra == $#$headers or die "Line $. has $#$ra fields, but headers had $#$headers\n[@$ra] vs [@$headers]\n";
 
     my %rh;
+    $rh{__source_fpos} = $fpos;
     $rh{__source_line} = $. - 1;
     @rh{@$headers} = @$ra;
     my $r = bless \%rh, $class;
@@ -169,7 +170,7 @@ sub debuginfo($) {
     sprintf "%s uid=%s [%s]",
             $r->name || '(nameless)',
             $r->uid || '(unnumbered)',
-            (join "; ", grep { $_ } '#'.$r->{__source_line}, $r->listed_email, $r->mobile_number || $r->phone_number),
+            (join "; ", grep { $_ } '#'.$r->{__source_line}, '@'.$r->{__source_fpos}, $r->listed_email, $r->mobile_number || $r->phone_number),
             ;
 }
 
