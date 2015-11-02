@@ -98,6 +98,10 @@ sub fix_one($) {
         my $postcode      = $r->{postcode};
         my $country       = $r->{country};
 
+        if ($city =~ /\d{4,}$|\b\w\w?\d+[- ]\d+\w$/) {
+            warn sprintf "Record for %s has city field '%s' which appears to hold a postcode '%s'\n", $r->name, $city, $&;
+        }
+
         $_ and s/\s*,\s*/\n/g
             for $property_name, $street, $suburb, $city;
         $care_of = "c/- $1"
