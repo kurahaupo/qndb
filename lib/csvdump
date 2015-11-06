@@ -1795,7 +1795,7 @@ use Label::recipient;
 
     sub suppress_unwanted_records($) {
         my $rr = shift;
-        if ( @$rr && $rr->[0]->isa(CSV::gmail::) ) {
+        if ( @$rr && $rr->[0]->can('gtags') ) {
             my @rr = @$rr;
             my @skips;
             push @skips, 'archive - deceased'     if $skip_deceased;
@@ -1817,7 +1817,17 @@ use Label::recipient;
         my $rr = shift;
         $rr = suppress_unwanted_records $rr;
         @$rr or return [];
-        if ( 1 || $rr->[0]->can('uid') ) {
+        if ( $rr->[0]->can('gtags') ) {
+            my %households;
+            my $z = 0;
+            for my $r (@$rr) {
+                my $a = $r->postal_address or next;
+                $a .= '__SPLIT_POST__'.++$z if $r->gtags('split post');
+                push @{$households{$a}}, $r;
+            }
+            return [ values %households ]
+        }
+        elsif ( $rr->[0]->can('uid') ) {
             my @households;
             my $unique_id = 0;
             my %s;
@@ -1831,14 +1841,6 @@ use Label::recipient;
                 push @households, \@h;
             }
             return \@households;
-        }
-        elsif ( $rr->[0]->isa(CSV::gmail::) ) {
-            my %households;
-            for my $r (@$rr) {
-                my $a = $r->postal_address or next;
-                push @{$households{$a}}, $r;
-            }
-            return [ values %households ]
         }
         else {
             die "Can't group households of $rr->[0]";
