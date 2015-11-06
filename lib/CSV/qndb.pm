@@ -30,6 +30,7 @@ use phone_functions 'normalize_phone';
 my %country_map = qw(
      13 Australia
      14 Austria
+     32 Bulgaria
      38 Canada
      43 China
      70 France
