@@ -1277,7 +1277,7 @@ use quaker_info '$mm_keys_re';
                 }
             }
             if ($skip_unlisted) {
-                if (! $r->gtags( 'meeting', 'role', 'admin', 'members', 'attenders', 'child', 'inactive' )) {
+                if (! $r->gtags( 'meeting', 'role', 'admin', 'members', 'attenders', 'enquirier', 'child', 'inactive' )) {
                     if ( $why_not ) {
                         if ($r->gtags( 'newsletter-only' )) {
                             warn sprintf "Skipping NEWS-ONLY %s\n", $r->debuginfo;
