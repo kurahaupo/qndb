@@ -1033,6 +1033,7 @@ sub parse_file($) {
                        #   uid_of_children_under_16 uid_of_spouse uid first_name
                        #   family_name
         push @ofields, qw( uid uid_of_spouse uid_of_children_under_16 uids_of_parents ) if $show_uid;
+        push @ofields, qw( birthday ) unless $suppress_adult_birthdays;
         return grep { ! /^#/ } @ofields;
     }
 
