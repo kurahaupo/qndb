@@ -509,10 +509,11 @@ GetOptions
     'why-not|why-skipped'         => sub { set_verbose 'why='.$_[-1] },
 
     'help|h'                      => sub { print <<EndOfHelp ; exit 0 },
+$0 --birthday-dump [ "generic" options ]...
 $0 --book-{index|listing}-{all|by-{mm|wg}} [ "book", "pdf-output" & "generic" options ]...
-$0 --labels [ "label", "pdf-output" & "generic" options ]...
 $0 --diff [ "diff", "dump", "text-output" & "generic" options ]...
 $0 --dump [ "dump", "text-output" & "generic" options ]...
+$0 --labels [ "label", "pdf-output" & "generic" options ]...
 $0 --qndb-map [ "qndb-map", "text-output" & "generic" options ]...
 
 For additional options see:
@@ -1579,7 +1580,7 @@ sub birthday_dump_records($$;$) {
             warn sprintf "BIRTHDAY: not valid date %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
-        if ($r->gtags("suppress birthday")) {
+        if ($r->can('gtags') && $r->gtags("suppress birthday")) {
             warn sprintf "BIRTHDAY: suppressing %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
@@ -1593,7 +1594,7 @@ sub birthday_dump_records($$;$) {
             next RECORD;
         }
 
-        my @meetings = $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ );
+        my @meetings = $r->can('gtags') ? $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ ) : ();
         @meetings = uniq @meetings if @meetings > 1;
         my $xdate = join ".", $y ? 'xdate='.$y : 'zdate=0000', $m, $d;
         my $dpat = strftime "%d-%b", 0,0,0,$d,$m-1,$y?$y-1900:2000;
