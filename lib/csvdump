@@ -1558,11 +1558,10 @@ sub birthday_dump_records($$;$) {
     my @records = @$rr;
     @records = preferred_sort @records;
     RECORD: for my $r (@records) {
-        $r->can('gtags') && $r->gtags('suppress birthday') ||
-        _skip_restricted_record $r and do {
+        if ($r->can('gtags') && $r->gtags('suppress birthday') || _skip_restricted_record $r ) {
             warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
-        };
+        }
 
         my $name = $r->name;
         if (!$name ) {
@@ -1645,7 +1644,7 @@ sub generate_tag_report($$;$) {
         }
 
         #
-        # Check #member vs @member - xx 
+        # Check #member vs @member - xx
         #
         {
         my @t = $r->gtags(qr(^member[- ]+(\w{2,3})[- ]+));
