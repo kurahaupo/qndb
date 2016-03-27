@@ -284,7 +284,9 @@ sub name($) {
 
 sub birthdate($) {
     my $r = shift;
-    $r->{birthdate};
+    my $d = $r->{birthdate};
+    $d =~ s/T00:00:00// if $d;
+    return $d;
 }
 
 sub _spouse_and_parents {
