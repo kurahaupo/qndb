@@ -13,6 +13,17 @@ use Carp 'croak';
 use string_with_components;
 use verbose;
 
+our $canon_address = 0;
+our $use_care_of = 1;
+our $only_explicitly_shared_email = 1;
+
+use run_options (
+    'canonical-addresses!'        => \$canon_address,
+    'care-of!'                    => \$use_care_of,
+    'explicitly-shared!'          => \$only_explicitly_shared_email,
+    '!raw-addresses!'             => \$canon_address,
+);
+
 # The rule of thumb is to map towards the ambiguous abbreviations, rather than
 # away from them, so that we don't get silly things like "1 Scenic Doctor" or
 # "Drive Jones' Surgery" or "1 Street Mary's Road" or "1 Queen Saint".
@@ -42,10 +53,6 @@ my %address_designators = (
 my %spelling_fixes = (
 #       Wanganui => 'Whanganui',
     );
-
-our $canon_address = 0;
-our $use_care_of = 1;
-our $only_explicitly_shared_email = 1;
 
 sub new($\@\@$) {
     $#_ == 3 or croak "Wrong number of parameters to CSV::Common::new";

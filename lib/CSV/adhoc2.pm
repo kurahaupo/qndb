@@ -23,6 +23,7 @@ use Data::Dumper;
 use constant this_year => strftime "%Y", localtime $^T;
 
 use list_functions 'uniq';
+use phone_functions 'normalize_phone';
 use quaker_info;
 use verbose;
 
@@ -80,7 +81,7 @@ sub new($\@\@) {
         if ( (my $n = $f =~ s/[- ]//gr) =~ /^[0+]\d{7,}$/ ) {
             # it's (very probably) a phone number
             my $type = 'phone_number';
-            $n = ::normalize_phone($n);
+            $n = normalize_phone($n);
             if ($tag) {
                 if ($tag eq 'fax') {
                     $type = 'fax_number';

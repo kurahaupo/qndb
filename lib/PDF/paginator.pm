@@ -1,11 +1,5 @@
 #!/module/for/perl
-
-################################################################################
-#
-# Manage the PDF pagination separately from the list-rendering
-#
-# (the text cursor is per-page, so make sure we get a fresh one for each page)
-#
+# vim: set nowrap :
 
 use 5.010;
 use strict;
@@ -14,9 +8,123 @@ use utf8;
 
 package PDF::paginator;
 
+################################################################################
+#
+# Manage the PDF pagination separately from the list-rendering
+#
+# (the text cursor is per-page, so make sure we get a fresh one for each page)
+#
+
 use Carp 'croak';
+use PDF::API2;
+
 use verbose;
 use PDF::scale_factors;
+
+########################################
+# Generic PDF output options (shared between labels and book generation)
+
+our $page_size;                 # = 'a4';
+our $page_height;               # = 297.302*mm;
+our $page_width;                # = 210.224*mm;
+                                
+our $page_left_margin;          # = 18*mm;
+our $page_right_margin;         # = 18*mm;
+our $page_bottom_margin;        # = 14*mm;
+our $page_top_margin;           # = 14*mm;
+
+our $line_spacing = 1.25;       # ratio of font-size to line-pitch
+
+my $baseline_adjust = 0;        # range approx -0.4 to 0
+
+our $extra_para_spacing = 0.25; # used between records in book format
+
+our $paper_sizes = {
+        # A-series paper sizes, portrait
+        (map {
+            (my $x = $_) =~ s/^a//i;
+            my $h = 2**(0.25-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'a0' : "a$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } -2 .. 10),
+        # B-series paper sizes, portrait
+        (map {
+            (my $x = $_) =~ s/^b//i;
+            my $h = 2**(0.5-$x/2);
+            my $w = $h / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'b0' : "b$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } 0 .. 10),
+        # C-series envelope sizes, landscape
+        (map {
+            (my $x = $_) =~ s/^c//i;
+            my $w = 2**(0.375-$x/2);
+            my $h = $w / sqrt(2);
+            ( ( $_ < 0 ? (2**-$_).'c0' : "c$_") => [ $h*1000*mm, $w*1000*mm ] );
+        } 0 .. 10),
+        # DL envelope size, landscape
+        dl => [ 110*mm, 220*mm ],
+    };
+
+use export qw( $page_size $page_height $page_width $page_left_margin
+               $page_right_margin $page_bottom_margin
+               $page_top_margin $line_spacing $extra_para_spacing
+               $paper_sizes
+             );
+
+########################################
+
+sub use_preset {
+    my $pt = pop;
+
+    state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
+
+    state $page_product = {
+        ( map { ( $_     => { page_size => $_,     page_height => $paper_sizes->{$_}->[0], page_width => $paper_sizes->{$_}->[1], } ) } keys %$paper_sizes ),
+        ( map { ( $_.'R' => { page_size => $_.'R', page_height => $paper_sizes->{$_}->[1], page_width => $paper_sizes->{$_}->[0], } ) } keys %$paper_sizes ),
+
+        'book' => {
+                page_size          => 'a5',
+              # page_height        => 210.224*mm,
+              # page_width         => 148.651*mm,
+
+                page_left_margin   => 13*mm,
+                page_right_margin  => 13*mm,
+                page_bottom_margin => 10*mm,
+                page_top_margin    => 10*mm,
+            },
+
+        'avery-l7160' => {
+                page_size            => 'a4',
+                page_height          => 297.302*mm,
+                page_width           => 210.224*mm,
+                page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
+                page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
+                page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
+                page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
+            },
+        };
+
+    state $y = warn Dumper($page_product) if $verbose > 4 && $debug;
+
+    my $p = $page_product->{$pt} || return; #die "Unknown label or paper product '$pt'\nAvailable presets are @{[sort keys %$page_product]}\n";
+    (
+        $page_size, $page_height, $page_width,
+        $page_top_margin, $page_bottom_margin, $page_left_margin, $page_right_margin,
+    ) = @$p{qw{
+        page_size page_height page_width
+        page_top_margin page_bottom_margin page_left_margin page_right_margin
+    }};
+}
+
+use run_options (
+    'A=i'                 => sub { $page_size = $_[0].$_[1]; $page_width = $page_height = undef },  #A4 etc
+    'B=i'                 => sub { $page_size = $_[0].$_[1]; $page_width = $page_height = undef },  #B4 etc
+   '%page-height|ph=s'    => sub { $page_size = undef; $page_height = pop },
+    'page-size=s'         => sub { $page_size = pop; $page_width = $page_height = undef },  #A4, B3, etc
+   '%page-width|pw=s'     => sub { $page_size = undef; $page_width  = pop },
+
+   '+preset=s'            => \&use_preset,
+);
 
 sub _unmethod {
     ref $_[0] && UNIVERSAL::isa( $_[0], __PACKAGE__ ) && shift;
@@ -87,6 +195,12 @@ sub closepage {
     delete $p->{text};
     delete $p->{page};
     delete $p->{pagedata};
+}
+
+# get the "gfx" attribute of the current page (starting a new page if necessary)
+sub gfx {
+    my $p = shift;
+    $p->{gfx} ||= $p->page->gfx();
 }
 
 # get the "text" attribute of the current page (starting a new page if necessary)
@@ -467,6 +581,17 @@ sub text_at($$%) {
                         ) / 90                          # convert degrees to quadrants
                       ) / 2 * PI;                       # convert quadrants to radians
 
+    my $color       = $opts->{color} // 0;
+
+    my $max_width   = $opts->{maxw};
+    my $max_height  = $opts->{maxh};
+
+    my $xscale      = $opts->{xscale};
+    my $yscale      = $opts->{yscale};
+
+  # my $skew_x      = $opts->{skew_x} // 0;
+  # my $skew_y      = $opts->{skew_y} // 0;
+
     # benchmarking (on an Intel x86_64 T7200) indicates that a ?: is around 5
     # times faster than trig, so this is usually a win
     my $sin = $rotation ? sin($rotation) : 0;
@@ -478,17 +603,24 @@ sub text_at($$%) {
     $pq->font( $fontname, $fontsize );
 
     my $text = $pq->text;
+
     my $width = $text->advancewidth($str);
     my $height = $fontsize;
 
-    my $bl_x_off = 0;
-    my $bl_y_off = 0;
-    my $tl_x_off = $height * -$sin;
-    my $tl_y_off = $height *  $cos;
-    my $br_x_off = $width  *  $cos;
-    my $br_y_off = $width  *  $sin;
-    my $tr_x_off = $tl_x_off + $br_x_off;
-    my $tr_y_off = $tl_y_off + $br_y_off;
+    $xscale ||= $max_width  && $max_width  < $width  ? $max_width  / $width  : 1;
+    $yscale ||= $max_height && $max_height < $height ? $max_height / $height : 1;
+
+    $width  *= $xscale;
+    $height *= $yscale;
+
+    my $bl_x_off = $baseline_adjust * $height * -$sin;
+    my $bl_y_off = $baseline_adjust * $height *  $cos;
+    my $tl_x_off = $height * -$sin + $bl_x_off;
+    my $tl_y_off = $height *  $cos + $bl_y_off;
+    my $br_x_off = $width  *  $cos + $bl_x_off;
+    my $br_y_off = $width  *  $sin + $bl_y_off;
+    my $tr_x_off = $tl_x_off + $br_x_off - $bl_x_off;
+    my $tr_y_off = $tl_y_off + $br_y_off - $bl_y_off;
 
     my $l_off = min $bl_x_off, $br_x_off, $tl_x_off, $tr_x_off;
     my $r_off = max $bl_x_off, $br_x_off, $tl_x_off, $tr_x_off;
@@ -498,9 +630,10 @@ sub text_at($$%) {
     my $xpos = $xpoint - ( $halign == 0 ? $l_off : $halign == 2 ? $r_off : ($l_off+$r_off)/2 );
     my $ypos = $ypoint - ( $valign == 0 ? $t_off : $valign == 2 ? $b_off : ($t_off+$b_off)/2 );
 
-    warn sprintf "TEXT_AT text=[%s] font=(size=%.2fmm,style=%u) :: refpoint=(→%.2fmm,↑%.2fmm) rotation=%.0f° align=(%s) -> origin=(→%.2fmm,↑%.2fmm) bound=(t=%.2fmm,b=%.2fmm,l=%.2ffm,r=%.2fmm)\n",
+    warn sprintf "TEXT_AT text=[%s] font=(size=%.2fmm,style=%u) :: scale=(%.2fち%.2f) refpoint=(→%.2fmm,↑%.2fmm) rotation=%.0f° align=(%s) -> origin=(→%.2fmm,↑%.2fmm) bound=(t=%.2fmm,b=%.2fmm,l=%.2ffm,r=%.2fmm)\n",
                 _qm $str,
                 $fontsize/mm, $fontstyle,
+                $xscale, $yscale,
                 $xpoint/mm, $ypoint/mm,
                 $rotation / PI * 180,
                 [['┌','┬','┐'],
@@ -512,12 +645,14 @@ sub text_at($$%) {
                 ($ypos - $ypoint)/mm,
         if $verbose > 3;
 
+  # $text->translate($xpos, $ypos);
     $text->transform(
         -translate => [$xpos, $ypos],
         -rotate    => $rotation / PI * 180,
-      # -scale     => [$sx, $sy],
-      # -skew      => [$sa, $sb],
+        -scale     => [$xscale, $yscale],
+      # -skew      => [$skew_x, $skew_y],
     );
+    $text->fillcolor($color) if defined $color;
 
     $text->text($str, $underline ? (-underline => 'auto') : ());
 
