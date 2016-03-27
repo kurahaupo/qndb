@@ -254,6 +254,7 @@ my $output_bom = 0;
 my $output_crlf;
 my $show_relationships = 1;
 my $show_uid;
+my $suppress_last_update = 0;
 my $suppress_adult_birthdays = 1;
 my $suppress_send_by_post = 0;
 my $suppress_send_by_email = 1;
@@ -1033,7 +1034,8 @@ sub parse_file($) {
                        #   uid_of_children_under_16 uid_of_spouse uid first_name
                        #   family_name
         push @ofields, qw( uid uid_of_spouse uid_of_children_under_16 uids_of_parents ) if $show_uid;
-        push @ofields, qw( birthday ) unless $suppress_adult_birthdays;
+        push @ofields, qw( birthdate ) unless $suppress_adult_birthdays;
+        push @ofields, 'last_updated' if ! $suppress_last_update;
         return grep { ! /^#/ } @ofields;
     }
 
@@ -1396,13 +1398,35 @@ use quaker_info '$mm_keys_re';
                         elsif (exists $r->{$f}) {
                             @v = $r->{$f} // ();
                         }
-                        else {
+                        elsif ( $f ne 'last_updated' ) {
                             warn "Missing field '$f' in $r\n" if $verbose;
                             @v = "Missing field '$f'";
                         }
-                        @{ $z->[1] } = map { split /\n|(?<=\bc\/-)\s+/, $_ } grep { defined $_ && "$_" ne '' } @v;
+                        @{ $z->[1] } = map { split /\n|(?<=\bc\/-)\s+/, $_ }
+                                        grep { defined $_ && "$_" ne '' }
+                                         @v;
                     }
-                    if ( $#v1 != $#v2 || grep { $v1[$_] ne $v2[$_] } 0..$#v1 ) {
+                    if ( $f eq 'last_updated' ) {
+                        if ($said_title) {
+                            my $vl1 = $v1[0] // '';
+                            my $vl2 = $v2[0] // '';
+                            if (@v1 && @v2) {
+                                # show time-order
+                                if ( $v1[0] eq $v2[0] ) {
+                                    printf "$C_green$fmt$C_plain\n",  $f, $vl1, '', '';
+                                } elsif ( $v1[0] lt $v2[0] ) {
+                                    # left older than right
+                                    printf "$C_green$fmt$C_plain\n",  $f, $vl1, "▷", $vl2;
+                                } else {
+                                    # left newer than right
+                                    printf "$C_yellow$fmt$C_plain\n", $f, $vl1, "◁", $vl2;
+                                }
+                            } else {
+                                    printf "$C_yellow$fmt$C_plain\n", $f, $vl1, '',  $vl2;
+                            }
+                        }
+                    }
+                    elsif ( $#v1 != $#v2 || grep { $v1[$_] ne $v2[$_] } 0..$#v1 ) {
                         if (!$said_title++) {
                             printf $out "\nMODIFY #%-8s %s  %s\n", $uid2, $name2, $suid2;
                         }
