@@ -22,7 +22,7 @@ use Data::Dumper;
 
 use constant this_year => strftime "%Y", localtime $^T;
 
-use list_functions 'uniq';
+use list_functions qw( flatten uniq );
 use quaker_info;
 use verbose;
 
