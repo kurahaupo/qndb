@@ -1625,7 +1625,7 @@ sub generate_tag_report($$;$) {
         # Check #all vs #admin #attender etc
         #
         {
-        my @t = $r->gtags(qw( admin attenders child inactive meeting members newsletter-only role ));
+        my @t = $r->gtags(qw( admin attenders enquirer child inactive meeting members newsletter-only role ));
         if (@t == 0) {
             if ( $r->gtags('all') ) {
                 _dump_one $out, $r, [] if !$errors++;
