@@ -41,6 +41,8 @@ my %country_map = qw(
     212 USA
 );
 
+sub _titlecase($$) { $_[1] }    # don't do TitleCase QNDB files any more; they should be uptodate
+
 sub _hash_uid($) {
     my $z = shift;
     state $modulus = 0x7ffff;  # 2**19-1
