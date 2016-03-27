@@ -1,0 +1,61 @@
+#!/bin/bash
+
+lcc=64
+
+titlecase() {
+    local n x=0
+    for n do
+        #n=${n//[!a-zA-Z]/}
+        ((x++)) && printf ' '
+        while
+            [[ $n =~ ^([A-Z]*[a-z]*)[^a-zA-Z]* ]] &&
+            (( l=${#BASH_REMATCH} ))
+        do
+            : printf '[%s]...\n' "${BASH_REMATCH[@]}"
+            n=${n:l}
+            p=${BASH_REMATCH[1]}
+            [[ $p = *[a-z]* ]] || { q=${p:0:1} r=${p:1} ; p=${q^^}${r,,} ; }
+            printf '%s' "$p"
+        done
+    done
+    printf '\n'
+}
+
+iphone() {
+    local n="$*"
+    n=${n//[!+0-9]/}                                    # strip junk
+
+    case $n in
+    0011*)          n="+${n:4}" ;;                  # AU change 0011 to +
+    011*)           n="+${n:3}" ;;                  # NANP change 011 to +
+    00[1-9]*)       n="+${n:2}" ;;                  # ITU change 00 to +
+    0*)             n="+$lcc${n:1}" ;;               # 0* to local country code
+    esac
+    : printf '[%s]...\n' "$n"
+
+    case $n in
+    +1*)            n="${n:0:3} ${n:3:3} ${n:6}" ;;  # NANP
+    +33*)           n="${n:0:3} ${n:3:1} ${n:4}" ;;  # france
+    +441??[01]*)    n="${n:0:3} ${n:3:4} ${n:7}" ;;  # UK small towns
+    +442*)          n="${n:0:3} ${n:3:2} ${n:5}" ;;  # UK big cities
+    +447*)          n="${n:0:3} ${n:3:4} ${n:7}" ;;  # UK mobile numbers
+    +44*)           n="${n:0:3} ${n:3:3} ${n:6}" ;;  # UK
+    +61*)           n="${n:0:3} ${n:3:1} ${n:4}" ;;  # AU
+    +642*)          n="${n:0:3} ${n:3:2} ${n:5}" ;;  # NZ mob
+    +64*)           n="${n:0:3} ${n:3:1} ${n:4}" ;;  # NZ
+    esac
+
+    printf '%s\n' "$n"
+}
+
+LANG=C
+while
+    printf '>> '
+    read n 
+do
+    case $n in
+    '') echo SKIP ;;
+    [0+]*) iphone $n ;;
+    *) titlecase $n ;;
+    esac
+done
