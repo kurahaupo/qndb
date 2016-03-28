@@ -121,26 +121,26 @@ sub import {
             if ($k =~ m/^check[-=]?(\d*)$/) {
                 my $l = $1 eq '' ? 1 : $1;
                 push @{$run_queue[$l]}, $v;
-                carp "Adding to run-queue (level $l) from $ko" if $verbose > 2;
+                carp "Adding to run-queue (level $l) from $ko" if $debug;
             }
             elsif ($k =~ s/^exclude[-=]*//) {
                 push @{ $exclusion_group{$k} }, $v;
-                carp "Adding to exclusion group $k from $ko" if $verbose > 2;
+                carp "Adding to exclusion group $k from $ko" if $debug;
             }
             elsif ($k =~ m/^help/) {
                 $get_opt_args{$k} = do {
                             my $vv = $v;
                             sub { print STDERR $vv; exit 0; }
                         };
-                carp "Adding help text for $k from $ko" if $verbose > 2;
+                carp "Adding help text for $k from $ko" if $debug;
             }
             elsif ($k eq 'import') {
                 $do_export = 1;
-                carp "Requesting import from $ko" if $verbose > 2;
+                carp "Requesting import from $ko" if $debug;
             }
             elsif ($k eq 'shard') {
                 $auto_shard = 1;
-                carp "Requesting auto-sharding from $ko" if $verbose > 2;
+                carp "Requesting auto-sharding from $ko" if $debug;
             }
             else {
                 croak "Undefined extension element $ko";
@@ -155,24 +155,24 @@ sub import {
         if ($k =~ s/^,//) {
             $r eq 'SCALAR' and croak "Can't auto-split into a SCALAR for option '$ko'";
             $k !~ /=s$/    and croak "Can't auto-split non-string for option '$ko'";
-            carp "Split option $k from $ko" if $verbose > 2;
+            carp "Split option $k from $ko" if $debug;
             $f = sub { split /\s*\,\s*/, $_[-1] };
         }
         elsif ($k =~ s/^!//) {
-            carp "Negated option $k from $ko" if $verbose > 2;
+            carp "Negated option $k from $ko" if $debug;
             $f = sub { ! $_[1] };
         }
         elsif ($k =~ s/^%//) {
-            carp "Distance option $k from $ko" if $verbose > 2;
+            carp "Distance option $k from $ko" if $debug;
             $f = \&as_points;
         }
 
         if ($k =~ s/^\+// || $auto_shard && (exists $get_opt_args{$k} || exists $sharding{$k})) {
-            carp "Sharded option $k from $ko" if $verbose > 2;
+            carp "Sharded option $k from $ko" if $debug;
             push @{$sharding{$k}}, _assign( delete $get_opt_args{$k} ) if exists $get_opt_args{$k};
             push @{$sharding{$k}}, _assign( $v, $f );
         } else {
-            carp "Plain option $k from $ko" if $verbose > 2;
+            carp "Plain option $k from $ko" if $debug;
             exists $get_opt_args{$k} || exists $sharding{$k} and croak "Duplicate unsharded option '$ko'";
             $get_opt_args{$k} = _assign( $v, $f, 1 );
         }
@@ -218,7 +218,7 @@ sub import {
         1;
     };
     no strict 'refs';
-    carp "Exporting RunOptions into $to" if $verbose > 2;
+    carp "Exporting RunOptions into $to" if $debug;
     *{"${to}::RunOptions"} = $ff;
 }
 
