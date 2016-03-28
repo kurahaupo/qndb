@@ -12,7 +12,6 @@ use POSIX 'strftime';
 
 use verbose;
 use list_functions qw( max min uniq );
-use quaker_info '%mm_names';
 
 use M::IO qw( open_file_for_reading _open_output _close_output );
 
@@ -26,6 +25,7 @@ use M::Selection qw(
                      $skip_suppressed_post
                      $skip_unlisted
                      $skip_unsub
+                     skip_restricted_record
                    );
 
 use constant now => [ localtime $^T ];
@@ -34,71 +34,75 @@ use constant this_date => strftime "%Y%m%d", localtime $^T;
 use constant sixteen_years_ago => strftime "%Y%m%d", localtime $^T - 504921600;
 
 ########################################
-# Dump formatting options
+# Dump & diff formatting options
 
-my $names_only = 0;
-my $show_relationships = 1;
-my $show_uid;
-my $suppress_last_update = 0;
-my $suppress_adult_birthdays = 1;
-my $suppress_send_by_post = 0;
-my $suppress_send_by_email = 1;
-my $suppress_status = 0;
-my $suppress_yf_listing = 0;
+my $show_adult_birthdays = 0;
+my $show_contact_details = 1;
 my $show_hyperlinks = 1;
-my $diff_by = 'uid';
-my $diff_ignore_file;
+my $show_last_update = 1;
+my $show_relationships = 1;
+my $show_send_by_email = 0;
+my $show_send_by_post = 1;
+my $show_status = 1;
+my $show_uid;
+my $show_yf_listing = 1;
+
 my $diff_quietly = 0;
-my @restrict_regions;
-my $need_region = 1;
-my @restrict_classes;
+
+########################################
+# Dump & diff formatting options
+
+my $diff_by = 'uid';
+my $skip_emailless = 0;
 
 use run_options (
-    'class|only-class=s'            => sub { push @restrict_classes, split /[, ]+/, pop },
-    'names-only!'                   => \$names_only,
-    'all-regions|any-region'        => sub { @restrict_regions = () },
-    'region|only-region=s'          => sub { push @restrict_regions, split /[, ]+/, pop },
-    '#check'                        => sub {
-                                        $_ = uc $_ for @restrict_regions;
-                                        @restrict_regions = grep { $_ ne 'NONE' or $need_region = 0; } @restrict_regions;
-                                        $mm_names{$_} or die "Invalid region '$_'\n" for @restrict_regions;
-                                        warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
-                                        1;
-                                    },
-
     'diff-by-any'                   => sub { $diff_by = '' },
     'diff-by-name'                  => sub { $diff_by = 'name' },
     'diff-by-uid'                   => sub { $diff_by = 'uid' },
-    'diff-ignore-file=s'            => \$diff_ignore_file,
     'diff-quietly'                  => \$diff_quietly,
-    'need-region!'                  => \$need_region,
-    'hide-no-region!'               => \$need_region,
-   '!include-no-region!'            => \$need_region,
 
-   '!hide-hyperlinks!'              => \$show_hyperlinks,
+    '!+include-all|skip-none'       => \$skip_emailless,
+    '!+include-no-email!'           => \$skip_emailless,
+    '+need-email!'                  => \$skip_emailless,
+    '+skip-all|include-none'        => \$skip_emailless,
+
+    '!hide-adult-birthdays!'        => \$show_adult_birthdays,
+    'show-adult-birthdays!'         => \$show_adult_birthdays,
+
+    '!hide-contact-details!'        => \$show_contact_details,
+    'show-contact-details!'         => \$show_contact_details,
+
+    '!hide-hyperlinks!'             => \$show_hyperlinks,
     'show-hyperlinks!'              => \$show_hyperlinks,
 
-   '!hide-relationships!'           => \$show_relationships,
+    '!hide-last-update!'            => \$show_last_update,
+    'show-last-update!'             => \$show_last_update,
+
+    '!hide-relationships!'          => \$show_relationships,
     'show-relationships!'           => \$show_relationships,
 
-   '!hide-uid!'                     => \$show_uid,
+    '!+hide-send!'                  => \$show_send_by_email,
+    '!+names-only!'                 => \$show_send_by_email,
+    '!hide-send-by-email!'          => \$show_send_by_email,
+    '+show-send!'                   => \$show_send_by_email,
+    'show-send-by-email!'           => \$show_send_by_email,
+
+    '!+hide-send!'                  => \$show_send_by_post,
+    '!+names-only!'                 => \$show_send_by_post,
+    '!hide-send-by-post!'           => \$show_send_by_post,
+    '+show-send!'                   => \$show_send_by_post,
+    'show-send-by-post!'            => \$show_send_by_post,
+
+    '!+names-only!'                 => \$show_status,
+    '!hide-status!'                 => \$show_status,
+    'show-status!'                  => \$show_status,
+
+    '!hide-uid!'                    => \$show_uid,
     'show-uid!'                     => \$show_uid,
 
-   '!show-adult-birthdays!'         => \$suppress_adult_birthdays,
-    'hide-adult-birthdays!'         => \$suppress_adult_birthdays,
-
-    'hide-send-by-email!'           => \$suppress_send_by_email,
-   '!show-send-by-email!'           => \$suppress_send_by_email,
-    'hide-send-by-post!'            => \$suppress_send_by_post,
-   '!show-send-by-post!'            => \$suppress_send_by_post,
-    'show-send!'                    => sub { $suppress_send_by_email = $suppress_send_by_post = ! $_[-1] },
-    'hide-send!'                    => sub { $suppress_send_by_email = $suppress_send_by_post = $_[-1] },
-
-   '!show-status!'                  => \$suppress_status,
-    'hide-status!'                  => \$suppress_status,
-
-    'hide-yf-listing!'              => \$suppress_yf_listing,
-   '!show-yf-listing!'              => \$suppress_yf_listing,
+    '!+names-only!'                 => \$show_yf_listing,
+    '!hide-yf-listing!'             => \$show_yf_listing,
+    'show-yf-listing!'              => \$show_yf_listing,
 
     '#help-diff'                    => <<EndOfHelp,
 "diff" options:
@@ -122,7 +126,7 @@ EndOfHelp
     --[no-]{show|hide}-adult-birthdays
     --[no-]{show|hide}-hyperlinks
     --[no-]{show|hide}-relationships
-    --[no-]{show|hide}-send
+    --[no-]{show|hide}-send-any
     --[no-]{show|hide}-send-by-email
     --[no-]{show|hide}-send-by-post
     --[no-]{show|hide}-uid
@@ -134,6 +138,15 @@ See also:
     $0 --help-output
     $0 --help-generic
 EndOfHelp
+
+    '#help-birthday'                => <<EndOfHelp,
+"birthday" options:
+    --[no-]need-email / --[no-]include-no-email
+
+See:
+    $0 --help-generic
+EndOfHelp
+
 );
 
 ########################################
@@ -184,19 +197,19 @@ sub preferred_sort(@) {
 sub _choose_ofields() {
     my @ofields;
     # 'name' is not required; as it's always printed, separately from the list of fields
-    push @ofields, qw( monthly_meeting_area formal_membership inactive ) unless $names_only || $suppress_status;
-    push @ofields, qw( show_me_in_young_friends_listing ) unless $names_only || $suppress_yf_listing;
-    push @ofields, qw( listed_email phone_number mobile_number fax listed_address postal_address ) unless $names_only;
-    push @ofields, qw( receive_local_newsletter_by_post nz_friends_by_post) unless $names_only || $suppress_send_by_post;
-    push @ofields, qw( receive_local_newsletter_by_email nz_friends_by_email ) unless $names_only || $suppress_send_by_email;
+    push @ofields, qw( monthly_meeting_area formal_membership inactive ) if $show_status;
+    push @ofields, qw( show_me_in_young_friends_listing ) if $show_yf_listing;
+    push @ofields, qw( listed_email phone_number mobile_number fax listed_address postal_address ) if $show_contact_details;
+    push @ofields, qw( receive_local_newsletter_by_post nz_friends_by_post) if $show_send_by_post;
+    push @ofields, qw( receive_local_newsletter_by_email nz_friends_by_email ) if $show_send_by_email;
                    # Possible additional fields:
                    #   synthesized website_url rd_no po_box_number country postcode
                    #   town suburb address property_name users_name
                    #   uid_of_children_under_16 uid_of_spouse uid first_name
                    #   family_name
     push @ofields, qw( uid uid_of_spouse uid_of_children_under_16 uids_of_parents ) if $show_uid;
-    push @ofields, qw( birthdate ) unless $suppress_adult_birthdays;
-    push @ofields, qw( last_updated ) if ! $suppress_last_update;
+    push @ofields, qw( birthdate ) if $show_adult_birthdays;
+    push @ofields, qw( last_updated ) if $show_last_update;
     return grep { ! /^#/ } @ofields;
 }
 
@@ -220,7 +233,7 @@ sub _dump_one($$$) {
         printf $out "%s: %s\n", "sort-by-givenname", $r->{composite_name}->{sort_by_givenname};
         if ( my $bd = $r->birthdate ) {
             my ($y,$m,$d,$ymd) = ($1,$2,$3,"$1$2$3") if $bd =~ m#^(\d{4})\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#;
-            if ( ! $suppress_adult_birthdays || $ymd gt sixteen_years_ago ) {
+            if ( $show_adult_birthdays || $ymd gt sixteen_years_ago ) {
                 $bd = show_date($bd);
                 printf $out "%s: %s\n", 'Birthday', $bd;
             }
@@ -357,171 +370,31 @@ sub _dump_one($$$) {
 
 use quaker_info '$mm_keys_re';
 
-    sub _skip_restricted_record($) {
-        my $r = shift;
-
-        if (@restrict_regions) {
-            my $skip = 0;
-            my $where;
-            my @mt;
-            if ( $r->can('gtags') ) {
-                $where = 'gmail';
-                $r->isa(CSV::qndb::) and die "gtags shouldn't work on QNDB record; method=".$r->can('gtags');
-                if ( @mt = $r->gtags( qr/^(?:member|listing|send|post)[- ]+($mm_keys_re|YF)\b/ ) ) {
-                    grep { my $reg = $_; grep { $_ eq $reg } @mt } @restrict_regions
-                    or $skip = 1;
-                }
-                elsif ($need_region) {
-                    $skip = 2;
-                }
-            }
-            else {
-                $where = 'profile';
-                if ( @mt = map {
-                                    my $a = $r->{$_} || '';
-                                    $a =~ m{^($mm_keys_re|YF)\b} ? $1 : ()
-                                } qw{   formal_membership
-                                        monthly_meeting_area
-                                        receive_local_newsletter_by_post
-                                        receive_local_newsletter_by_email
-                                       } ) {
-                                    # Also, maybe:
-                                    # - receive_local_newsletter_by_post
-                                    # - receive_local_newsletter_by_email
-                    grep {
-                            my $reg = $_;
-                            grep { $_ eq $reg } @mt;
-                        } @restrict_regions
-                    or $skip = 3;
-                }
-                elsif ($need_region) {
-                    $skip = 4;
-                }
-            }
-            if ($skip) {
-                warn sprintf "Skipping REGION %s doesn't have %s%s\n",
-                            $r->debuginfo,
-                            @mt ? 'any of the wanted regions ('.join(', ', @mt).')' : 'any regions',
-                            $where,
-                    if $why_not;
-                return 1;
-            }
-        }
-        if ( $r->can('gtags') ) {
-            if ($need_region) {
-                if ( ! $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
-                    warn sprintf "Skipping NOREGION %s\n", $r->debuginfo if $why_not;
-                    return 1;
-                }
-            }
-            if ($skip_archived) {
-                if ( my @s = $r->gtags( qr/^archive - (.*)/ ) ) {
-                    warn sprintf "Skipping ARCHIVED %s [%s]\n", $r->debuginfo, "@s" if $why_not;
-                    return 1;
-                }
-            }
-            state $skips = do {
-                my @skips;
-                push @skips, 'archive - deceased'     if $skip_deceased && !$skip_archived;
-                push @skips, 'archive - unsubscribed' if $skip_unsub    && !$skip_archived;
-                push @skips, 'meetings'               if $skip_meetings;
-                push @skips, 'suppress listing'       if $skip_suppressed_listing;
-                push @skips, 'newsletters-only'       if $skip_newsletters_only;
-                push @skips, 'suppress email'         if $skip_suppressed_email;
-                push @skips, 'suppress post'          if $skip_suppressed_post;
-                \@skips;
-            };
-            if ( @$skips && $r->gtags(@$skips) ) {
-                warn sprintf "Skipping TAGGED %s tagged with [%s]\n", $r->debuginfo, join "; ", @$skips if $why_not;
-                return 1;
-            }
-            if ( @restrict_classes ) {
-                if (! $r->gtags( @restrict_classes )) {
-                    warn sprintf "Skipping EXCLASS %s not in [%s]\n", $r->debuginfo, join "; ", @restrict_classes;
-                    return 1;
-                }
-            }
-            if ($skip_unlisted) {
-                if (! $r->gtags( 'meeting', 'role', 'admin', 'members', 'attenders', 'enquirer', 'child', 'inactive' )) {
-                    if ( $why_not ) {
-                        if ($r->gtags( 'newsletter-only' )) {
-                            warn sprintf "Skipping NEWS-ONLY %s\n", $r->debuginfo;
-                        } else {
-                            warn sprintf "Skipping NON-PERSON %s\n", $r->debuginfo;
-                        }
-                    }
-                    return 1;
-                }
-            }
-        }
-        else {
-            if ($skip_meetings && (! $r->{monthly_meeting_area} &&
-            ! $r->{formal_membership} &&
-            ! ( $r->{show_me_in_young_friends_listing}
-             && $r->{show_me_in_young_friends_listing} eq 'Yes' ))) {
-                warn sprintf "Skipping UNLISTED %s [no MM membership, WG listing, or YF listing]\n", $r->debuginfo if $why_not;
-                return 1;
-            }
-        }
-        if ( $diff_ignore_file ) {
-            state $things_to_ignore = do {
-                my %ignore_uid;
-                my %ignore_name;
-
-                my ( $in, $in_name ) = open_file_for_reading $diff_ignore_file;
-
-                my @f = <$in>;
-                close $in or die "Couldn't read '$in_name'; $!\n";
-                for my $f (@f) {
-                    chomp $f;
-                    $f =~ s/\#.*//;
-                    $f =~ s/\s+$//;
-                    next if !$f;
-                    if ($f =~ /^\d/) {
-                        $ignore_uid{$f} = 1;
-                    } else {
-                        $ignore_name{lc $f} = 1;
-                    }
-                }
-                warn "Loading ignorance table, ".(0+%ignore_uid)." uids and ".(0+%ignore_name)." names\n" if $verbose;
-                warn Dumper( \%ignore_uid, \%ignore_name ) if $verbose > 2;
-                [ \%ignore_uid, \%ignore_name ]
-            };
-            if ($things_to_ignore->[0]{$r->uid}) {
-                warn sprintf "Skipping IGNORED %s [ignoring uid]\n", $r->debuginfo if $why_not;
-                return 1;
-            }
-            if ($things_to_ignore->[1]{lc $r->name}) {
-                warn sprintf "Skipping IGNORED %s [ignoring name]\n", $r->debuginfo if $why_not;
-                return 1;
-            }
-        }
-        return 0;
-    }
-
+{
     my $C_plain = "\e[49m";
     my $C_black = "\e[30m";
-    my $C_red   = "\e[31m";
+    my $C_red = "\e[31m";
     my $C_green = "\e[32m";
-    my $C_yellow= "\e[33m";
-    my $C_blue  = "\e[34m";
-    my $C_purple= "\e[35m";
-    my $C_cyan  = "\e[34m";
+    my $C_yellow = "\e[33m";
+    my $C_blue = "\e[34m";
+    my $C_purple = "\e[35m";
+    my $C_cyan = "\e[34m";
     my $C_white = "\e[37m";
 
     my $B_plain = "\e[49m";
     my $B_black = "\e[40m";
-    my $B_red   = "\e[41m";
+    my $B_red = "\e[41m";
     my $B_green = "\e[42m";
-    my $B_yellow= "\e[43m";
-    my $B_blue  = "\e[44m";
-    my $B_purple= "\e[45m";
-    my $B_cyan  = "\e[44m";
+    my $B_yellow = "\e[43m";
+    my $B_blue = "\e[44m";
+    my $B_purple = "\e[45m";
+    my $B_cyan = "\e[44m";
     my $B_white = "\e[47m";
+    my $fmt_label = "%-18.18s ";
+    my $fmt = "%-32s %-3.3s %s";
 
     sub show_one_diff($$$$) {
         my ($out, $r1, $r2, $ofields) = @_;
-        state $fmt = "%-18.18s %-32s %-3.3s %s";
         my $said_title;
         if ($r1) {
             my $name1 = $r1->name;
@@ -535,7 +408,7 @@ use quaker_info '$mm_keys_re';
                     printf $out "\nRENAME #%-8s %s === %s  %s\n", $uid2 || $uid1, $name1, $name2, $suid1 || $suid2;
                     $said_title++;
                     if ( $suid1 && $suid2 && $uid1 ne $uid2 ) {
-                        printf $out "$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
+                        printf $out "$fmt_label$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
                     }
                     else {
                     }
@@ -543,7 +416,7 @@ use quaker_info '$mm_keys_re';
                 elsif ( $suid1 && $suid2 && $uid1 ne $uid2 ) {
                     printf $out "\nMODIFY #%-8s %s %s\n", $uid2, $name2, $suid2;
                     $said_title++;
-                    printf $out "$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
+                    printf $out "$fmt_label$fmt  (%s === %s)\n", 'RENUMBER', $uid1, '===', $uid2, $suid1, $suid2;
                 }
                 FIELD: for my $f ( my @zof = @$ofields ) {
                     my (@v1, @v2);
@@ -573,16 +446,16 @@ use quaker_info '$mm_keys_re';
                             if (@v1 && @v2) {
                                 # show time-order
                                 if ( $v1[0] eq $v2[0] ) {
-                                    printf "$C_green$fmt$C_plain\n",  $f, $vl1, '', '';
+                                    printf "$fmt_label$C_green$fmt$C_plain\n",  $f, $vl1, '', '';
                                 } elsif ( $v1[0] lt $v2[0] ) {
                                     # left older than right
-                                    printf "$C_green$fmt$C_plain\n",  $f, $vl1, "▷", $vl2;
+                                    printf "$fmt_label$C_green$fmt$C_plain\n",  $f, $vl1, "▷", $vl2;
                                 } else {
                                     # left newer than right
-                                    printf "$C_yellow$fmt$C_plain\n", $f, $vl1, "◁", $vl2;
+                                    printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, "◁", $vl2;
                                 }
                             } else {
-                                    printf "$C_yellow$fmt$C_plain\n", $f, $vl1, '',  $vl2;
+                                    printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, '',  $vl2;
                             }
                         }
                     }
@@ -598,18 +471,16 @@ use quaker_info '$mm_keys_re';
                             $f = '' if $said_label++;
                             if ( $vl1 eq '' ) {
                                 if ( $vl2 eq '' ) {
-                                    next if $diff_quietly;
-                                    printf "$fmt\n", $f, '', 'x', '';
+                                    printf "$fmt_label$fmt\n", $f, '', 'x', '' if ! $diff_quietly;
                                 } else {
-                                    printf "$C_green$fmt$C_plain\n", $f, "(add)", "→", $vl2;
+                                    printf "$fmt_label$C_green$fmt$C_plain\n", $f, "(add)", "→", $vl2;
                                 }
                             } elsif ( $vl2 eq '' ) {
-                                    printf "$C_red$fmt$C_plain\n", $f, $vl1, "←", "(del)";
+                                    printf "$fmt_label$C_red$fmt$C_plain\n", $f, $vl1, "←", "(del)";
                             } elsif ( $vl1 eq $vl2 ) {
-                                next if $diff_quietly;
-                                printf "$fmt\n", $f, $vl1, "=", $vl2;
+                                printf "$fmt_label$fmt\n", $f, $vl1, "=", $vl2 if ! $diff_quietly;
                             } else {
-                                printf "$C_yellow$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
+                                printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
                             }
                         }
                     }
@@ -634,6 +505,7 @@ use quaker_info '$mm_keys_re';
             }
         }
     }
+}
 
 sub generate_diff($$$$$) {
     my ($out, $rr1, $in1, $rr2, $in2 ) = @_;
@@ -643,11 +515,11 @@ sub generate_diff($$$$$) {
     warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if $verbose;
     my @ofields = _choose_ofields;
 
-    my @rr1 = preferred_sort grep { !_skip_restricted_record $_ } @$rr1;
+    my @rr1 = preferred_sort grep { ! skip_restricted_record $_ } @$rr1;
     my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
     my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
 
-    my @rr2 = preferred_sort grep { !_skip_restricted_record $_ } @$rr2;
+    my @rr2 = preferred_sort grep { ! skip_restricted_record $_ } @$rr2;
     my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
     my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
 
@@ -714,7 +586,7 @@ sub diffably_dump_records($$;$) {
     my @records = @$rr;
     @records = preferred_sort @records;
     RECORD: for my $r (@records) {
-        _skip_restricted_record $r and do {
+        skip_restricted_record $r and do {
             warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if $verbose > 2;
             next RECORD;
         };
@@ -742,7 +614,7 @@ sub birthday_dump_records($$;$) {
     my @records = @$rr;
     @records = preferred_sort @records;
     RECORD: for my $r (@records) {
-        if ($r->can('gtags') && $r->gtags('suppress birthday') || _skip_restricted_record $r ) {
+        if ($r->can('gtags') && $r->gtags('suppress birthday') || skip_restricted_record $r ) {
             warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
@@ -768,12 +640,12 @@ sub birthday_dump_records($$;$) {
             warn sprintf "BIRTHDAY: suppressing %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
-        if ( $suppress_adult_birthdays && $ymd le sixteen_years_ago ) {
+        if ( ! $show_adult_birthdays && $ymd le sixteen_years_ago ) {
             warn sprintf "BIRTHDAY: not-child %s\n", $r->debuginfo if $verbose > 2;
             next RECORD
         }
         my $emails = join ",", uniq $r->listed_email;
-        if (!$emails) {
+        if (!$emails && $skip_emailless) {
             warn sprintf "BIRTHDAY: email not recorded %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
@@ -783,6 +655,11 @@ sub birthday_dump_records($$;$) {
         my $xdate = join ".", $y ? 'xdate='.$y : 'zdate=0000', $m, $d;
         my $dpat = strftime "%d-%b", 0,0,0,$d,$m-1,$y?$y-1900:2000;
         my @areas = map { "area=" . uc $_ } sort @meetings;
+
+        if ( !$emails ) {
+            printf $out "#NoEmail#";
+            $emails = '-'
+        }
 
         printf $out "%s\n", join("\t", join(",", 'rcpt', $dpat, $xdate, @areas), $emails, $name);
     }
