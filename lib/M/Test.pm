@@ -4,19 +4,20 @@
 use 5.010;
 use strict;
 use warnings;
+no warnings 'qw';
 use utf8;
 
 package M::Test;
 
 use verbose;
-use list_functions qw[ min ];
+use list_functions qw( min );
 use PDF::scale_factors;
 
 use PDF::paginator;
 
 use M::IO qw( _open_output _close_output );
 
-my @_colors = qw[#88f #f00 gray red orange green blue purple yellow cyan brown tan];
+my @_colors = qw( #88f #f00 gray red orange green blue purple yellow cyan brown tan );
 sub color($) {
     $_colors[ $_[0] % @_colors ]
 }
