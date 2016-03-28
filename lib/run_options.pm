@@ -62,7 +62,8 @@ use Getopt::Long qw( :config auto_abbrev bundling );
 
 use PDF::scale_factors;
 
-use verbose;
+#use verbose;   # }
+my $debug = 0;  # } switch comment-out to enable local debugging
 
 sub as_points($) {
     my $v = $_[-1];
@@ -101,8 +102,6 @@ sub _assign($;$$) {
     }
     croak "Unsupported target type $r";
 }
-
-#$verbose = 99;
 
 sub import {
     my $from = shift;
