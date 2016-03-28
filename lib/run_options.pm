@@ -9,18 +9,23 @@
 #
 #   use run_options ( ... parameters as for GetOptions ... );
 #
-# Additionally, options may be preficed with:
+# Additionally, options may be prefaced with:
 #
-#   '!'     The assigned value should be the logical inverse; this surplants
-#           the "N" function previously applied to parameters, and works
-#           properly with function callbacks.
+#   '!'     The assigned value should be the logical inverse of the argument.
+#           Note: this surplants the "N" function previously applied to
+#           parameters, and works properly with function callbacks.
 #
-#   '%'     The assigned value represents a length in "points", so if the
-#           parameter is given with a different scale factor, the value
-#           assigned will be adjusted to represent the same physical dimension.
+#   '%'     The option takes a length, so the argument will be scaled so that
+#           the assigned value is in "points".
 #
-#   '+'     The command-line option is permitted multiple times; if given,
-#           all the assignments will be performed with the single value.
+#   ','     The option takes a comma-separated list of values; if the target is
+#           an array, the separate values will be pushed onto the array; if it
+#           is a function, it will be called once with each value.
+#           (Currently only strings are supported, so it must end with '=s'.)
+#
+#   '+'     The command-line option is permitted multiple times; if given on
+#           the command line, all the assignments will be performed (with the
+#           same value).
 #
 #   '#'     Some non-option control follows
 #
@@ -86,18 +91,18 @@ sub _assign($;$$) {
     my $r = ref $v;
     return $v if ! $r;
     if ($f) {
-        return sub {      $$v =   $f->( $_[1] )   } if $r eq 'SCALAR';
-        return sub { push @$v,    $f->( $_[1] )   } if $r eq 'ARRAY';
-        return sub {       $v ->( $f->( $_[1] ) ) } if $r eq 'CODE';
+        return sub {      $$v =         $f->($_[1]) } if $r eq 'SCALAR';
+        return sub { push @$v,          $f->($_[1]) } if $r eq 'ARRAY';
+        return sub {       $v->($_) for $f->($_[1]) } if $r eq 'CODE';
     } else {
+        return sub {      $$v =              $_[1]  } if $r eq 'SCALAR';
+        return sub { push @$v,               $_[1]  } if $r eq 'ARRAY';
         return $v if $r eq 'CODE' or $x;
-        return sub {      $$v = $_[1]             } if $r eq 'SCALAR';
-        return sub { push @$v,  $_[1]             } if $r eq 'ARRAY';
     }
     croak "Unsupported target type $r";
 }
 
-$verbose = 99;
+#$verbose = 99;
 
 sub import {
     my $from = shift;
@@ -147,7 +152,13 @@ sub import {
         my $vv = $v;
         my $r = ref $v;
 
-        if ($k =~ s/^!//) {
+        if ($k =~ s/^,//) {
+            $r eq 'SCALAR' and croak "Can't auto-split into a SCALAR for option '$ko'";
+            $k !~ /=s$/    and croak "Can't auto-split non-string for option '$ko'";
+            carp "Split option $k from $ko" if $verbose > 2;
+            $f = sub { split /\s*\,\s*/, $_[-1] };
+        }
+        elsif ($k =~ s/^!//) {
             carp "Negated option $k from $ko" if $verbose > 2;
             $f = sub { ! $_[1] };
         }
@@ -162,7 +173,7 @@ sub import {
             push @{$sharding{$k}}, _assign( $v, $f );
         } else {
             carp "Plain option $k from $ko" if $verbose > 2;
-            exists $get_opt_args{$k} || exists $sharding{$k} and croak "Duplicate unsharded option '$k'";
+            exists $get_opt_args{$k} || exists $sharding{$k} and croak "Duplicate unsharded option '$ko'";
             $get_opt_args{$k} = _assign( $v, $f, 1 );
         }
     }
