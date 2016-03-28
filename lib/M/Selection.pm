@@ -62,7 +62,6 @@ sub skip_restricted_record($) {
         my @mt;
         if ( $r->can('gtags') ) {
             $where = 'gmail';
-            $r->isa(CSV::qndb::) and die "gtags shouldn't work on QNDB record; method=".$r->can('gtags');
             if ( @mt = $r->gtags( qr/^(?:member|listing|send|post)[- ]+($mm_keys_re|YF)\b/ ) ) {
                 grep { my $reg = $_; grep { $_ eq $reg } @mt } @restrict_regions
                 or $skip = 1;
