@@ -335,7 +335,7 @@ my %iso_country_codes = (
     PNG => 'Papua New Guinea',
 );
 
-$iso_country_codes{NZ} = '';    # leave out country for "local" mail
+my $local_country_re = qr/\bNew Zealand\b|\bNZ\b/;
 
 sub fix_one($) {
     my $r = shift;
@@ -366,7 +366,7 @@ sub fix_one($) {
             if ($a->{country}) {
                 $a->{country} = $iso_country_codes{uc $a->{country}} if $a->{country} and exists $iso_country_codes{uc $a->{country}};
             }
-            $a->{formatted} =~ s#\s*\n*NZ$##o;
+            $a->{formatted} =~ s#\s*\n*$local_country_re$##o;
             $a->{streetnum} = $a->{street} && $a->{street} =~ s#^(\S*\d\S*)\s+## && $1 || '';
             $a = new string_with_components::
                     $r->_canon_address($a->{formatted}, scalar grep { $care_of->{$_} && $care_of->{$_} >= $min_care_of } @types ),
