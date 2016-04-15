@@ -478,7 +478,7 @@ GetOptions
     'raw-addresses!'              => N$CSV::Common::canon_address,
     'region|only-region=s'        => sub { push @restrict_regions, split /[, ]+/, pop },
     'select-and-include=s'        => II { push @selection_tags, $_[1]; push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
-    'select=s'                    => II { push @selection_tags, $_[1]; },
+    'select=s'                    => II { push @selection_tags, $_[0]; },
     'show-adult-birthdays!'       => N$suppress_adult_birthdays,
     'show-hyperlinks!'            => \$show_hyperlinks,
     'show-relationships!'         => \$show_relationships,
@@ -741,6 +741,7 @@ warn "WRITE BINMODE=@wr_binmode\n" if $verbose > 1 && @wr_binmode;
 $book_sort_by_surname //= ! $book_sort_by_givenname;
 
 # punctuation in tags is ignored by gtags()
+! ref &&
 s/^\W*// for @selection_tags,
              @inclusion_tags;
 
@@ -2025,7 +2026,7 @@ sub generate_labels($$;$) {
             s/\s*\([^()]*\)\s*/ /g,
             s/ (?:ex|née*) .*// for @names;
             my $names = join ' & ', @names;
-            my $postal_address = $hh[0]->postal_address;
+            my $postal_address = $hh[0] && $hh[0]->postal_address;
             my $postcode = $postal_address->{postcode} || (UNIVERSAL::can($hh[0],'postcode') && $hh[0]->postcode || $hh[0]->{postcode})
                 or warn sprintf "WARNING: missing postcode on %s at %s\n", $names[0], $postal_address;
             $postal_address =~ s/(.*\S)\s*\b$postcode\b/$1/ if $postcode;
