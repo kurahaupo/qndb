@@ -24,9 +24,14 @@ opts=(
         ${postlabels:+--output="$postlabels" --force-overwrite}
      )
 
+((true=0==0, false=!true))
+((ask=true))
+
 for x do
     case $x in
     (-*)                opts+=( "$1" ) ;;
+    (ask)               ((ask=true)) ;;
+    (noask)             ((ask=false)) ;;
     (nz-all)            inc+=( --select='#all' ) ;;
     (nt-bayis|nt-boi)   inc+=( --select='@listing - NT - Bay of Islands' ) ;;
     (nt-hwick)          inc+=( --select='@listing - NT - Howick' ) ;;
@@ -51,22 +56,24 @@ for x do
     esac
 done
 
-{
+if ((ask))
+then
     askyn "Keep PDF" &&
-        printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels-%(%Y%m%d%H%M)T.pdf' "$HOME${HOME:+/}" $now $now
+        printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels-%(%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" $now $now
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 
     printf 'Which recipients:\n'
     if askyn ' - whole country (#all)'
     then
         inc+=( --select-and-include='everyone=#all' )
-    elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)' 
+    elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)'
     then
+        #opts+=( --region=nt )
+        inc+=( --select="@member - NT" )
         for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
         do
             inc+=( --select="@listing - NT - $i" )
         done
-        inc+=( --select="@member - NT" )
         inc+=( --optional-include='everyone=#all'                    )
     fi
 
@@ -79,16 +86,14 @@ done
     askyn ' - Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'          )
     askyn ' - Email flyer'     && inc+=(     --optional-include='Email flyer=#has-email'              )
     askyn ' - NZ Friends'      && inc+=(    --select-and-include='NZ Friends=!post NZ Friends'        )
-
-    askyn 'OK?' || exit 0
-}
-
-#opts+=( --region=nt )
+else
+    printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
+fi
 
 file_downloads
 
 ${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
-{ sleep 1; evince "$postlabels" <> /dev/null >&0 & }
+{ sleep 1 ; evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?
 
