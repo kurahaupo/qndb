@@ -20,18 +20,19 @@ askyn() {
 postlabels=${current_gmail%.csv}-labels.pdf
 
 opts=(
+        --preset=avery-l7160 
         --skip-suppressed-post
-        ${postlabels:+--output="$postlabels" --force-overwrite}
      )
 
-((true=0==0, false=!true))
-((ask=true))
+(( true = 0==0,
+   false = !true,
+   ask = true ))
 
 for x do
     case $x in
     (-*)                opts+=( "$1" ) ;;
-    (ask)               ((ask=true)) ;;
-    (noask)             ((ask=false)) ;;
+    (ask)               (( ask = true  )) ;;
+    (noask)             (( ask = false )) ;;
     (nz-all)            inc+=( --select='#all' ) ;;
     (nt-bayis|nt-boi)   inc+=( --select='@listing - NT - Bay of Islands' ) ;;
     (nt-hwick)          inc+=( --select='@listing - NT - Howick' ) ;;
@@ -51,15 +52,15 @@ for x do
     (reminder)          inc+=(   --optional-include='reminder note=!post reminder'          ) ;;
     (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
     (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
-    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ;;
+    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" -1 ;;
     (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
     esac
 done
 
-if ((ask))
+if (( ask ))
 then
     askyn "Keep PDF" &&
-        printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels-%(%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" $now $now
+        printf -v postlabels '%sQuakers/mailout/%(%Y%m/postlabels-%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" -1
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 
     printf 'Which recipients:\n'
@@ -68,13 +69,12 @@ then
         inc+=( --select-and-include='everyone=#all' )
     elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)'
     then
-        #opts+=( --region=nt )
         inc+=( --select="@member - NT" )
         for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
         do
             inc+=( --select="@listing - NT - $i" )
         done
-        inc+=( --optional-include='everyone=#all'                    )
+        inc+=( --optional-include='everyone=#all' )
     fi
 
     printf 'What enclosures:\n'
@@ -90,9 +90,11 @@ else
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 fi
 
+[[ $postlabels ]] && opts+=( --output="$postlabels" --force-overwrite )
+
 file_downloads
 
-${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
+"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
 { sleep 1 ; evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?
