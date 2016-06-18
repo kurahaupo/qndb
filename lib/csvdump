@@ -207,9 +207,12 @@ if (my $lang = $ENV{LANG}) {
 ########################################
 # How are records selected (these affect various modes in DWIM ways...)
 
-my $need_region = 1;
 my $skip_archived = 1;
 my $skip_deceased = 1;
+my $skip_children = undef;              # default to "yes" for do_labels
+my $skip_enquirers = undef;             # default to "yes" for do_labels
+my $skip_inactive = undef;              # default to "yes" for do_labels
+my $skip_roles = undef;                 # default to "yes" for do_labels
 my $skip_meetings = 1;
 my $skip_newsletters_only = undef;      # default to "yes" for do_book
 my $skip_suppressed_listing = undef;    # default to "yes" for do_book
@@ -247,7 +250,7 @@ my $output_name;
 my $force_overwrite;
 
 ########################################
-# Dump formatting options
+# Dump & diff formatting options
 
 my $diff_by = 'uid';
 my $diff_ignore_file;
@@ -434,7 +437,7 @@ GetOptions
     'fs-char|sep-char=s'          => \$csv_fs_char,
     'hide-adult-birthdays!'       => \$hide_adult_birthdays,
     'hide-hyperlinks!'            => \$hide_hyperlinks,
-    'hide-no-region!'             => \$need_region,
+    'hide-last-updated!'          => \$hide_last_update,
     'hide-relationships!'         => \$hide_relationships,
     'hide-send!'                  => sub { $hide_send_by_email = $hide_send_by_post = $_[-1] },
     'hide-send-by-email!'         => \$hide_send_by_email,
@@ -443,10 +446,13 @@ GetOptions
     'hide-uid!'                   => \$hide_uid,
     'hide-yf-listing!'            => \$hide_yf_listing,
     'include-archived!'           => N$skip_archived,
+    'include-children!'           => N$skip_children,
     'include-deceased!'           => N$skip_deceased,
+    'include-enquirers!'          => N$skip_enquirers,
+    'include-inactive!'           => N$skip_inactive,
     'include-meetings!'           => N$skip_meetings,
     'include-newsletters-only!'   => N$skip_newsletters_only,
-    'include-no-region!'          => N$need_region,
+    'include-roles!'              => N$skip_roles,
     'include-suppressed-email!'   => N$skip_suppressed_email,
     'include-suppressed-listing!' => N$skip_suppressed_listing,
     'include-suppressed-post!'    => N$skip_suppressed_post,
@@ -462,7 +468,6 @@ GetOptions
     'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
     'labels-ordered-in=s'         => \$labels_ordered_in,
     'names-only!'                 => \$hide_all_but_names,
-    'need-region!'                => \$need_region,
     'num-labels-across|nla=i'     => \$num_labels_across,
     'num-labels-down|nld=i'       => \$num_labels_down,
     'octet|byte|b'                => sub { $presume_decoding = $use_encoding = 'OCTET' },
@@ -484,6 +489,7 @@ GetOptions
     'select=s'                    => II { push @selection_tags, $_[0]; },
     'show-adult-birthdays!'       => N$hide_adult_birthdays,
     'show-hyperlinks!'            => N$hide_hyperlinks,
+    'show-last-updated!'          => N$hide_last_update,
     'show-relationships!'         => N$hide_relationships,
     'show-send!'                  => sub { $hide_send_by_email = $hide_send_by_post = ! $_[-1] },
     'show-send-by-email!'         => N$hide_send_by_email,
@@ -492,9 +498,13 @@ GetOptions
     'show-uid!'                   => N$hide_uid,
     'show-yf-listing!'            => N$hide_yf_listing,
     'skip-archived!'              => \$skip_archived,
+    'skip-children!'              => \$skip_children,
     'skip-deceased!'              => \$skip_deceased,
+    'skip-enquirers!'             => \$skip_enquirers,
+    'skip-inactive!'              => \$skip_inactive,
     'skip-meetings!'              => \$skip_meetings,
     'skip-newsletters-only!'      => \$skip_newsletters_only,
+    'skip-roles!'                 => \$skip_roles,
     'skip-suppressed-email!'      => \$skip_suppressed_email,
     'skip-suppressed-listing!'    => \$skip_suppressed_listing,
     'skip-suppressed-post!'       => \$skip_suppressed_post,
@@ -717,6 +727,7 @@ $why_not ||= $verbose > 2;
 use quaker_info '%mm_names';
 
 $_ = uc $_ for @restrict_regions;
+my $need_region = @restrict_regions > 0;
 @restrict_regions = grep { $_ ne 'NONE' or $need_region = 0; } @restrict_regions;
 
 $mm_names{$_} or die "Invalid region '$_'\n" for @restrict_regions;
@@ -725,9 +736,18 @@ warn "RESTRICTION: limit to regions: @restrict_regions\n" if $verbose > 2;
 
 $do_book ||= $do_book_index_by_wg || $do_book_index_by_mm || $do_book_index_all || $do_book_listing_by_wg || $do_book_listing_by_mm || $do_book_listing_all || 0;
 
+$hide_status        //= $hide_all_but_names;
+$hide_yf_listing    //= $hide_all_but_names;
+$hide_send_by_post  //= $hide_all_but_names;
+$hide_send_by_email //= $hide_all_but_names;
+
 # Default exclusions for different generation types
 $skip_suppressed_listing //= $do_book;
 $skip_newsletters_only   //= $do_book;
+$skip_children           //= $do_labels;
+$skip_enquirers          //= $do_labels;
+$skip_inactive           //= $do_labels;
+$skip_roles              //= $do_labels;
 $skip_suppressed_post    //= $do_labels;
 
 my @wr_binmode;
@@ -1027,19 +1047,19 @@ sub parse_file($) {
     sub _choose_ofields() {
         my @ofields;
         # 'name' is not required; as it's always printed, separately from the list of fields
-        push @ofields, qw( monthly_meeting_area formal_membership inactive ) unless $hide_all_but_names || $hide_status;
-        push @ofields, qw( show_me_in_young_friends_listing ) unless $hide_all_but_names || $hide_yf_listing;
+        push @ofields, qw( monthly_meeting_area formal_membership inactive ) unless $hide_status;
+        push @ofields, qw( show_me_in_young_friends_listing ) unless $hide_yf_listing;
         push @ofields, qw( listed_email phone_number mobile_number fax listed_address postal_address ) unless $hide_all_but_names;
-        push @ofields, qw( receive_local_newsletter_by_post nz_friends_by_post) unless $hide_all_but_names || $hide_send_by_post;
-        push @ofields, qw( receive_local_newsletter_by_email nz_friends_by_email ) unless $hide_all_but_names || $hide_send_by_email;
+        push @ofields, qw( receive_local_newsletter_by_post nz_friends_by_post) unless $hide_send_by_post;
+        push @ofields, qw( receive_local_newsletter_by_email nz_friends_by_email ) unless $hide_send_by_email;
                        # Possible additional fields:
                        #   synthesized website_url rd_no po_box_number country postcode
                        #   town suburb address property_name users_name
                        #   uid_of_children_under_16 uid_of_spouse uid first_name
                        #   family_name
-        push @ofields, qw( uid uid_of_spouse uid_of_children_under_16 uids_of_parents ) if !$hide_uid;
+        push @ofields, qw( uid uid_of_spouse uid_of_children_under_16 uids_of_parents ) unless $hide_uid;
         push @ofields, qw( birthdate ) unless $hide_adult_birthdays;
-        push @ofields, 'last_updated' if ! $hide_last_update;
+        push @ofields, qw( last_updated ) unless $hide_last_update;
         return grep { ! /^#/ } @ofields;
     }
 
@@ -1049,7 +1069,7 @@ sub parse_file($) {
         {
             # Fixed fields: name, sort-keys, birthday
             my $v = $r->name || do { warn "UNNAMED RECORD\n" . Dumper($r); '(unknown)' };
-            if (!$hide_hyperlinks and my $ru = $r->uid) {
+            if (! $hide_hyperlinks and my $ru = $r->uid) {
                 if ($ru !~ /^GEN/) {
                     my $rl = show_qonu($ru);
                     $v .= "  $rl";
@@ -1102,10 +1122,10 @@ sub parse_file($) {
                 }
             }
         }
-        if (!$hide_relationships) {
+        if (! $hide_relationships) {
             if ( my $s = $r->{XREF_spouse} ) {
                 my $v = $s->name || '(unknown)';
-                if (!$hide_hyperlinks and my $su = $s->uid) {
+                if (! $hide_hyperlinks and my $su = $s->uid) {
                     my $sl = show_qonu($su);
                     $v .= "  $sl";
                 }
@@ -1114,7 +1134,7 @@ sub parse_file($) {
             if (my $pp = $r->{XREF_parents}) {
                 for my $p ( preferred_sort @$pp ) {
                     my $v = $p->name || '(unknown)';
-                    if (!$hide_hyperlinks and my $pu = $p->uid) {
+                    if (! $hide_hyperlinks and my $pu = $p->uid) {
                         my $pl = show_qonu($pu);
                         $v .= "  $pl";
                     }
@@ -1124,7 +1144,7 @@ sub parse_file($) {
             if (my $cc = $r->{XREF_children}) {
                 for my $c ( preferred_sort @$cc ) {
                     my $v = $c->name || '(unknown)';
-                    if (!$hide_hyperlinks and my $cu = $c->uid) {
+                    if (! $hide_hyperlinks and my $cu = $c->uid) {
                         my $cl = show_qonu($cu);
                         $v .= "  $cl";
                     }
@@ -1267,7 +1287,11 @@ use quaker_info '$mm_keys_re';
                 my @skips;
                 push @skips, 'archive - deceased'     if $skip_deceased && ! $skip_archived;
                 push @skips, 'archive - unsubscribed' if $skip_unsub    && ! $skip_archived;
-                push @skips, 'meetings'               if $skip_meetings;
+                push @skips, 'child'                  if $skip_children;
+                push @skips, 'enquirer'               if $skip_enquirers;
+                push @skips, 'inactive'               if $skip_inactive;
+                push @skips, 'meeting'                if $skip_meetings;
+                push @skips, 'role'                   if $skip_roles;
                 push @skips, 'suppress listing'       if $skip_suppressed_listing;
                 push @skips, 'newsletters-only'       if $skip_newsletters_only;
                 push @skips, 'suppress email'         if $skip_suppressed_email;
