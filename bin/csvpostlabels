@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. $HOME/Quakers/lib/qlib.bash
+. "${libdir:-$HOME/Quakers/lib/}"qlib.bash
 
 inc=()
 
@@ -44,12 +44,12 @@ for x do
     (nt-whrei)          inc+=( --select='@listing - NT - Whangarei' ) ;;
     (nt-oseas)          inc+=( --select='@listing - NT - overseas' ) ;;
     (nt-elsew)          inc+=( --select='@listing - NT - elsewhere' ) ;;
-    (nt-all)            inc+=(     --select-and-include='NT notice=!post NT everyone'       ) ;;
-    (nt-news)           inc+=(       --select-and-include='NT news=!post NT news'           ) ;;
-    (nt-minutes)        inc+=(    --select-and-include='NT minutes=!post NT minutes'        ) ;;
-    (me-minutes)        inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes'   ) ;;
-    (me-everyone)       inc+=(      --optional-include='MtEdn info=@listing - NT - Mt Eden' ) ;;
-    (reminder)          inc+=(   --optional-include='reminder note=!post reminder'          ) ;;
+    (nt-all)            inc+=(   --select-and-include='NT notice=!post NT everyone'         ) ;;
+    (nt-news)           inc+=(   --select-and-include='NT news=!post NT news'               ) ;;
+    (nt-minutes)        inc+=(   --select-and-include='NT minutes=!post NT minutes'         ) ;;
+    (me-minutes)        inc+=(   --select-and-include='MtEdn minutes=!post Mt Eden minutes' ) ;;
+    (me-everyone)       inc+=(     --optional-include='MtEdn info=@listing - NT - Mt Eden'  ) ;;
+    (reminder)          inc+=(     --optional-include='reminder note=!post reminder'        ) ;;
     (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
     (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
     (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" -1 ;;
