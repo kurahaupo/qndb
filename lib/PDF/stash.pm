@@ -175,6 +175,15 @@ sub at {
     $x_scale //= 1;
     for my $e ( @{ $tt->{e} } ) {
         my ($str, $fontname, $fontsize, $fontstyle, $ypos, $xpos, $qrotation, $yscale, $xscale) = @$e;
+        if ($q_rotation) {
+            # TODO: decide whether to support changing the centre of rotation
+            use constant HalfPi => atan2(1, 1)*2;  # arctangent(1)=π/4 (1/8 of a circle)
+            my $r = $q_rotation*HalfPi;
+            my $s = sin $r; # TODO: figure out whether this should be positive or negative
+            my $c = cos $r;
+            ($xpos, $ypos) = ($c*$xpos + $s*$ypos, -$s*$xpos + $c*$ypos);
+        }
+
         $xpos += $x_pos;
         $ypos += $y_pos;
         $qrotation += $q_rotation;
