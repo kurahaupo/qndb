@@ -20,7 +20,7 @@ askyn() {
 postlabels=${current_gmail%.csv}-labels.pdf
 
 opts=(
-        --preset=avery-l7160 
+        --preset=avery-l7160
         --skip-suppressed-post
      )
 
@@ -59,7 +59,7 @@ done
 
 if (( ask ))
 then
-    askyn "Keep PDF" &&
+    askyn 'Keep PDF' &&
         printf -v postlabels '%sQuakers/mailout/%(%Y%m/postlabels-%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" -1
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 
@@ -72,7 +72,7 @@ then
         inc+=( --select="@member - NT" )
         for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
         do
-            inc+=( --select="@listing - NT - $i" )
+            inc+=( --select='@listing - NT - $i' )
         done
         inc+=( --optional-include='everyone=#all' )
     fi
