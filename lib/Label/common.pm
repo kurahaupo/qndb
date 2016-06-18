@@ -19,53 +19,45 @@ my ($ref_evenly_squash_to_fit,
     $ref_banner_font,
     $ref_banner_colour,
     $ref_banner_scale,
-    $ref_bottom_margin,
     $ref_fontname,
     $ref_fontsize,
-    $ref_height,
-    $ref_left_margin,
+    $ref_printable_width,
+    $ref_printable_height,
     $ref_postcode_fontsize,
-    $ref_right_margin,
-    $ref_top_margin,
-    $ref_width,
     $ref_line_spacing);
 
 my $seen_imports;
 sub import {
     my $pkg = shift;
     @_ == 0 && return;
-    @_ == 14 || croak "Wrong number of args";
-    ( $ref_evenly_squash_to_fit,
+    @_ == 10 || croak "Wrong number of args";
+    #@_ == 14 || croak "Wrong number of args";
+    (
+      $ref_printable_width,
+      $ref_printable_height,
+      $ref_evenly_squash_to_fit,
       $ref_banner_font,
       $ref_banner_colour,
       $ref_banner_scale,
-      $ref_bottom_margin,
       $ref_fontname,
       $ref_fontsize,
-      $ref_height,
-      $ref_left_margin,
       $ref_postcode_fontsize,
-      $ref_right_margin,
-      $ref_top_margin,
-      $ref_width,
-      $ref_line_spacing ) = @_;
+      $ref_line_spacing,
+    ) = @_;
     ++$seen_imports;
     for my $j ( $ref_evenly_squash_to_fit,
                 $ref_banner_font,
                 $ref_banner_colour,
                 $ref_banner_scale,
-                $ref_bottom_margin,
                 $ref_fontname,
                 $ref_fontsize,
-                $ref_height,
-                $ref_left_margin,
+                $ref_printable_width,   #$Ref_label_left_margin, $Ref_label_right_margin,
+                $ref_printable_height,  #$Ref_label_top_margin, $Ref_label_bottom_margin,
                 $ref_postcode_fontsize,
-                $ref_right_margin,
-                $ref_top_margin,
-                $ref_width,
                 $ref_line_spacing ) {
         $j && ref $j eq 'SCALAR' or croak "import passed '$j'";
     }
+    warn sprintf "IMPORT %s into %s\n", $pkg, (caller)[0];
 }
 
 sub new {
@@ -99,13 +91,48 @@ sub draw_label {
     if ($$ref_evenly_squash_to_fit) {
         # squash up when too many lines
         # evenly squash up ALL lines when any line is too wide
-        my $printable_label_width  = $$ref_width  - $$ref_left_margin - $$ref_right_margin;
-        my $printable_label_height = $$ref_height - $$ref_top_margin  - $$ref_bottom_margin;
-        $active_fontsize *= min 1,
-                                $printable_label_height / ( @lines + ($banner && $$ref_banner_scale || 0) ) / ( $$ref_line_spacing * $active_fontsize ),
-                                $printable_label_width / max 1,
-                                                             $banner && $text->advancewidth($banner)*$$ref_banner_scale || 0,
-                                                             map { $text->advancewidth($_) } @lines;
+        my $printable_label_width = $$ref_printable_width;      # - $$Ref_label_left_margin - $$Ref_label_right_margin;
+        my $printable_label_height = $$ref_printable_height;    # - $$Ref_label_top_margin - $$Ref_label_bottom_margin;
+        my $printing_label_height = ( @lines + ($banner && $$ref_banner_scale || 0) ) / ( $$ref_line_spacing * $active_fontsize ),
+        my $printing_label_width = max 1E-9, # just a smidge more than zero
+                                       $banner && $text->advancewidth($banner)*$$ref_banner_scale || 0,
+                                       map { $text->advancewidth($_) } @lines;
+        my $squash_ratio = min 1,
+                               $printable_label_height / $printing_label_height,
+                               $printable_label_width / $printing_label_width;
+
+        $active_fontsize *= $squash_ratio;
+        if ($squash_ratio < 1 && ++(state $x) < 4 ) {
+            warn sprintf "SQUASHING... [%s]\n", "@lines";
+            warn sprintf "evenly_squash_to_fit=%s\n", $$ref_evenly_squash_to_fit // '(unset)';
+            warn sprintf "banner_colour=%s\n", $$ref_banner_colour // '(unset)';
+            warn sprintf "banner_font=%s\n", $$ref_banner_font // '(unset)';
+            warn sprintf "banner_scale=%.2f%%\n", $$ref_banner_scale * 100;
+
+            warn sprintf "fontname=%s\n", $$ref_fontname // '(unset)';
+            warn sprintf "fontsize=%.3fmm, line_spacing=%.2f%%\n", $$ref_fontsize/mm, $$ref_line_spacing * 100;
+            warn sprintf "postcode_fontsize=%.3fmm\n", $$ref_postcode_fontsize/mm;
+
+            warn sprintf "printable label area = %.3fmm×%.3fmm (w×h)\n", $printable_label_width/mm, $printable_label_height/mm;
+
+            warn sprintf "horizontal ratio %.3fmm/%.3fmm=%.2f%%\n",
+                        $printable_label_width/mm, $printing_label_width/mm,
+                        $printable_label_width / $printing_label_width * 100
+                if $printable_label_width != $printing_label_width;
+            for my $lineno ( 0 .. $#lines ) {
+                my $l = $lines[$lineno];
+                my $w = $text->advancewidth($l) || next;
+                warn sprintf " = line #%d ratio %.3fmm/%.3fmm=%.2f%% [%s]\n",
+                        $lineno,
+                        $printable_label_width/mm, $w/mm,
+                        $printable_label_width / $w * 100, $l;
+            }
+            warn sprintf "vertical ratio %.3fmm/%.3fmm=%.2f%%\n",
+                        $printable_label_height/mm, $printing_label_height/mm,
+                        $printable_label_height / $printing_label_height * 100
+                if $printable_label_height != $printing_label_height;
+            warn sprintf "SQUASHED; ratio=%.2f%%, active font size now %.3fmm\n", $squash_ratio * 100, $active_fontsize/mm;
+        }
     }
 
     if (my $p = $r->{banner}) {
@@ -115,7 +142,7 @@ sub draw_label {
             $p = sprintf $p, @$r{@v};
         }
         $active_fontsize = min $active_fontsize,
-                               $$ref_height / ($$ref_banner_scale * $$ref_line_spacing + @lines * $$ref_line_spacing);
+                               $$ref_printable_height / ($$ref_banner_scale * $$ref_line_spacing + @lines * $$ref_line_spacing);
 
         my $banner_fontsize = $active_fontsize*$$ref_banner_scale;
         $pq->font( $$ref_banner_font, $current_fontsize = $banner_fontsize ) if $banner_fontsize != $current_fontsize;
@@ -126,7 +153,7 @@ sub draw_label {
     if (@lines) {
         for (0 .. $#lines) {
             $pq->font( $$ref_fontname, $current_fontsize = $active_fontsize ) if $active_fontsize != $current_fontsize;
-            my $rescale = $$ref_width / $text->advancewidth($_);
+            my $rescale = $$ref_printable_width / $text->advancewidth($_);
             if ( $rescale < 1 ) {
                 # squeeze up to make room...
                 $pq->font( $$ref_fontname, $current_fontsize = $active_fontsize * $rescale );
@@ -138,7 +165,8 @@ sub draw_label {
 
     if (my $p = $r->{postcode}) {
         $pq->font( $$ref_fontname, $$ref_postcode_fontsize );
-        $text->translate( $left + $$ref_width, $top - $$ref_height + $$ref_postcode_fontsize );
+        $text->translate( $left + $$ref_printable_width,
+                          $top - $$ref_printable_height + $$ref_postcode_fontsize );
         $text->text_right($p);
     }
 

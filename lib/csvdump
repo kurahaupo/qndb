@@ -323,8 +323,8 @@ my $label_banner_font = 'Helvetica';
 my $label_banner_scale = PHI;
 my $label_banner_colour = 'orange';
 
-my $label_width;
-my $label_height;
+my $printable_label_width;
+my $printable_label_height;
 my $label_step_across;
 my $label_step_down;
 my $num_labels_across = 2;
@@ -350,8 +350,8 @@ my $labels_ordered_in = 'columns';
                     num_down             => 7,
                     page_top_margin      => 17.0*mm, label_top_margin     =>  1.5*mm,
                     page_bottom_margin   => 13.0*mm, label_bottom_margin  =>  1.5*mm,
-                    page_left_margin     =>  5.0*mm, label_left_margin    =>  5.7*mm,
-                    page_right_margin    =>  6.0*mm, label_right_margin   =>  7.7*mm,
+                    page_left_margin     =>  5.0*mm, label_left_margin    =>  3.7*mm,
+                    page_right_margin    =>  6.0*mm, label_right_margin   =>  3.7*mm,
                     ordered_in           => 'columns',
                 },
 
@@ -459,10 +459,10 @@ GetOptions
     'include-unlisted!'           => N$skip_unlisted,
     'include-unsubscribed!'       => N$skip_unsub,
     'instruction-color|instruction-colour=s' => \$label_banner_colour,
-    'label-height|lh=s'           => M$label_height,
+    'label-height|lh=s'           => M$printable_label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
     'label-step-down|lxh=s'       => M$label_step_down,
-    'label-width|lw=s'            => M$label_width,
+    'label-width|lw=s'            => M$printable_label_width,
     'labels'                      => \$do_labels,
     'labels-ordered-in-columns'   => sub { $labels_ordered_in = 'columns' },
     'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
@@ -1831,16 +1831,22 @@ be reduced or eliminated as code is tidied.
 
 =cut
 
-use Label::common \($evenly_squash_to_fit, $label_banner_font,
-                    $label_banner_colour, $label_banner_scale,
-                    $label_bottom_margin, $label_fontname, $label_fontsize,
-                    $label_height, $label_left_margin,
-                    $label_postcode_fontsize, $label_right_margin,
-                    $label_top_margin, $label_width, $line_spacing);
+use Label::common \(
+                    $printable_label_width, #$label_left_margin, $label_right_margin,
+                    $printable_label_height, #$label_top_margin, $label_bottom_margin,
+                    $evenly_squash_to_fit,
+                    $label_banner_font,
+                    $label_banner_colour,
+                    $label_banner_scale,
+                    $label_fontname,
+                    $label_fontsize,
+                    $label_postcode_fontsize,
+                    $line_spacing,
+                    );
 use Label::blank;
-use Label::map_items \($label_bottom_margin, $label_fontname, $label_height,
+use Label::map_items \($label_bottom_margin, $label_fontname, $printable_label_height,
                        $label_left_margin, $label_right_margin,
-                       $label_top_margin, $label_width, $labels_ordered_in,
+                       $label_top_margin, $printable_label_width, $labels_ordered_in,
                        $line_spacing, $num_labels_across, $num_labels_down);
 use Label::count::total;
 use Label::recipient;
@@ -2078,14 +2084,14 @@ sub generate_labels($$;$) {
     my $printable_page_height = $page_height - $page_top_margin - $page_bottom_margin;
     my $printable_page_width  = $page_width  - $page_left_margin - $page_right_margin;
 
-    $num_labels_across ||= $printable_page_width  / ($label_step_across || $label_width);
-    $num_labels_down   ||= $printable_page_height / ($label_step_down   || $label_height);
+    $num_labels_across ||= $printable_page_width  / ($label_step_across || $printable_label_width);
+    $num_labels_down   ||= $printable_page_height / ($label_step_down   || $printable_label_height);
 
-    $label_step_across ||= $printable_page_width  / $num_labels_across || $label_height + $label_top_margin + $label_bottom_margin;
-    $label_step_down   ||= $printable_page_height / $num_labels_down   || $label_width  + $label_left_margin + $label_right_margin;
+    $label_step_across ||= $printable_page_width  / $num_labels_across || $printable_label_height + $label_top_margin + $label_bottom_margin;
+    $label_step_down   ||= $printable_page_height / $num_labels_down   || $printable_label_width  + $label_left_margin + $label_right_margin;
 
-    $label_height ||= $label_step_down   -  $label_top_margin - $label_bottom_margin;
-    $label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
+    $printable_label_height ||= $label_step_down   -  $label_top_margin - $label_bottom_margin;
+    $printable_label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
 
     warn sprintf "First Page\n"
                . " page size: %.2fmm × %.2fmm (w×h) (%s)\n"
@@ -2098,14 +2104,11 @@ sub generate_labels($$;$) {
                 $page_width/mm, $page_height/mm, $page_size,
                 $printable_page_width/mm, $printable_page_height/mm,
                 $num_labels_across, $num_labels_down,
-                $label_width/mm, $label_height/mm,
+                $printable_label_width/mm, $printable_label_height/mm,
                 $label_step_across/mm, $label_step_down/mm,
                 $x_start/mm, $y_start/mm,
         if $verbose;
     }
-
-    my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
-    my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
 
     for my $r ( @labels ) {
         my $text = $pq->text;
