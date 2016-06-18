@@ -1289,17 +1289,18 @@ use quaker_info '$mm_keys_re';
                 push @skips, 'archive - unsubscribed' if $skip_unsub    && ! $skip_archived;
                 push @skips, 'child'                  if $skip_children;
                 push @skips, 'enquirer'               if $skip_enquirers;
+                push @skips, 'explanatory texts';
                 push @skips, 'inactive'               if $skip_inactive;
                 push @skips, 'meeting'                if $skip_meetings;
-                push @skips, 'role'                   if $skip_roles;
-                push @skips, 'suppress listing'       if $skip_suppressed_listing;
                 push @skips, 'newsletters-only'       if $skip_newsletters_only;
+                push @skips, 'role'                   if $skip_roles;
                 push @skips, 'suppress email'         if $skip_suppressed_email;
+                push @skips, 'suppress listing'       if $skip_suppressed_listing;
                 push @skips, 'suppress post'          if $skip_suppressed_post;
                 \@skips;
             };
-            if ( @$skips && $r->gtags(@$skips) ) {
-                warn sprintf "Skipping TAGGED %s tagged with [%s]\n", $r->debuginfo, join "; ", @$skips if $why_not;
+            if ( @$skips and my @excuses = $r->gtags(@$skips) ) {
+                warn sprintf "Skipping TAGGED %s tagged with [%s]\n", $r->debuginfo, join "; ", @excuses if $why_not;
                 return 1;
             }
             if ( @restrict_classes ) {
@@ -1352,18 +1353,22 @@ use quaker_info '$mm_keys_re';
                 }
                 warn "Loading ignorance table, ".(0+%ignore_uid)." uids and ".(0+%ignore_name)." names\n" if $verbose;
                 warn Dumper( \%ignore_uid, \%ignore_name ) if $verbose > 2;
-                [ \%ignore_uid, \%ignore_name ]
+                { uids => \%ignore_uid, names => \%ignore_name }
             };
-            if ($things_to_ignore->[0]{$r->uid}) {
+            if ($things_to_ignore->{uids}{$r->uid}) {
                 warn sprintf "Skipping IGNORED %s [ignoring uid]\n", $r->debuginfo if $why_not;
                 return 1;
             }
-            if ($things_to_ignore->[1]{lc $r->name}) {
+            if ($things_to_ignore->{names}{lc $r->name}) {
                 warn sprintf "Skipping IGNORED %s [ignoring name]\n", $r->debuginfo if $why_not;
                 return 1;
             }
         }
         return 0;
+    }
+
+    sub skip_unwanted_records(@) {
+        return grep { ! _skip_restricted_record $_ } @_
     }
 
     my $C_plain = "\e[39m";
@@ -1511,11 +1516,11 @@ sub generate_diff($$$$$) {
     warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if $verbose;
     my @ofields = _choose_ofields;
 
-    my @rr1 = preferred_sort grep { !_skip_restricted_record $_ } @$rr1;
+    my @rr1 = preferred_sort skip_unwanted_records @$rr1;
     my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
     my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
 
-    my @rr2 = preferred_sort grep { !_skip_restricted_record $_ } @$rr2;
+    my @rr2 = preferred_sort skip_unwanted_records @$rr2;
     my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
     my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
 
@@ -1579,13 +1584,8 @@ sub diffably_dump_records($$;$) {
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
-    my @records = @$rr;
-    @records = preferred_sort @records;
+    my @records = preferred_sort skip_unwanted_records @$rr;
     RECORD: for my $r (@records) {
-        _skip_restricted_record $r and do {
-            warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if $verbose > 2;
-            next RECORD;
-        };
         print $out "\n";
         _dump_one $out, $r, \@ofields;
     }
@@ -1607,10 +1607,9 @@ sub birthday_dump_records($$;$) {
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
-    my @records = @$rr;
-    @records = preferred_sort @records;
+    my @records = preferred_sort skip_unwanted_records @$rr;
     RECORD: for my $r (@records) {
-        if ($r->can('gtags') && $r->gtags('suppress birthday') || _skip_restricted_record $r ) {
+        if ($r->can('gtags') && $r->gtags('suppress birthday') ) {
             warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if $verbose > 2;
             next RECORD;
         }
@@ -1846,45 +1845,24 @@ use Label::map_items \($label_bottom_margin, $label_fontname, $label_height,
 use Label::count::total;
 use Label::recipient;
 
-    sub suppress_unwanted_records($) {
-        my $rr = shift;
-        if ( @$rr && $rr->[0]->can('gtags') ) {
-            my @rr = @$rr;
-            my @skips;
-            push @skips, 'archive - deceased'     if $skip_deceased;
-            push @skips, 'archive - unsubscribed' if $skip_unsub;
-            push @skips, 'meetings'               if $skip_meetings;
-            push @skips, 'suppress listing'       if $skip_suppressed_listing;
-            push @skips, 'newsletters-only'       if $skip_newsletters_only;
-            push @skips, 'suppress email'         if $skip_suppressed_email;
-            push @skips, 'suppress post'          if $skip_suppressed_post;
-            push @skips, 'explanatory texts';
-            @rr = grep { ! $_->gtags(@skips) } @rr if @skips;
-            @rr = grep { ! $_->gtags(qr/^archive - /) } @rr if $skip_archived;
-            $rr = \@rr;
-        }
-        return $rr;
-    }
-
-    sub group_people_into_households($) {
-        my $rr = shift;
-        $rr = suppress_unwanted_records $rr;
-        @$rr or return [];
-        if ( $rr->[0]->can('gtags') ) {
+    sub group_people_into_households(@) {
+        my @rr = @_;
+        @rr or return ();
+        if ( $rr[0]->can('gtags') ) {
             my %households;
             my $z = 0;
-            for my $r (@$rr) {
+            for my $r (@rr) {
                 my $a = $r->postal_address or next;
                 $a .= '__SPLIT_POST__'.++$z if $r->gtags('split post');
                 push @{$households{$a}}, $r;
             }
-            return [ values %households ]
+            return values %households;
         }
-        elsif ( $rr->[0]->can('uid') ) {
+        elsif ( $rr[0]->can('uid') ) {
             my @households;
             my $unique_id = 0;
             my %s;
-            for my $r (@$rr) {
+            for my $r (@rr) {
                 $s{$r->uid} and next;
                 $r->{XREF_parents} and next;
                 my @h = $r;
@@ -1893,10 +1871,10 @@ use Label::recipient;
                 $s{$_->uid}++ for @h;
                 push @households, \@h;
             }
-            return \@households;
+            return @households;
         }
         else {
-            die "Can't group households of $rr->[0]";
+            die "Can't group households of $rr[0]";
         }
     }
 
@@ -1906,7 +1884,7 @@ sub generate_labels($$;$) {
     my $in_name = shift || '(stdin)';
 
     # Make family groups or households
-    my $households = group_people_into_households $rr;
+    my $households = [ group_people_into_households skip_unwanted_records @$rr ];
 
     warn sprintf "grouped-households: %u\n", 0+@$households if $verbose;
 
@@ -2336,8 +2314,7 @@ sub generate_book($$;$) {
 
     my $copyright = sprintf "Compilation copyright ©%u The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised %s", $rev_year, $rev_dmmy;
 
-    my $rr = suppress_unwanted_records $rr0;
-    @$rr = grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } @$rr;
+    my $rr = [ grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } skip_unwanted_records @$rr0 ];
 
     my %by_mm;
     my %by_wg;

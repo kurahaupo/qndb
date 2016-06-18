@@ -4,27 +4,35 @@
 
 : ${PAGER:='less -iR'}
 
+day_offsets=()
 diff_ignore_dir="${dbdir}DIFF/"
+dumpopts=( --hide-send --skip-suppressed-listing )
+glist=()
 list_before=false
 once=false
+patch_files=()
+plist=()
 smart_diff=true
+true=1 false=0
 use_google=true
 use_profile=true
-
 vim_opts=()
 
-true=1 false=0
+__f_cp='\e[34;2m==== %s ====\e[49;0m\n'
+__f_patch='\e[32m==== %s ====\e[49;0m\n'
+__f_diff='\e[34m==== %s ====\e[49;0m\n'
+__f_ls='\e[34m==== %s ====\e[49;0m\n'
+__f_result='\e[41;1m==== %s ====\e[49;0m\n'
 
-glist=()
-plist=()
-day_offsets=()
+temp=/tmp/csvdiff_$$.
 
 while (($#)) ; do
-    o=$1
-    shift
-    case $o in
-    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${o//[^0-9]/} ) ;;
-    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${o//[^0-9]/} )) ) ;;
+    case $1 in
+    (--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
+    (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
+
+    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
+    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
     (--today)                   day_offsets+=( 0 ) ;;
     (--yesterday)               day_offsets+=( 1 ) ;;
     (--last-week)               day_offsets+=( 7 ) ;;
@@ -34,7 +42,8 @@ while (($#)) ; do
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
     (--ng|--no-gmail)           use_google=false  ;;
     (--np|--no-profile)         use_profile=false ;;
-    (--offset-time=*)           day_offsets+=( ${o#--*=} ) ;;
+    (--patch)                   patch_files+=("$2") ; shift ;;
+    (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
     (--once)                    once=true ;;
     (--loop)                    once=false ;;
     (--ignore)                  ignore=true ;;
@@ -43,16 +52,24 @@ while (($#)) ; do
     (--today)                   day_offsets+=( 0 ) ;;
     (--ug|--use-gmail)          use_google=true  ;;
     (--up|--use-profile)        use_profile=true ;;
-    (-*)                        dumpopts+=("$o") ;;
-    (*/google*|google*)         glist+=($o) ;;
+    (-*)                        dumpopts+=( "$1" ) ;;
+    (*/google*|google*)         glist+=( "$1" ) ;;
     (*/*\
     |*/profile*|profile*\
-    |*/mma-book*)               plist+=($o) ;;
-    (*)                         echo >&2 "Unknown option '$o'" ; exit 64 ;;
+    |*/mma-book*)               plist+=( "$1" ) ;;
+    (*)                         die EX_USAGE "Unknown option '$1'" ;;
     esac
+    shift
 done
 
 ((${#day_offsets[@]})) || day_offsets=( 0 )
+
+
+(( ! ${#patch_files[@]} )) && {
+  _def_patch_files=( ${dbdir}profiles*.patch )
+  [[ -r ${_def_patch_files[0]} ]] &&
+    patch_files=( "${_def_patch_files[@]}" )
+}
 
 echo "Day-offsets are: ${day_offsets[*]}"
 
@@ -101,8 +118,45 @@ do
     nff=${#ff[@]}
     if (( smart_diff && nff == 2 && ! ignore ))
     then
-        ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" 2>&1 |
-            ${PAGER}
+        if (( ${#patch_files[@]} ))
+        then
+            rm -f "$temp"*
+            orig=${temp}base
+            ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" >"$orig" 2>&1 &&
+
+            curr=$orig
+            for pi in "${!patch_files[@]}"
+            do
+                patch_file="${patch_files[pi]}"
+                fwd=${temp}fwd$pi
+                rev=${temp}rev$pi
+
+                printf "$__f_cp" "cp $curr $fwd"
+                cp -v "$curr" "$fwd" || exit  # inside pipeline
+                printf "$__f_patch" "patch $fwd $patch_file"
+                patch "$fwd" "$patch_file" || exit  # inside pipeline
+
+                printf "$__f_cp" "cp $fwd $rev"
+                cp -v "$fwd" "$rev" || exit  # inside pipeline
+                printf "$__f_patch" "patch -r $rev $patch_file"
+                patch -R "$rev" "$patch_file" || exit  # inside pipeline
+
+                printf "$__f_diff" "diff $curr $rev"
+                diff -s "$curr" "$rev" || exit  # inside pipeline
+
+                curr=$fwd
+            done
+
+            rm -f "$temp"*~
+            printf "$__f_ls" "ls -ldU $temp*"
+            ls -ldU "$temp"*
+            printf "$__f_result" "DIFFERENCES $curr"
+            grep -Ev '^IGNORE' < "$curr" |
+            cat -s
+        else
+            ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}"
+        fi 2>&1 |
+            ${PAGER} +/"^=.*DIFFERENCES.*=$"
     else
         ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
         set -x
@@ -121,3 +175,5 @@ do
 
     ((once)) && break
 done
+
+[[ -n $temp ]] && rm -fv "$temp"*
