@@ -406,20 +406,19 @@ sub postal_address($) {
             $r->{X_home_address};
 }
 
-#   sub _notno($) {
-#       my ($_)=@_;
-#       return defined $_ && /^[Yy1]$|^yes$/i;
-#   }
+   sub _notno($) {
+       return defined $_ && /^[Yy1]$|^yes$/i for @_;
+   }
 
-#sub receive_local_newsletter_by_post($) {
-#    my $r = shift;
-#    _notno $r->{receive_local_newsletter_by_post};
-#}
+sub receive_local_newsletter_by_post($) {
+    my $r = shift;
+    _notno $r->{receive_local_newsletter_by_post};
+}
 
-#sub receive_local_newsletter_by_email($) {
-#    my $r = shift;
-#    _notno $r->{receive_local_newsletter_by_email};
-#}
+sub receive_local_newsletter_by_email($) {
+    my $r = shift;
+    _notno $r->{receive_local_newsletter_by_email};
+}
 
 sub phone_number { $_[0]->{phone_number} }
 sub mobile_number { $_[0]->{mobile_number} }

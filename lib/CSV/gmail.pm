@@ -469,6 +469,12 @@ sub uid_of_children_under_16($) {
     $k ? @$k : ()
 }
 
+sub label_priority($) {
+    my $r = shift;
+    my ($x) = $r->_list('qdb_priority_custom_field');
+    $x || 0
+}
+
 sub listed_email($) {
     my $r = shift;
     my $e = $r->_map('e_mail');

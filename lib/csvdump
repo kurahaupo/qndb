@@ -1987,11 +1987,27 @@ sub generate_labels($$;$) {
                 # Rearrange the list to put the parent(s) first & second; leave the
                 # second slot blank if there is only one parent.
                 # (a) look for uid_of_children_under_16
-                my @parents = grep { $_->uid_of_children_under_16 } @hh;
-                my @children = grep { !$_->uid_of_children_under_16 } @hh;
-                $#parents == 0 ||
-                $#parents == 1 || warn sprintf "WARNING: group for %s has %u parents and %u children", $hh[0]->name, scalar @parents, scalar @children;
-                $#parents = 1;
+                my @parents;
+                my @children;
+                if ($hh[0]->can('gtags')) {
+                    @parents = grep { !$_->gtags('child') } @hh;
+                    @children = grep { $_->gtags('child') } @hh;
+                    @parents = sort {
+                            -$a->label_priority     <=> -$b->label_priority     ||
+                            !$a->gtags('members')   <=> !$b->gtags('members')   ||
+                            !$a->gtags('attenders') <=> !$b->gtags('attenders') ||
+                            !!$a->gtags('inactive') <=> !!$b->gtags('inactive')
+                        } @parents;
+                } else {
+                    @parents = grep { $_->uid_of_children_under_16 } @hh;
+                    @children = grep { !$_->uid_of_children_under_16 } @hh;
+                }
+                if (@parents < 1 || @parents > 2) {
+                    warn sprintf "WARNING: group for %s has %u parents and %u children", $hh[0]->name, scalar @parents, scalar @children;
+                    if (@parents > 2 && ! $evenly_squash_to_fit) {
+                        $#parents = 1;  # truncate list
+                    }
+                }
                 for (@children) {
                     # Omit surnames on children
                     my $sn = $_->{family_name};
@@ -1999,8 +2015,8 @@ sub generate_labels($$;$) {
                     $_->{family_name} = ' '
                 }
                 @hh = ( @parents, @children );
-                # If more than one child, just use "and family"
-                if (@hh > 3) {
+                # If more than two people, just use "and family"
+                if (@hh > 2 && (@children || !$evenly_squash_to_fit)) {
                     package AndFamily;
                     # This sub has static scope, which is intentional
                     sub name {
@@ -2014,7 +2030,7 @@ sub generate_labels($$;$) {
                                 sort_by_givenname => 'zz';
                     }
                     state $and_family = bless {};
-                    @hh = (@hh[0,1], $and_family);
+                    @hh = (@parents, $and_family);
                 }
             }
             my @names = map { $_ && $_->name } @hh;

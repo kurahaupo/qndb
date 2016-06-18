@@ -165,6 +165,8 @@ sub uid($) {
 sub uid_of_children_under_16 { () }     # not supported by all record types
 sub uid_of_spouse { () }                # not supported by all record types
 
+sub label_priority { 0 }    # no specific priorities by default
+
 sub debuginfo($) {
     my $r = shift;
     sprintf "%s uid=%s [%s]",
