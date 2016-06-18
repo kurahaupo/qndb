@@ -1366,7 +1366,7 @@ use quaker_info '$mm_keys_re';
         return 0;
     }
 
-    my $C_plain = "\e[49m";
+    my $C_plain = "\e[39m";
     my $C_black = "\e[30m";
     my $C_red   = "\e[31m";
     my $C_green = "\e[32m";
