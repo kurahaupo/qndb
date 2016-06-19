@@ -42,7 +42,7 @@ while (($#)) ; do
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
     (--ng|--no-gmail)           use_google=false  ;;
     (--np|--no-profile)         use_profile=false ;;
-    (--patch)                   patch_files+=("$2") ; shift ;;
+    (--patch)                   patch_files+=( "$2" ) ; shift ;;
     (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
     (--once)                    once=true ;;
     (--loop)                    once=false ;;
@@ -122,30 +122,30 @@ do
         then
             rm -f "$temp"*
             orig=${temp}base
-            ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" >"$orig" 2>&1 &&
+            "${libdir}"csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" >"$orig" 2>&1 && {
+                curr=$orig
+                for pi in "${!patch_files[@]}"
+                do
+                    patch_file="${patch_files[pi]}"
+                    fwd=${temp}fwd$pi
+                    rev=${temp}rev$pi
 
-            curr=$orig
-            for pi in "${!patch_files[@]}"
-            do
-                patch_file="${patch_files[pi]}"
-                fwd=${temp}fwd$pi
-                rev=${temp}rev$pi
+                    printf "$__f_cp" "cp $curr $fwd"
+                    cp -v "$curr" "$fwd" || exit  # inside pipeline
+                    printf "$__f_patch" "patch $fwd $patch_file"
+                    patch "$fwd" "$patch_file" || exit  # inside pipeline
 
-                printf "$__f_cp" "cp $curr $fwd"
-                cp -v "$curr" "$fwd" || exit  # inside pipeline
-                printf "$__f_patch" "patch $fwd $patch_file"
-                patch "$fwd" "$patch_file" || exit  # inside pipeline
+                    printf "$__f_cp" "cp $fwd $rev"
+                    cp -v "$fwd" "$rev" || exit  # inside pipeline
+                    printf "$__f_patch" "patch -r $rev $patch_file"
+                    patch -R "$rev" "$patch_file" || exit  # inside pipeline
 
-                printf "$__f_cp" "cp $fwd $rev"
-                cp -v "$fwd" "$rev" || exit  # inside pipeline
-                printf "$__f_patch" "patch -r $rev $patch_file"
-                patch -R "$rev" "$patch_file" || exit  # inside pipeline
+                    printf "$__f_diff" "diff $curr $rev"
+                    diff -s "$curr" "$rev" || exit  # inside pipeline
 
-                printf "$__f_diff" "diff $curr $rev"
-                diff -s "$curr" "$rev" || exit  # inside pipeline
-
-                curr=$fwd
-            done
+                    curr=$fwd
+                done
+            }
 
             rm -f "$temp"*~
             printf "$__f_ls" "ls -ldU $temp*"
@@ -154,7 +154,7 @@ do
             grep -Ev '^IGNORE' < "$curr" |
             cat -s
         else
-            ${libdir}csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}"
+            "${libdir}"csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}"
         fi 2>&1 |
             ${PAGER} +/"^=.*DIFFERENCES.*=$"
     else
@@ -162,7 +162,7 @@ do
         set -x
         for (( i=0 ; i<nff ; ++i )) do
             [[ ${ff[i]} = *.csv ]] || continue
-            exec {fd}< <( ${libdir}csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
+            exec {fd}< <( "${libdir}"csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
             fz[i]=$fd
             ff[i]=/proc/$BASHPID/fd/$fd
         done
