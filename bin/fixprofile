@@ -51,7 +51,7 @@ iphone() {
 LANG=C
 while
     printf '>> '
-    read n 
+    read n
 do
     case $n in
     '') echo SKIP ;;
