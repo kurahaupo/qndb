@@ -338,33 +338,17 @@ sub listed_email($) {
     my $r = shift;
     my @a = $r->{users_mail};
     @a = map { lc $_ } @a;
+    @a = grep { $_ } @a;
     @a = grep {
-                # skip any email addresses which are "children" of list managers...
-                # (could perhaps use /^$mm_keys_re\.list\+\S+\@quaker\.org\.nz$/)
-                # Plus a few others that are badly over-used, such as
-                # - "judezed@hotmail" for the entire Zwanikken clan
-                $_ && !
-                m{ ^$
-                 | ^ \S+\.list     \+\S+ \@ quaker\.org\.nz $
-
-               # | ^ alanreynolds7 \+\S+ \@ gmail\.com      $
-               # | ^ anpjmacgregor \+\S+ \@ xtra\.co\.nz    $
-               # | ^ cmckeogh      \+\S+ \@ waikato\.ac\.nz $
-               # | ^ derek         \+\S+ \@ carver\.net\.nz $
-               # | ^ distrodude    \+\S+ \@ gmail\.com      $
-               # | ^ hall          \+\S+ \@ netmail\.co\.nz $
-               # | ^ janderson351  \+\S+ \@ yahoo\.co\.nz   $
-               # | ^ ken\.couchman \+\S+ \@ clear\.net\.nz  $
-               # | ^ martin\.p     \+\S+ \@ clear\.net\.nz  $
-               # | ^ pbiet         \+\S+ \@ clear\.net\.nz  $
-
-                 | ^ judezed       \+\S+ \@ hotmail\.com    $
-
-                 |                 \+ \S*hidden\S* \@
-                 |                 \+ \S*spouse\S* \@
-                 |                 \+ \S*parent\S* \@
-                 |                 \+ \S*child\S* \@
-                 |                 \+ \S*unlist\S* \@
+                # skip any email addresses that forward to list managers, and
+                # any that are tagged with suppression keywords
+                !  m{ ^$
+                 | ^ \S+\.list \+ \S+          \@ quaker(?:\.org|)\.nz $
+                 |             \+ \S*hidden\S* \@
+                 |             \+ \S*spouse\S* \@
+                 |             \+ \S*parent\S* \@
+                 |             \+ \S*child\S*  \@
+                 |             \+ \S*unlist\S* \@
                  }iox;
             } @a;
     @a = grep {
@@ -372,9 +356,10 @@ sub listed_email($) {
             } @a
         if $CSV::Common::only_explicitly_shared_email;
     if ( $CSV::Common::use_care_of ) {
-        # Any addresses marked "shared" are NOT care-of ...
-        s#^([^@]*)\+\S*shared\S*(\@.*)$#$1$2# for @a;
-        # ... but any other marked addresses ARE care-of
+        # Any addresses marked "shared" are NOT care-of,
+        # but any other marked addresses ARE care-of
+        s#^([^@]*)\+\S*shared\S*(\@.*)$#$1$2# or
+        s#^([^@]*)\+(\@.*)$#$1$2# or
         s#^([^@]*)\+\S*(\@.*)$#c/- $1$2# for @a;
     }
     else {
