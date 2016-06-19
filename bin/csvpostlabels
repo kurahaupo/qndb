@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. $HOME/Quakers/lib/qlib.bash
+. "${libdir:-$HOME/Quakers/lib/}"qlib.bash
 
 inc=()
 
@@ -19,78 +19,91 @@ askyn() {
 
 postlabels=${current_gmail%.csv}-labels.pdf
 
-if [[ $1 = -* ]]
-then
-    for x do
-        case $x in
-        (nz-all)            inc+=( --select='#all' ) ;;
-        (nt-bayis|nt-boi)   inc+=( --select='@listing - NT - Bay of Islands' ) ;;
-        (nt-hwick)          inc+=( --select='@listing - NT - Howick' ) ;;
-        (nt-ktaia)          inc+=( --select='@listing - NT - Kaitaia' ) ;;
-        (nt-mtedn)          inc+=( --select='@listing - NT - Mt Eden' ) ;;
-        (nt-nshor)          inc+=( --select='@listing - NT - North Shore' ) ;;
-        (nt-wakld)          inc+=( --select='@listing - NT - Waiheke' ) ;;
-        (nt-wheke)          inc+=( --select='@listing - NT - West Auckland' ) ;;
-        (nt-whrei)          inc+=( --select='@listing - NT - Whangarei' ) ;;
-        (nt-oseas)          inc+=( --select='@listing - NT - overseas' ) ;;
-        (nt-elsew)          inc+=( --select='@listing - NT - elsewhere' ) ;;
-        (nt-all)            inc+=(     --select-and-include='NT notice=!post NT everyone'       ) ;;
-        (nt-news)           inc+=(       --select-and-include='NT news=!post NT news'           ) ;;
-        (nt-minutes)        inc+=(    --select-and-include='NT minutes=!post NT minutes'        ) ;;
-        (me-minutes)        inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes'   ) ;;
-        (me-everyone)       inc+=(      --optional-include='MtEdn info=@listing - NT - Mt Eden' ) ;;
-        (reminder)          inc+=(   --optional-include='reminder note=!post reminder'          ) ;;
-        (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
-        (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
-        (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ;;
-        (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
-        esac
-    done
-else
+opts=(
+        --preset=avery-l7160
+        --skip-suppressed-post
+     )
 
-    if askyn 'scan whole country'
+(( true = 0==0,
+   false = !true,
+   ask = true ))
+
+for x do
+    case $x in
+    (-*)                opts+=( "$1" ) ;;
+    (ask)               (( ask = true  )) ;;
+    (noask)             (( ask = false )) ;;
+    (nz-all)            inc+=(               --select='#all'                                ) ;;
+    (nt-bayis|nt-boi)   inc+=(               --select='@listing - NT - Bay of Islands'      ) ;;
+    (nt-hwick)          inc+=(               --select='@listing - NT - Howick'              ) ;;
+    (nt-ktaia)          inc+=(               --select='@listing - NT - Kaitaia'             ) ;;
+    (nt-mtedn)          inc+=(               --select='@listing - NT - Mt Eden'             ) ;;
+    (nt-nshor)          inc+=(               --select='@listing - NT - North Shore'         ) ;;
+    (nt-wakld)          inc+=(               --select='@listing - NT - Waiheke'             ) ;;
+    (nt-wheke)          inc+=(               --select='@listing - NT - West Auckland'       ) ;;
+    (nt-whrei)          inc+=(               --select='@listing - NT - Whangarei'           ) ;;
+    (nt-oseas)          inc+=(               --select='@listing - NT - overseas'            ) ;;
+    (nt-elsew)          inc+=(               --select='@listing - NT - elsewhere'           ) ;;
+    (nt-all)            inc+=(   --select-and-include='NT notice=!post NT everyone'         ) ;;
+    (nt-news)           inc+=(   --select-and-include='NT news=!post NT news'               ) ;;
+    (nt-minutes)        inc+=(   --select-and-include='NT minutes=!post NT minutes'         ) ;;
+    (me-minutes)        inc+=(   --select-and-include='MtEdn minutes=!post Mt Eden minutes' ) ;;
+    (me-everyone)       inc+=(     --optional-include='MtEdn info=@listing - NT - Mt Eden'  ) ;;
+    (reminder)          inc+=(     --optional-include='reminder note=!post reminder'        ) ;;
+    (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
+    (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
+    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ;;
+    (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
+    esac
+done
+
+if (( ask ))
+then
+    askyn 'Keep PDF' &&
+        printf -v postlabels '%sQuakers/mailout/%(%Y%m/postlabels-%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" -1
+    printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
+
+    printf 'Which recipients:\n'
+    if askyn ' - whole country (#all)'
     then
-        inc+=( --select='#all' )
-    elif askyn 'scan for additional NT people' 
+        inc+=( --select-and-include='everyone=#all' )
+    elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)'
     then
+        inc+=( --select="@member - NT" )
         for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
         do
             inc+=( --select="@listing - NT - $i" )
         done
+        inc+=( --optional-include='everyone=#all' )
     fi
 
-    askyn 'NT everyone'     && inc+=(     --select-and-include='NT notice=!post NT everyone'       )
-    askyn 'NT news'         && inc+=(       --select-and-include='NT news=!post NT news'           )
-    askyn 'NT mins'         && inc+=(    --select-and-include='NT minutes=!post NT minutes'        )
-    askyn 'MtEdn mins'      && inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes'   )
-    askyn 'MtEdn everyone'  && inc+=(      --optional-include='MtEdn info=@listing - NT - Mt Eden' )
-    askyn 'Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'          )
-    askyn 'Email flyer'     && inc+=(     --optional-include='Email flyer=#has-email'              )
-    askyn 'NZ Friends'      && inc+=(    --select-and-include='NZ Friends=!post NZ Friends'        )
-
-    askyn 'Keep postlabels.pdf' &&
-            printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now
+    printf 'What enclosures:\n'
+    askyn ' - NT everyone'     && inc+=( --select-and-include='NT notice=!post NT everyone'         )
+    askyn ' - NT news'         && inc+=( --select-and-include='NT news=!post NT news'               )
+    askyn ' - NT mins'         && inc+=( --select-and-include='NT minutes=!post NT minutes'         )
+    askyn ' - MtEdn mins'      && inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes' )
+    askyn ' - MtEdn everyone'  && inc+=(   --optional-include='MtEdn info=@listing - NT - Mt Eden'  )
+    askyn ' - Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'        )
+    askyn ' - Email flyer'     && inc+=(   --optional-include='Email flyer=#has-email'              )
+    askyn ' - NZ Friends'      && inc+=( --select-and-include='NZ Friends=!post NZ Friends'         )
+else
+    printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 fi
 
-opts=(
-        --skip-suppressed-post
-        ${postlabels:+--output="$postlabels" --force-overwrite}
-     )
-
-#opts+=( --region=nt )
+[[ $postlabels ]] && opts+=( --output="$postlabels" --force-overwrite )
 
 file_downloads
 
-${libdir}csvdump --labels --preset=avery-l7160 "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
-{ evince "$postlabels" <> /dev/null >&0 & }
+"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
+{ sleep 1 ; evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?
 
 : <<\EoF
 printf -v current_gmail '%sQuakers/db/google-%(%Y%m%d)T.csv' "$HOME/" -1
-opts=( \
-        --paper=avery-l7160 \
-        --preset=avery-l7160 \
+opts=(
+        --paper=avery-l7160
+        --preset=avery-l7160
      )
 
 EoF
