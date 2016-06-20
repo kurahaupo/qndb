@@ -54,14 +54,14 @@ my %spelling_fixes = (
 #       Wanganui => 'Whanganui',
     );
 
-sub new($\@\@$) {
-    $#_ == 3 or croak "Wrong number of parameters to CSV::Common::new";
-    my ($class, $headers, $ra, $fpos) = @_;
+sub new($\@\@$$) {
+    $#_ == 4 or croak "Wrong number of parameters to CSV::Common::new";
+    my ($class, $headers, $ra, $fpos, $line) = @_;
     $#$ra == $#$headers or die "Line $. has $#$ra fields, but headers had $#$headers\n[@$ra] vs [@$headers]\n";
 
     my %rh;
     $rh{__source_fpos} = $fpos;
-    $rh{__source_line} = $. - 1;
+    $rh{__source_line} = $line;
     @rh{@$headers} = @$ra;
     my $r = bless \%rh, $class;
     $r->fix_one or return ();
