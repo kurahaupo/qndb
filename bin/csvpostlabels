@@ -28,15 +28,13 @@ opts=(
    ask = true,
    use_sql = false ))
 
-sql_dsn=dbi:
-
 for x do
     case $x in
     (dbi:*)             use_sql=true sql_dsn=$x ;;
     (--sql*)            opts+=( "$1" ) ; use_sql=true ;;
     (-*)                opts+=( "$1" ) ;;
     (ask)               (( ask = true  )) ;;
-    (no-ask)            (( ask = false )) ;;
+    (no?(-)ask)         (( ask = false )) ;;
     (nz-all)            inc+=(               --select='#all'                                ) ;;
     (nt-bayis|nt-boi)   inc+=(               --select='@listing - NT - Bay of Islands'      ) ;;
     (nt-hwick)          inc+=(               --select='@listing - NT - Howick'              ) ;;
@@ -65,6 +63,7 @@ if ((use_sql))
 then
     input_file=$sql_dsn
     postlabels=/tmp/qdb-$today-labels.pdf
+    _=${sql_dsn:=dbi:}
 else
     input_file=$current_gmail
     postlabels=${current_gmail%.csv}-labels.pdf
@@ -78,29 +77,44 @@ then
     }
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 
+    sel() {
+        printf 'selecting people with tag "%s"\n' "$1"
+        inc+=( --select="$1" )
+    }
+
+    selinc() {
+        printf 'selecting people with tag "%s" and adding enclosure "%s"\n' "$2" "$1"
+        inc+=( --select-and-include="$1=$2" )
+    }
+
+    optinc() {
+        printf 'adding tag "%s for enclosure "%s""\n' "$2" "$1"
+        inc+=( --optional-include=="$1=$2" )
+    }
+
     printf 'Which recipients:\n'
     if askyn ' - whole country (#all)'
     then
-        inc+=( --select-and-include='everyone=#all' )
+        sel '#all'
     elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)'
     then
-        inc+=( --select="@member - NT" )
-        for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke Warkworth Whangarei overseas elsewhere
+        sel '@member - NT'
+        for i in 'Bay of Islands' Kaitaia 'Mt Eden' 'North Shore' Waiheke Warkworth Whangarei overseas elsewhere
         do
-            inc+=( --select="@listing - NT - $i" )
+            sel "@listing - NT - $i"
         done
-        inc+=( --optional-include='everyone=#all' )
+        sel '!post NT everyone'
     fi
 
     printf 'What enclosures:\n'
-    askyn ' - NT everyone'     && inc+=( --select-and-include='NT notice=!post NT everyone'         )
-    askyn ' - NT news'         && inc+=( --select-and-include='NT news=!post NT news'               )
-    askyn ' - NT mins'         && inc+=( --select-and-include='NT minutes=!post NT minutes'         )
-    askyn ' - MtEdn mins'      && inc+=( --select-and-include='MtEdn minutes=!post Mt Eden minutes' )
-    askyn ' - MtEdn everyone'  && inc+=(   --optional-include='MtEdn info=@listing - NT - Mt Eden'  )
-    askyn ' - Reminder Note'   && inc+=(   --optional-include='reminder note=!post reminder'        )
-    askyn ' - Email flyer'     && inc+=(   --optional-include='Email flyer=#has-email'              )
-    askyn ' - NZ Friends'      && inc+=( --select-and-include='NZ Friends=!post NZ Friends'         )
+    askyn ' - NT everyone'     && selinc 'NT notice'     '!post NT everyone'
+    askyn ' - NT news'         && selinc 'NT news'       '!post NT news'
+    askyn ' - NT mins'         && selinc 'NT minutes'    '!post NT minutes'
+    askyn ' - MtEdn mins'      && selinc 'MtEdn minutes' '!post Mt Eden minutes'
+    askyn ' - MtEdn everyone'  && optinc 'MtEdn info'    '@listing - NT - Mt Eden'
+    askyn ' - Reminder Note'   && optinc 'reminder note' '!post reminder'
+    askyn ' - Email flyer'     && optinc 'Email flyer'   '#has-email'
+    askyn ' - NZ Friends'      && selinc 'NZ Friends'    '!post NZ Friends'
 else
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 fi
