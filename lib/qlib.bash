@@ -42,13 +42,19 @@ true=1 false=0
 
 printf >&2 "DEBUG-source: %s\n" "${BASH_SOURCE[@]}"
 
-# find path to directory containing *this* file
-libdir=${BASH_SOURCE%%+([^/])}
-qdir=${libdir%%+([^/])/}
-dbdir=${qdir}db/
+# find path to directory containing *calling* file
+self=$(readlink -e "${BASH_SOURCE[1]}" 2>/dev/null) || self="${BASH_SOURCE[1]}"
+bindir=${self%%+([^/])}
+libdir=${bindir%bin/}lib/
+# find path to directory containing data, hopefully
+for dbdir in "$dbdir" \
+             "${libdir%%+([^/])/}db/" \
+             "${BASH_SOURCE[1]%%+([^/])/+([^/])}db/" \
+             "${BASH_SOURCE[0]%%+([^/])/+([^/])}db/" \
+
+do [[ -n $dbdir && -d $dbdir ]] && break ; false ; done || die EX_OSERR "Missing db dir"
 
 printf >&2 "DEBUG: libdir = '%s'\n" "$libdir"
-printf >&2 "DEBUG: qdir = '%s'\n" "$qdir"
 printf >&2 "DEBUG: dbdir = '%s'\n" "$dbdir"
 
 # templates for the filenames for archived downloads
