@@ -4,16 +4,18 @@
 
 : ${PAGER:='less -iR'}
 
+true=1 false=0
+
 day_offsets=()
 diff_ignore_dir="${dbdir}DIFF/"
 dumpopts=( --hide-send --skip-suppressed-listing )
 glist=()
+ignore_patch_failures=false
 list_before=false
 once=false
 patch_files=()
 plist=()
 smart_diff=true
-true=1 false=0
 use_google=true
 use_profile=true
 vim_opts=()
@@ -28,6 +30,7 @@ temp=/tmp/csvdiff_$$.
 
 while (($#)) ; do
     case $1 in
+    (--)                        shift ; dumpopts=("$@") ; break ;;
     (--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
     (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
 
@@ -47,17 +50,19 @@ while (($#)) ; do
     (--once)                    once=true ;;
     (--loop)                    once=false ;;
     (--ignore)                  ignore=true ;;
+    (--ignore-patch-failure)    ignore_patch_failures=true ;;
+    (--stop-on-patch-failure)   ignore_patch_failures=false ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
     (--today)                   day_offsets+=( 0 ) ;;
     (--ug|--use-gmail)          use_google=true  ;;
     (--up|--use-profile)        use_profile=true ;;
-    (-*)                        dumpopts+=( "$1" ) ;;
+    (-*)                        die EX_USAGE "Unknown option '$1' (use '--' to separate pass-through options)" ;;
     (*/google*|google*)         glist+=( "$1" ) ;;
     (*/*\
     |*/profile*|profile*\
     |*/mma-book*)               plist+=( "$1" ) ;;
-    (*)                         die EX_USAGE "Unknown option '$1'" ;;
+    (*)                         die EX_USAGE "Unknown path '$1'" ;;
     esac
     shift
 done
@@ -70,6 +75,11 @@ done
   [[ -r ${_def_patch_files[0]} ]] &&
     patch_files=( "${_def_patch_files[@]}" )
 }
+
+if ((ignore_patch_failures))
+then patch_fail_ok() { return 0; }
+else patch_fail_ok() { return 1; }
+fi
 
 echo "Day-offsets are: ${day_offsets[*]}"
 
@@ -122,8 +132,8 @@ do
         then
             rm -f "$temp"*
             orig=${temp}base
+            curr=$orig
             "${libdir}"csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" >"$orig" 2>&1 && {
-                curr=$orig
                 for pi in "${!patch_files[@]}"
                 do
                     patch_file="${patch_files[pi]}"
@@ -133,12 +143,12 @@ do
                     printf "$__f_cp" "cp $curr $fwd"
                     cp -v "$curr" "$fwd" || exit  # inside pipeline
                     printf "$__f_patch" "patch $fwd $patch_file"
-                    patch "$fwd" "$patch_file" || exit  # inside pipeline
+                    patch "$fwd" "$patch_file" || patch_fail_ok || exit  # inside pipeline
 
                     printf "$__f_cp" "cp $fwd $rev"
                     cp -v "$fwd" "$rev" || exit  # inside pipeline
                     printf "$__f_patch" "patch -r $rev $patch_file"
-                    patch -R "$rev" "$patch_file" || exit  # inside pipeline
+                    patch -R "$rev" "$patch_file" || patch_fail_ok || exit  # inside pipeline
 
                     printf "$__f_diff" "diff $curr $rev"
                     diff -s "$curr" "$rev" || exit  # inside pipeline
