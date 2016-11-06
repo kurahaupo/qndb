@@ -122,8 +122,8 @@ do
         then
             rm -f "$temp"*
             orig=${temp}base
+            curr=$orig
             "${libdir}"csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}" >"$orig" 2>&1 && {
-                curr=$orig
                 for pi in "${!patch_files[@]}"
                 do
                     patch_file="${patch_files[pi]}"
