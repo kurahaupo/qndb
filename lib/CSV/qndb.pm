@@ -343,7 +343,7 @@ sub listed_email($) {
                 # skip any email addresses that forward to list managers, and
                 # any that are tagged with suppression keywords
                 !  m{ ^$
-                 | ^ \S+\.list \+ \S+          \@ quaker(?:\.org|)\.nz $
+                 | ^ \w+\.list \+ \S+          \@ quaker(?:\.org|)\.nz $
                  |             \+ \S*hidden\S* \@
                  |             \+ \S*spouse\S* \@
                  |             \+ \S*parent\S* \@
@@ -358,7 +358,8 @@ sub listed_email($) {
     if ( $CSV::Common::use_care_of ) {
         # Any addresses marked "shared" are NOT care-of,
         # but any other marked addresses ARE care-of
-        s#^([^@]*)\+\S*shared\S*(\@.*)$#$1$2# or
+        s#^([^@]*\+[^@]*)\+(\@.*)$#$1$2# or
+        s#^([^@]*)\+[^@+]*shared[^@+]*(\@.*)$#$1$2# or
         s#^([^@]*)\+(\@.*)$#$1$2# or
         s#^([^@]*)\+\S*(\@.*)$#c/- $1$2# for @a;
     }
