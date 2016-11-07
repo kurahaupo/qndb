@@ -47,8 +47,8 @@ sub import {
     for my $e (@$exportable) {
         my $n = $e;
         my $m = '';
-        $n =~ s/^\W*//;
-        my $t = $& || '&';
+        my $t = '&';
+        $n =~ s/^\W+// and $t = $&;
         $n or croak "Can't export '$e' - invalid name";
         my $tt = $typemap{$t} || croak "Can't export '$e' - unknown type '$t'";
         my $o;
@@ -90,10 +90,10 @@ sub import {
             if ($i =~ /^#/) { carp "Ignoring $i"; next }
 
             my $n = $i;
-            $n =~ s/^\W+//;
-            my $t = $& || '&';
-            $n =~ s/>(.*)//;
-            my $ni = $1 || $n;
+            my $t = '&';
+            $n =~ s/^\W+// and $t = $&;
+            my $ni = $n;
+            $n =~ s/>(.*)// and $ni = $1;
 
             my $o = $exportable{"$t$n"} or do {
                 my $as = $n eq $ni ? '' : " as $t$ni";
