@@ -6,16 +6,20 @@ use warnings;
 
 =head 3
 
-The "download all data" link from quaker.org.nz delivers a spreadsheet
-"all_members.csv" in this format...
+The "download user data" link from quaker.org.nz delivers a spreadsheet
+"all_members.csv" with these fields, *probably* in this order.
 
-uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,show_me_in_young_friends_listing
+(Earlier versions may be missing nz_friends_by_email and last_updated, and
+last_updated may be either a formatted date or a POSIX epoch-second.)
+
+uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,nz_friends_by_email,show_me_in_young_friends_listing,last_updated
 
  uid users_name users_mail family_name first_name uid_of_spouse
  uid_of_children_under_16 monthly_meeting_area formal_membership property_name
  address suburb town postcode country po_box_number rd_no birthdate inactive
  phone_number mobile_number fax website_url receive_local_newsletter_by_post
- nz_friends_by_post show_me_in_young_friends_listing
+ nz_friends_by_post nz_friends_by_email show_me_in_young_friends_listing
+ last_updated
 
 =cut
 
@@ -53,9 +57,12 @@ sub _hash_uid($) {
 sub fix_one($) {
     my $r = shift;
     $r->name or return 0;  # ignore records without names; also force components into {composite_name}
-    $r->{$_} //= '' for qw{ property_name users_mail country mobile_number fax phone_number };
+    $r->{$_} //= '' for qw{ property_name users_mail country mobile_number fax
+                            phone_number receive_local_newsletter_by_post };
     $r->{$_} =~ s/^-$// for qw{ users_mail };
-    $r->{$_} //= 'Maybe' for qw{ show_me_in_young_friends_listing receive_local_newsletter_by_post };
+    # bool fields that were added later
+    $r->{$_} ||= 'No' for qw{ show_me_in_young_friends_listing
+                              nz_friends_by_email };
     $r->{users_mail} && $r->{users_mail} =~ /\@egressive\.com$|\@catalyst\.net\.nz$/ and return 0; # ignore Catalyst/Egressive staff accounts
     #print "Applying QNDB fixup to ", Dumper($r);
 
@@ -303,6 +310,7 @@ sub monthly_meeting_area {
     my $r = shift;
     my @x = $r->{monthly_meeting_area} || ();
     s/Thames and Coromandel/Thames \& Coromandel/ for @x;
+    s/\bWG\b/WT/ for @x;
     (my $xmma = $x[0] || '') =~ s/\s.*//;
     for my $rr ( $r, $r->_spouse_and_parents ) {
         my $m = $rr->{formal_membership} or next;
@@ -317,6 +325,14 @@ sub monthly_meeting_area {
     return uniq sort @x;
 }
 
+sub formal_membership {
+    my $r = shift;
+    my @x = $r->{formal_membership} || ();
+    s/Thames and Coromandel/Thames \& Coromandel/ for @x;
+    s/\bWG\b/WT/ for @x;
+    return uniq sort @x;
+}
+
 sub nz_friends_by_post {
     my $r = shift;
     my @x = $r->{nz_friends_by_post} || ();
@@ -327,9 +343,6 @@ sub nz_friends_by_post {
         if ( $1 ne $xmma || !@x ) {
             push @x, "$1 - Members in other areas";
         }
-      # if ( $m =~ /overseas/ ) {
-      #     ;
-      # }
     }
     return uniq sort @x;
 }
@@ -345,21 +358,7 @@ sub listed_email($) {
                 # - "judezed@hotmail" for the entire Zwanikken clan
                 $_ && !
                 m{ ^$
-                 | ^ \S+\.list     \+\S+ \@ quaker\.org\.nz $
-
-               # | ^ alanreynolds7 \+\S+ \@ gmail\.com      $
-               # | ^ anpjmacgregor \+\S+ \@ xtra\.co\.nz    $
-               # | ^ cmckeogh      \+\S+ \@ waikato\.ac\.nz $
-               # | ^ derek         \+\S+ \@ carver\.net\.nz $
-               # | ^ distrodude    \+\S+ \@ gmail\.com      $
-               # | ^ hall          \+\S+ \@ netmail\.co\.nz $
-               # | ^ janderson351  \+\S+ \@ yahoo\.co\.nz   $
-               # | ^ ken\.couchman \+\S+ \@ clear\.net\.nz  $
-               # | ^ martin\.p     \+\S+ \@ clear\.net\.nz  $
-               # | ^ pbiet         \+\S+ \@ clear\.net\.nz  $
-
-                 | ^ judezed       \+\S+ \@ hotmail\.com    $
-
+                 | ^ \w+\.list     \+\S+ \@ quaker\.org\.nz $
                  |                 \+ \S*hidden\S* \@
                  |                 \+ \S*spouse\S* \@
                  |                 \+ \S*parent\S* \@
@@ -368,14 +367,23 @@ sub listed_email($) {
                  }iox;
             } @a;
     @a = grep {
-                ! m{ \+\S*\@ }iox || m{ \+ \S*shared\S* \@ }iox;
+                ! m{ \+\S*\@ }iox || m{ \+ [^@+]*shared[^@+]* \@ }iox;
             } @a
         if $CSV::Common::only_explicitly_shared_email;
     if ( $CSV::Common::use_care_of ) {
-        # Any addresses marked "shared" are NOT care-of ...
-        s#^([^@]*)\+\S*shared\S*(\@.*)$#$1$2# for @a;
-        # ... but any other marked addresses ARE care-of
-        s#^([^@]*)\+\S*(\@.*)$#c/- $1$2# for @a;
+        for (@a) {
+            if ( s#\+([^@+]*)\@#\@# ) {
+                my $qual = $1;
+                next if $qual eq '' || $qual =~ /shared/;
+                $_ = "c/- $_";
+            }
+          # #
+          # s#^([^@]*)\+(\@.*)$#$1$2# or
+          # # Any addresses marked "shared" are NOT care-of ...
+          # s#^([^@]*)\+[^@+]*shared[^@+]*(\@.*)$#$1$2# or
+          # # ... but any other marked addresses ARE care-of
+          # s#^([^@]*)\+[^@+]+(\@.*)$#c/- $1$2#
+        }
     }
     else {
         s#^([^@]*)\+\S*(\@.*)$#$1$2# for @a;
@@ -406,20 +414,34 @@ sub postal_address($) {
             $r->{X_home_address};
 }
 
-#   sub _notno($) {
-#       my ($_)=@_;
-#       return defined $_ && /^[Yy1]$|^yes$/i;
+    sub _notno($) {
+        my ($x)=@_;
+        return defined $x && $x =~ /^[Yy1]$|^yes$/i;
+    }
+
+sub receive_local_newsletter_by_post($) {
+    my $r = shift;
+    my @x = $r->{receive_local_newsletter_by_post} || ();
+    s/\bWG\b/WT/ for @x;
+    return @x;
+
+#   if (_notno $r->{receive_local_newsletter_by_post} && ($r->{nz_friends_by_post} || !$r->{nz_friends_by_email})) {
+#       return $r->{receive_local_newsletter_by_post};
+#   } else {
+#       return ();
 #   }
+}
 
-#sub receive_local_newsletter_by_post($) {
-#    my $r = shift;
-#    _notno $r->{receive_local_newsletter_by_post};
-#}
+sub receive_local_newsletter_by_email($) {
+    my $r = shift;
+    return qr/.*/;
 
-#sub receive_local_newsletter_by_email($) {
-#    my $r = shift;
-#    _notno $r->{receive_local_newsletter_by_email};
-#}
+#   if (_notno $r->{receive_local_newsletter_by_post} && ($r->{nz_friends_by_email} || !$r->{nz_friends_by_post})) {
+#       return $r->{receive_local_newsletter_by_post};
+#   } else {
+#       return ();
+#   }
+}
 
 sub phone_number { $_[0]->{phone_number} }
 sub mobile_number { $_[0]->{mobile_number} }

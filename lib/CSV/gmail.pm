@@ -69,13 +69,20 @@ my %patch_types = (
     phone => \&normalize_phone,
 );
 
-# GMail list
+# Handle fields with multiple values; apply patches before caching the results.
+my %patchlist = (
+    group_membership => sub {
+        s#\bWG\b#WT# for @{$_[0]};
+    }
+);
+
 sub _list($$) {
     my ($r, $k) = @_;
     my $l = $r->{"LIST_$k"} ||= do {
-            my @q = split ' ::: ', $r->{$k} || '';
-            s# :(:::+) # $1 # for @q;
-            \@q
+            my $q = [split ' ::: ', $r->{$k} || ''];
+            s# :(:::+) # $1 # for @$q;
+            if (my $p = $patchlist{$k}) { $p->($q) }
+            $q
         };
     return @$l if wantarray;
     return $l;
@@ -596,6 +603,11 @@ sub website_url($) {
 sub nz_friends_by_post($) {
     my $r = shift;
     $r->gtags('post NZ Friends') ? 'Yes' : 'No';
+}
+
+sub nz_friends_by_email($) {
+    my $r = shift;
+    $r->gtags('send NZ Friends') ? 'Yes' : 'No';
 }
 
 sub receive_local_newsletter_by_post($) {
