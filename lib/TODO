@@ -1,0 +1,99 @@
+This is a list of ongoing work from the "prod" branch, which will need to be
+manually merge or re-implemented in the new structure.
+
+Change default margins for labels; reduce by approx 3mm each side
+
+Clarify wording of options:
+  - select = select records matching any of these criteria (initially);
+    "--region=XX" notionally is a shorthand for "--select=@listing - XX - *"
+  - skip/include = add or remove criteria from the "exclusions" that apply
+    after the selections
+  - show/hide = choose fields to display or compare
+
+Convert variable names from $hide_* to $show_*; add new options to control the ones
+that don't already have options.
+
+Unify _skip_restricted_record and suppress_unwanted_records -- now just have
+skip_restricted_records that calls _skip_restricted_record on each record.
+(Note that this change will affect some the activities that previously used
+"suppress_unwanted_records" which was a lot less picky; it basically only
+checked for the --skip-* settings.
+Also do pass-by-list rather than pass-by-reference, so that we can use inline
+grep, map, sort, etc.
+
+Add new options (and implement within _skip_restricted_record):
+    --include-children  / --skip-children
+    --include-enquirers / --skip-enquirers
+    --include-inactive  / --skip-inactive
+    --include-roles     / --skip-roles
+They all default to "skip" for printing labels but "include" otherwise.
+
+Remove the "no-region" options; just treat region=NONE as selecting those
+records that don't have a region (and select or exclude them accordingly).  It
+was incorrectly named --hide-no-region, since it should have been
+--skip-no-region. Also treat "YF" as a region.
+
+New handling for labels:
+  - sort adults within household so that prioritized records come first, then
+    members, then attenders, then others
+  - more sophisticated truncation: if there are 1 or 2 people, just print them;
+    if there are more, remove all the children and (if there are 1 or 2 adults and at least 1 child)
+    say "and family". If there are more than 2 adults, look at scaling
+  - implement new record method $r->label_priority, which for gmail records
+    looks at the custom field qdb-priority, which should contain a number
+    (highest number sorts earliest)
+  - fix scaling for evenly_squash_to_fit
+  - fix printable_label_width
+
+PDF::stash
+  - fix rotation in "at", so that it correctly positions the stashed elements by
+    the new rotation.
+
+________________________________________________________________________________
+
+FUTURE WORK:
+
+Currently scaling is done on a whole-of-label basis, and the width is before
+the postcode and so seems to use rather too small a "printable_width".
+Change this so that:
+  - it scales the width of each line independently, and scales the height
+    separately (only when needed)
+  - it is smarter about how much of the label is available; more space except in
+    the line with the postcode.
+  - use the PDF::stash module, which has 'flow' and 'at'; this allows text to be
+    "tried out", then tested for size, and then re-scaled, rotated and placed.
+
+In the PDF::stash module, decide whether to support changing the centre of
+rotation.  See the ideas embodied in the --do-test module, especially the notion
+that a given point servers for both alignment and rotational centre.
+
+Extend it so that it can be recursive: "at" into another stash, rather than
+onto a page.
+
+Extend PDF::stash to support delay rendering of cross references; initially
+just page numbers with a fixed width, and later to whole "at" elements.
+
+Upon creation, link back to the originating record(s); and once rendered onto a
+page, feed the page number to any outstanding "forward" delayed renderers, and
+store it on the original record so it can be applied immediately for any future
+cross references. (The very first version will just apply the latter half:
+stash the page number so that back-references can be rendered immediately.
+
+In some cases, it will be decided whether to render a "full" or "short" record
+(or none at all) depending on whether a backref already exists; in effect,
+choosing the "first" location as the primary.  We might render the pages out of
+order, and use sectional page numbering. Of course, page numbers might be letter
+codes or other things.
+
+For backrefs it will be possible to use flexible spacing so "on this page" or
+"on previous page" might be generated rather than an explicit page number. 
+
+If the delayed component can simply be any modular text that includes a
+cross-reference, then it becomes possible to re-flow the cross-reference text;
+there would need to be extra space reserved "just in case", but that would be
+obscured somewhat by being away from the immediate site of the cross-reference.
+
+It would be useful to have a final sweep to find dangling cross-references.
+
+Use line-drawing to create the mini-labels instructions, and to generate border
+frames for visual alignment checking.
