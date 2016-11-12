@@ -23,18 +23,17 @@
 #           is a function, it will be called once with each value.
 #           (Currently only strings are supported, so it must end with '=s'.)
 #
-#   '+'     The command-line option is permitted multiple times; if given on
-#           the command line, all the assignments will be performed (with the
-#           same value).
+#   '+'     Permit the option to be shared between multiple modules. (Otherwise
+#           it is an error for an option to be defined more than once.)
 #
 #   '#'     Some non-option control follows
 #
 #   '#help' The target is a description string to be used as "help" text when
 #           requested
-#   '#check' or '='
+#   '#check'
 #           The target is a CODE that is invoked after all command-line options
 #           have been processed, but before the rest of main. A number may be
-#           given (like '#check=4' or '=4') to control the order in which such
+#           appended (like '#check=4') to control the order in which such
 #           checks are run.
 #   '#import'
 #           Export the RunOptions function; normally this is exported
@@ -45,9 +44,11 @@
 #           mutually exclusive command-line options; it is an error for more
 #           than one of a group to be given on the command-line.
 #           Additionally, the number of options permitted can be controlled by
-#           including '>min', '<max'.
+#           appending '>min', '<max'.
 #           Or for complete flexibility, a CODE ref can be included in the
 #           list, which will be invoked with the values of all the variables.
+#   '#share'
+#           Treat all options as if they had the '+' prefix
 #
 
 use 5.010;
@@ -137,7 +138,7 @@ sub import {
                 $do_export = 1;
                 carp "Requesting import from $ko" if $debug;
             }
-            elsif ($k eq 'shard') {
+            elsif ($k eq 'share') {
                 $auto_shard = 1;
                 carp "Requesting auto-sharding from $ko" if $debug;
             }
