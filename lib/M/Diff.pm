@@ -10,6 +10,8 @@ package M::Diff;
 
 use POSIX 'strftime';
 
+use Data::Dumper;
+
 use verbose;
 use list_functions qw( max min uniq );
 
@@ -25,7 +27,7 @@ use M::Selection qw(
                      $skip_suppressed_post
                      $skip_unlisted
                      $skip_unsub
-                     skip_restricted_record
+                     skip_restricted_records
                    );
 
 use constant now => [ localtime $^T ];
@@ -155,25 +157,25 @@ sub show_date($) {
     for ( my $z = shift ) {
     s/T\d\d.*//;
     if (my @ymd = m/^(19\d\d|20[01]\d)\W*([012]\d)\W*(\d\d)$/) {
-        warn "Date '$_' with year, ymd=[@ymd]" if $verbose > 3;
+        warn "Date '$_' with year, ymd=[@ymd]" if v 3;
         if ($ymd[0] >= 1900 && $ymd[0] <= this_year && $ymd[1] <= 12 && $ymd[2] <= 31) {
             $_ = (strftime "%d %b %Y", 0,0,0,$ymd[2],$ymd[1]-1,$ymd[0]-1900,0,0)." ($_) (ymd)";
         }
     }
     elsif (my @dmy = m/^(\d\d)([012]\d)(19\d\d|20[01]\d)$/) {
-        warn "Date '$_' with year, dmy=[@dmy]" if $verbose > 3;
+        warn "Date '$_' with year, dmy=[@dmy]" if v 3;
         if ($dmy[2] >= 1900 && $dmy[2] <= this_year && $dmy[1] <= 12 && $dmy[0] <= 31) {
             $_ = (strftime "%d %b %Y", 0,0,0,$dmy[0],$dmy[1]-1,$dmy[2]-1900,0,0)." ($_) (dmy)";
         }
     }
     elsif (my @md = m/^\s*\-\-([012]\d)\-(\d\d)$/) {
-        warn "Date '$_' without year, md=[@md]" if $verbose > 3;
+        warn "Date '$_' without year, md=[@md]" if v 3;
         # day & month without year (GMail-style)
         if ($md[0] <= 12 && $md[1] <= 31) {
             $_ = (strftime "%d %b", 0,0,0,$md[1],$md[0]-1,-120,0,0)." ($_) (xmd)";
         }
     }
-    warn "FIXED date $_" if $verbose > 3;
+    warn "FIXED date $_" if v 3;
     return $_;
     }
 }
@@ -199,9 +201,10 @@ sub _choose_ofields() {
     # 'name' is not required; as it's always printed, separately from the list of fields
     push @ofields, qw( monthly_meeting_area formal_membership inactive ) if $show_status;
     push @ofields, qw( show_me_in_young_friends_listing ) if $show_yf_listing;
-    push @ofields, qw( listed_email phone_number mobile_number fax listed_address postal_address ) if $show_contact_details;
+    push @ofields, qw( listed_email mobile_number phone_number fax listed_address postal_address ) if $show_contact_details;
     push @ofields, qw( receive_local_newsletter_by_post nz_friends_by_post) if $show_send_by_post;
-    push @ofields, qw( receive_local_newsletter_by_email nz_friends_by_email ) if $show_send_by_email;
+    push @ofields, qw( receive_local_newsletter_by_email ) if $show_send_by_email && 0;
+    push @ofields, qw( nz_friends_by_email ) if $show_send_by_email;
                    # Possible additional fields:
                    #   synthesized website_url rd_no po_box_number country postcode
                    #   town suburb address property_name users_name
@@ -215,7 +218,6 @@ sub _choose_ofields() {
 
 sub _dump_one($$$) {
     my ($out, $r, $ofields) = @_;
-    my $ov = $verbose;
     {
         # Fixed fields: name, sort-keys, birthday
         my $v = $r->name || do { warn "UNNAMED RECORD\n" . Dumper($r); '(unknown)' };
@@ -251,12 +253,9 @@ sub _dump_one($$$) {
             @v = $r->{$f} // ();
         }
         elsif ( $f ne 'last_updated' ) {
-            if ($verbose > 1) {
-                warn "Missing field '$f' in $r\n".Dumper($r);
-            }
-            elsif ($verbose) {
-                warn "Missing field '$f' in $r\n";
-            }
+            warn sprintf "Missing field '%s' in %s [%s]\n", $f, $r, join ',', keys %$r if v;
+            #warn Dumper($r) if v 3;
+            @v = "Missing field '$f'";
         }
         @v = grep { defined $_ && "$_" ne '' } @v;
         defined $v[0] or next FIELD;
@@ -302,8 +301,7 @@ sub _dump_one($$$) {
             }
         }
     }
-    print $out Dumper($r) if $verbose > 4 && $debug;
-    $verbose = $ov;
+    print $out Dumper($r) if v 4 && $debug;
 }
 
 ################################################################################
@@ -371,25 +369,26 @@ sub _dump_one($$$) {
 use quaker_info '$mm_keys_re';
 
 {
-    my $C_plain = "\e[49m";
-    my $C_black = "\e[30m";
-    my $C_red = "\e[31m";
-    my $C_green = "\e[32m";
+    my $C_plain  = "\e[39m";
+    my $C_black  = "\e[30m";
+    my $C_red    = "\e[31m";
+    my $C_green  = "\e[32m";
     my $C_yellow = "\e[33m";
-    my $C_blue = "\e[34m";
+    my $C_blue   = "\e[34m";
     my $C_purple = "\e[35m";
-    my $C_cyan = "\e[34m";
-    my $C_white = "\e[37m";
+    my $C_cyan   = "\e[36m";
+    my $C_white  = "\e[37m";
 
-    my $B_plain = "\e[49m";
-    my $B_black = "\e[40m";
-    my $B_red = "\e[41m";
-    my $B_green = "\e[42m";
+    my $B_plain  = "\e[49m";
+    my $B_black  = "\e[40m";
+    my $B_red    = "\e[41m";
+    my $B_green  = "\e[42m";
     my $B_yellow = "\e[43m";
-    my $B_blue = "\e[44m";
+    my $B_blue   = "\e[44m";
     my $B_purple = "\e[45m";
-    my $B_cyan = "\e[44m";
-    my $B_white = "\e[47m";
+    my $B_cyan   = "\e[46m";
+    my $B_white  = "\e[47m";
+
     my $fmt_label = "%-18.18s ";
     my $fmt = "%-32s %-3.3s %s";
 
@@ -433,8 +432,8 @@ use quaker_info '$mm_keys_re';
                             @v = $r->{$f} // ();
                         }
                         elsif ( $f ne 'last_updated' ) {
-                            warn "Missing field '$f' in $r\n" if $verbose;
-                            warn Dumper($r) if $verbose > 2;
+                            warn sprintf "Missing field '%s' in %s [%s]\n", $f, $r, join ',', keys %$r if v;
+                            warn Dumper($r) if v 3;
                             @v = "Missing field '$f'";
                         }
                         @{ $z->[1] } = map { split /\n|(?<=\bc\/-)\s+/, $_ } grep { defined $_ && "$_" ne '' } @v;
@@ -446,16 +445,16 @@ use quaker_info '$mm_keys_re';
                             if (@v1 && @v2) {
                                 # show time-order
                                 if ( $v1[0] eq $v2[0] ) {
-                                    printf "$fmt_label$C_green$fmt$C_plain\n",  $f, $vl1, '', '';
+                                    printf "$C_green$fmt_label$fmt$C_plain\n",  $f, $vl1, '', '';
                                 } elsif ( $v1[0] lt $v2[0] ) {
                                     # left older than right
-                                    printf "$fmt_label$C_green$fmt$C_plain\n",  $f, $vl1, "▷", $vl2;
+                                    printf "$C_green$fmt_label$fmt$C_plain\n",  $f, $vl1, "▷", $vl2;
                                 } else {
                                     # left newer than right
-                                    printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, "◁", $vl2;
+                                    printf "$C_yellow$fmt_label$fmt$C_plain\n", $f, $vl1, "◁", $vl2;
                                 }
                             } else {
-                                    printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, '',  $vl2;
+                                    printf "$C_yellow$fmt_label$fmt$C_plain\n", $f, $vl1, '',  $vl2;
                             }
                         }
                     }
@@ -465,6 +464,8 @@ use quaker_info '$mm_keys_re';
                         }
                         my $said_label;
                         _diff_align { $_[0] ne '' && $_[0] eq $_[1] } @v1, @v2;
+                        $f =~ s#^receive_#rx_#;
+                        $f =~ s#local_newsletter#mm_news#;
                         for my $i ( 0 .. max $#v1, $#v2 ) {
                             my $vl1 = $v1[$i] || '';
                             my $vl2 = $v2[$i] || '';
@@ -473,14 +474,14 @@ use quaker_info '$mm_keys_re';
                                 if ( $vl2 eq '' ) {
                                     printf "$fmt_label$fmt\n", $f, '', 'x', '' if ! $diff_quietly;
                                 } else {
-                                    printf "$fmt_label$C_green$fmt$C_plain\n", $f, "(add)", "→", $vl2;
+                                    printf "$C_green$fmt_label$fmt$C_plain\n", $f, "(add)", "→", $vl2;
                                 }
                             } elsif ( $vl2 eq '' ) {
-                                    printf "$fmt_label$C_red$fmt$C_plain\n", $f, $vl1, "←", "(del)";
+                                    printf "$C_red$fmt_label$fmt$C_plain\n", $f, $vl1, "←", "(del)";
                             } elsif ( $vl1 eq $vl2 ) {
                                 printf "$fmt_label$fmt\n", $f, $vl1, "=", $vl2 if ! $diff_quietly;
                             } else {
-                                printf "$fmt_label$C_yellow$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
+                                printf "$C_yellow$fmt_label$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
                             }
                         }
                     }
@@ -512,14 +513,14 @@ sub generate_diff($$$$$) {
     $in1 ||= '(stdin)';
     $in2 ||= '(stdin)';
 
-    warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if $verbose;
+    warn sprintf "DIFF: comparing %u record from %s with %u records from %s\n", scalar @$rr1, $in1, scalar @$rr2, $in2 if v;
     my @ofields = _choose_ofields;
 
-    my @rr1 = preferred_sort grep { ! skip_restricted_record $_ } @$rr1;
+    my @rr1 = preferred_sort skip_restricted_records @$rr1;
     my @n1 = map { $_->name . '' } @rr1; my %kn1; @kn1{@n1} = 0 .. $#n1;
     my @u1 = map { $_->uid } @rr1;       my %ku1; @ku1{@u1} = 0 .. $#u1;
 
-    my @rr2 = preferred_sort grep { ! skip_restricted_record $_ } @$rr2;
+    my @rr2 = preferred_sort skip_restricted_records @$rr2;
     my @n2 = map { $_->name . '' } @rr2; my %kn2; @kn2{@n2} = 0 .. $#n2;
     my @u2 = map { $_->uid } @rr2;       my %ku2; @ku2{@u2} = 0 .. $#u2;
 
@@ -579,17 +580,17 @@ sub diffably_dump_records($$;$) {
     my $rr = shift;
     my $in_name = shift || '(stdin)';
 
-    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
+    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if v;
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
-    @records = preferred_sort @records;
+    @records = preferred_sort skip_restricted_records @records;
     RECORD: for my $r (@records) {
-        skip_restricted_record $r and do {
-            warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if $verbose > 2;
-            next RECORD;
-        };
+      # if ( skip_restricted_record $r ) {
+      #     warn sprintf "DUMP: skipping #%s (%s)\n", $r->{__source_line}, $r->{name} // '' if v 2;
+      #     next RECORD;
+      # }
         print $out "\n";
         _dump_one $out, $r, \@ofields;
     }
@@ -607,17 +608,17 @@ sub birthday_dump_records($$;$) {
     my $rr = shift;
     my $in_name = shift || '(stdin)';
 
-    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if $verbose;
+    warn sprintf "DUMP: dumping %u records from %s\n", scalar @$rr, $in_name if v;
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out;
     my @ofields = _choose_ofields;
     my @records = @$rr;
-    @records = preferred_sort @records;
+    @records = preferred_sort skip_restricted_records @records;
     RECORD: for my $r (@records) {
-        if ($r->can('gtags') && $r->gtags('suppress birthday') || skip_restricted_record $r ) {
-            warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if $verbose > 2;
-            next RECORD;
-        }
+      # if ( skip_restricted_record $r ) {
+      #     warn sprintf "BIRTHDAY: skipping %s\n", $r->debuginfo if v 2;
+      #     next RECORD;
+      # }
 
         my $name = $r->name;
         if (!$name ) {
@@ -626,27 +627,27 @@ sub birthday_dump_records($$;$) {
         }
         my $bd = $r->birthdate;
         if (!$bd) {
-            warn sprintf "BIRTHDAY: date not recorded %s\n", $r->debuginfo if $verbose > 2;
+            warn sprintf "BIRTHDAY: date not recorded %s\n", $r->debuginfo if v 2;
             next RECORD;
         }
         my ( $y, $m, $d, $ymd ) = ( $1, $2, $3, "$1$2$3" )
             if $bd =~ m#^(\d{4})\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#
             || $bd =~ m#^()\W*(\d{2})\W*(\d{2})(?:T[:0-9]{8}|\W*)$#;
         if ( ! $ymd ) {
-            warn sprintf "BIRTHDAY: not valid date %s\n", $r->debuginfo if $verbose > 2;
+            warn sprintf "BIRTHDAY: not valid date %s\n", $r->debuginfo if v 2;
             next RECORD;
         }
         if ($r->can('gtags') && $r->gtags("suppress birthday")) {
-            warn sprintf "BIRTHDAY: suppressing %s\n", $r->debuginfo if $verbose > 2;
+            warn sprintf "BIRTHDAY: suppressing %s\n", $r->debuginfo if v 2;
             next RECORD;
         }
         if ( ! $show_adult_birthdays && $ymd le sixteen_years_ago ) {
-            warn sprintf "BIRTHDAY: not-child %s\n", $r->debuginfo if $verbose > 2;
+            warn sprintf "BIRTHDAY: not-child %s\n", $r->debuginfo if v 2;
             next RECORD
         }
         my $emails = join ",", uniq $r->listed_email;
         if (!$emails && $skip_emailless) {
-            warn sprintf "BIRTHDAY: email not recorded %s\n", $r->debuginfo if $verbose > 2;
+            warn sprintf "BIRTHDAY: email not recorded %s\n", $r->debuginfo if v 2;
             next RECORD;
         }
 
