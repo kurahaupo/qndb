@@ -8,6 +8,12 @@ use utf8;
 
 package M::PostageLabels;
 
+our $do_labels = 0;
+
+use export qw( $do_labels );
+
+<<'__IGNORE__' || die;
+
 use Data::Dumper;
 
 use M::IO qw( _open_output _close_output );
@@ -68,23 +74,17 @@ use M::Selection qw(
                      $skip_suppressed_listing
                      $skip_suppressed_post
                      $skip_unsub
-                     &sort_by_givenname
-                     &sort_by_surname
+                     group_people_into_households
+                     skip_restricted_records
+                     sort_by_givenname
+                     sort_by_surname
                    );
 
 ########################################
 # Label formatting options
 
-our $do_labels = 0;
-
 my $show_tiny_labels = 1;
-my $use_cropbox = 0;
 my $evenly_squash_to_fit = 0;
-
-my $label_left_margin = 1*mm;
-my $label_right_margin = 1*mm;
-my $label_bottom_margin = 4*mm;
-my $label_top_margin = 4*mm;
 
 my $label_fontname = 'Helvetica';
 my $label_fontsize = 12*pt;
@@ -94,25 +94,30 @@ my $label_banner_font = 'Helvetica';
 my $label_banner_scale = PHI;
 my $label_banner_colour = 'orange';
 
-my $label_width;
-my $label_height;
-my $label_step_across;
-my $label_step_down;
-my $num_labels_across = 2;
-my $num_labels_down = 4;
 my $labels_ordered_in = 'columns';
 
-use PDF::paginator qw(
-                       $line_spacing
-                       $page_bottom_margin
-                       $page_height
-                       $page_left_margin
-                       $page_right_margin
-                       $page_size
-                       $page_top_margin
-                       $page_width
-                       $paper_sizes
-                     );
+my $page_config;
+
+#   $page_top_margin
+#   $page_bottom_margin
+#   $page_left_margin
+#   $page_right_margin
+#
+#   $num_labels_across
+#   $num_labels_down
+#   $label_top_margin
+#   $label_bottom_margin
+#   $label_left_margin
+#   $label_right_margin
+#
+#   $label_printable_width
+#   $label_printable_height
+#   $label_step_across
+#   $label_step_down
+
+use PDF::paper_options qw( get_page_configuration );
+
+my $line_spacing = 1.25;      # ratio of font-size to line-pitch
 
 use Label::common \($evenly_squash_to_fit, $label_banner_font,
                     $label_banner_colour, $label_banner_scale,
@@ -127,60 +132,6 @@ use Label::map_items \($label_bottom_margin, $label_fontname, $label_height,
                        $line_spacing, $num_labels_across, $num_labels_down);
 use Label::count::total;
 use Label::recipient;
-
-    sub suppress_unwanted_records($) {
-        my $rr = shift;
-        if ( @$rr && $rr->[0]->can('gtags') ) {
-            my @rr = @$rr;
-            my @skips;
-            push @skips, 'archive - deceased'     if $skip_deceased;
-            push @skips, 'archive - unsubscribed' if $skip_unsub;
-            push @skips, 'meetings'               if $skip_meetings;
-            push @skips, 'suppress listing'       if $skip_suppressed_listing;
-            push @skips, 'newsletters-only'       if $skip_newsletters_only;
-            push @skips, 'suppress email'         if $skip_suppressed_email;
-            push @skips, 'suppress post'          if $skip_suppressed_post;
-            push @skips, 'explanatory texts';
-            @rr = grep { ! $_->gtags(@skips) } @rr if @skips;
-            @rr = grep { ! $_->gtags(qr/^archive - /) } @rr if $skip_archived;
-            $rr = \@rr;
-        }
-        return $rr;
-    }
-
-    sub group_people_into_households($) {
-        my $rr = shift;
-        $rr = suppress_unwanted_records $rr;
-        @$rr or return [];
-        if ( $rr->[0]->can('gtags') ) {
-            my %households;
-            my $z = 0;
-            for my $r (@$rr) {
-                my $a = $r->postal_address or next;
-                $a .= '__SPLIT_POST__'.++$z if $r->gtags('split post');
-                push @{$households{$a}}, $r;
-            }
-            return [ values %households ]
-        }
-        elsif ( $rr->[0]->can('uid') ) {
-            my @households;
-            my $unique_id = 0;
-            my %s;
-            for my $r (@$rr) {
-                $s{$r->uid} and next;
-                $r->{XREF_parents} and next;
-                my @h = $r;
-                push @h, $r->{"XREF_spouse"} if $r->{"XREF_spouse"};
-                push @h, @{ $r->{"XREF_children"} } if $r->{"XREF_children"};
-                $s{$_->uid}++ for @h;
-                push @households, \@h;
-            }
-            return \@households;
-        }
-        else {
-            die "Can't group households of $rr->[0]";
-        }
-    }
 
 sub generate_labels($$;$) {
     my $out = shift;
@@ -353,48 +304,10 @@ sub generate_labels($$;$) {
         @summary_labels = ();
     }
 
-    my $pq = new PDF::paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
-    my $display_page_width = $pq->{page_width};
-    my $display_page_height = $pq->{page_height};
-    my ($display_page_size) = (
-        $page_size || (),
-        (                grep { my $ps = $paper_sizes->{$_}; near $display_page_width, $ps->[1], 200 and near $display_page_height, $ps->[0], 200 } keys %$paper_sizes ),
-        ( map { $_.'R' } grep { my $ps = $paper_sizes->{$_}; near $display_page_width, $ps->[0], 200 and near $display_page_height, $ps->[1], 200 } keys %$paper_sizes ),
-        ( sprintf "custom[%.2f × %.2f mm]", $display_page_height/mm, $display_page_width/mm ),
-    );
+    my $pq = new PDF::paginator:: ( page_size => [$page_config->{page_width}, $page_config->{page_height}] );
 
-    my $x_start = $label_left_margin + $page_left_margin;
-    my $y_start = $label_top_margin  + $page_top_margin ;
-
-    {
-    my $printable_page_height = $display_page_height - $page_top_margin - $page_bottom_margin;
-    my $printable_page_width  = $display_page_width  - $page_left_margin - $page_right_margin;
-
-    $num_labels_across ||= $printable_page_width  / ($label_step_across || $label_width);
-    $num_labels_down   ||= $printable_page_height / ($label_step_down   || $label_height);
-
-    $label_step_across ||= $printable_page_width  / $num_labels_across || $label_height + $label_top_margin + $label_bottom_margin;
-    $label_step_down   ||= $printable_page_height / $num_labels_down   || $label_width  + $label_left_margin + $label_right_margin;
-
-    $label_height ||= $label_step_down   -  $label_top_margin - $label_bottom_margin;
-    $label_width  ||= $label_step_across -  $label_left_margin - $label_right_margin;
-
-    warn sprintf "First Page\n"
-               . " page size: %.2fmm × %.2fmm (w×h) (%s)\n"
-               . " printable: %.2fmm × %.2fmm (w×h)\n"
-               . " labels/page: %d × %d (a×d)\n"
-               . " label size: %.2fmm × %.2fmm (w×h)\n"
-               . " label step: %.2fmm × %.2fmm (a×d)\n"
-               . " offset: %.2fmm × %.2fmm (a×d)\n"
-               ,
-                $display_page_width/mm, $display_page_height/mm, $display_page_size,
-                $printable_page_width/mm, $printable_page_height/mm,
-                $num_labels_across, $num_labels_down,
-                $label_width/mm, $label_height/mm,
-                $label_step_across/mm, $label_step_down/mm,
-                $x_start/mm, $y_start/mm,
-        if $verbose;
-    }
+    my $x_start = $page_config->{start_x};
+    my $y_start = $page_config->{start_y} ;
 
     my $printable_label_width  = $label_width  - $label_left_margin - $label_right_margin;
     my $printable_label_height = $label_height - $label_top_margin  - $label_bottom_margin;
@@ -414,13 +327,8 @@ sub generate_labels($$;$) {
             $col  = $label_on_page        % $num_labels_across;
             $row  = ($label_on_page-$col) / $num_labels_across;
         }
-        my $top  = $display_page_height - $y_start - $label_step_down   * $row;
-        my $left =                $x_start + $label_step_across * $col;
-        if ($use_cropbox) {
-            my $right = $left + $printable_label_width;
-            my $bottom = $top - $printable_label_height;
-            $pq->pdf->cropbox($left, $bottom, $right, $top);
-        }
+        my $top  = $pq->{page_height} - $y_start - $label_step_down   * $row;
+        my $left =                      $x_start + $label_step_across * $col;
 
         warn sprintf "Page %u label %u -> row %u/%u column %u/%u\n",
                     $pq->pages,
@@ -444,15 +352,11 @@ sub generate_labels($$;$) {
 sub use_preset {
     my $pt = pop;
 
-    state $x = warn Dumper($paper_sizes) if $verbose > 4 && $debug;
-
     state $page_product = {
-      # ( map { ( $_     => { num_labels_across => 2, num_labels_down => 3, } ) } keys %$paper_sizes ),
-      # ( map { ( $_.'R' => { num_labels_across => 3, num_labels_down => 2, } ) } keys %$paper_sizes ),
+      # ( map { ( $_     => { num_labels_across => 2, num_labels_down => 3, } ) } keys %paper_sizes ),
+      # ( map { ( $_.'R' => { num_labels_across => 3, num_labels_down => 2, } ) } keys %paper_sizes ),
 
         'avery-l7160' => {
-                num_across           => 3,
-                num_down             => 7,
                 ordered_in           => 'columns',
             },
 
@@ -463,10 +367,8 @@ sub use_preset {
     my $p = $page_product->{$pt} || return; #die "Unknown label or paper product '$pt'\nAvailable presets are @{[sort keys %$page_product]}\n";
     (
         $num_labels_across, $num_labels_down, $labels_ordered_in,
-        $label_top_margin, $label_bottom_margin, $label_left_margin, $label_right_margin,
     ) = @$p{qw{
         num_across num_down ordered_in
-        label_top_margin label_bottom_margin label_left_margin label_right_margin
     }};
 }
 
@@ -496,6 +398,8 @@ use run_options (
                                         1;
                                     },
 
+    '#check=9'                      => sub { $page_config = get_page_configuration },
+
     '#help-labels'                  => <<EndOfHelp,
 label-options (with --labels):
     --preset={avery-l7160|...}
@@ -517,5 +421,7 @@ EndOfHelp
 );
 
 use export qw( generate_labels $do_labels );
+
+__IGNORE__
 
 1;

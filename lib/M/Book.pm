@@ -17,6 +17,7 @@ use verbose;
 
 use math_constants qw[ PHI ];
 use list_functions qw[ max min uniq ];
+use phone_functions qw[ localize_phone ];
 use quaker_info qw(
                     $mm_keys_re
                     @mm_order
@@ -39,6 +40,7 @@ use M::Selection qw(
                      &sort_by_surname
                      $skip_newsletters_only
                      $skip_suppressed_listing
+                     skip_restricted_records
                    );
 use M::Selection qw( $skip_suppressed_post );
 
@@ -116,14 +118,15 @@ use run_options (
 
    '+preset=s'                      => \&use_preset,
 
-    '#check'                        => sub {  $book_sort_by_surname //= ! $book_sort_by_givenname;
+    '#check=9'                      => sub {  $book_sort_by_surname //= ! $book_sort_by_givenname;
                                               $do_book ||= $do_book_index_by_wg
-                                                              || $do_book_index_by_mm
-                                                              || $do_book_index_all
-                                                              || $do_book_listing_by_wg
-                                                              || $do_book_listing_by_mm
-                                                              || $do_book_listing_all
-                                                              || 0;
+                                                        || $do_book_index_by_mm
+                                                        || $do_book_index_all
+                                                        || $do_book_listing_by_wg
+                                                        || $do_book_listing_by_mm
+                                                        || $do_book_listing_all
+                                                        || 0;
+                                              # sequence this check near the end, after --{skip,include}-{newsletters-only,suppressed-listing} have been handled by M::Select
                                               $skip_newsletters_only   //= $do_book;
                                               $skip_suppressed_listing //= $do_book;
                                               1;
@@ -337,7 +340,7 @@ sub generate_book($$;$) {
 
     my $copyright = sprintf "Compilation copyright ©%u The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised %s", $rev_year, $rev_dmmy;
 
-    my $rr = suppress_unwanted_records $rr0;
+    my $rr = [ skip_restricted_records @$rr0 ];
     @$rr = grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } @$rr;
 
     my %by_mm;

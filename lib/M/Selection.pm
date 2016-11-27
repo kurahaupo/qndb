@@ -120,10 +120,11 @@ sub skip_restricted_record($) {
             push @skips, 'archive - deceased'     if $skip_deceased && !$skip_archived;
             push @skips, 'archive - unsubscribed' if $skip_unsub    && !$skip_archived;
             push @skips, 'meetings'               if $skip_meetings;
-            push @skips, 'suppress listing'       if $skip_suppressed_listing;
             push @skips, 'newsletters-only'       if $skip_newsletters_only;
+            push @skips, 'suppress listing'       if $skip_suppressed_listing;
             push @skips, 'suppress email'         if $skip_suppressed_email;
             push @skips, 'suppress post'          if $skip_suppressed_post;
+            push @skips, 'explanatory texts';
             \@skips;
         };
         if ( @$skips && $r->gtags(@$skips) ) {
@@ -194,10 +195,82 @@ sub skip_restricted_record($) {
     return 0;
 }
 
+sub skip_restricted_records(@) {
+    grep { ! skip_restricted_record $_ } @_
+}
+
+sub suppress_unwanted_records($) {
+    my $rr = shift;
+    if ( @$rr && $rr->[0]->can('gtags') ) {
+        my @rr = @$rr;
+        my @skips;
+        push @skips, 'archive - deceased'     if $skip_deceased;
+        push @skips, 'archive - unsubscribed' if $skip_unsub;
+        push @skips, 'meetings'               if $skip_meetings;
+        push @skips, 'suppress listing'       if $skip_suppressed_listing;
+        push @skips, 'newsletters-only'       if $skip_newsletters_only;
+        push @skips, 'suppress email'         if $skip_suppressed_email;
+        push @skips, 'suppress post'          if $skip_suppressed_post;
+        push @skips, 'explanatory texts';
+        @rr = grep { ! $_->gtags(@skips) } @rr if @skips;
+        @rr = grep { ! $_->gtags(qr/^archive - /) } @rr if $skip_archived;
+        $rr = \@rr;
+    }
+    return $rr;
+}
+
+sub group_people_into_households($) {
+    my $rr = shift;
+    $rr = suppress_unwanted_records $rr;
+    @$rr or return [];
+    if ( $rr->[0]->can('gtags') ) {
+        my %households;
+        my $z = 0;
+        for my $r (@$rr) {
+            my $a = $r->postal_address or next;
+            $a .= '__SPLIT_POST__'.++$z if $r->gtags('split post');
+            push @{$households{$a}}, $r;
+        }
+        return [ values %households ]
+    }
+    elsif ( $rr->[0]->can('uid') ) {
+        my @households;
+        my $unique_id = 0;
+        my %s;
+        for my $r (@$rr) {
+            $s{$r->uid} and next;
+            $r->{XREF_parents} and next;
+            my @h = $r;
+            push @h, $r->{"XREF_spouse"} if $r->{"XREF_spouse"};
+            push @h, @{ $r->{"XREF_children"} } if $r->{"XREF_children"};
+            $s{$_->uid}++ for @h;
+            push @households, \@h;
+        }
+        return \@households;
+    }
+    else {
+        die "Can't group households of $rr->[0]";
+    }
+}
+
 use export qw(
+    $postal_control_tag
     $skip_archived
     $skip_deceased
-    skip_restricted_record
+    $skip_meetings
+    $skip_newsletters_only
+    $skip_suppressed_email
+    $skip_suppressed_listing
+    $skip_suppressed_post
+    $skip_unlisted
+    $skip_unsub
+    @inclusion_labels
+    @inclusion_tags
+    @selection_tags
+    group_people_into_households
+    skip_restricted_records
+    sort_by_givenname
+    sort_by_surname
 );
 
 ########################################
