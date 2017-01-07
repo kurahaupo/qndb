@@ -52,15 +52,17 @@ for x do
     (reminder)          inc+=(     --optional-include='reminder note=!post reminder'        ) ;;
     (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
     (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
-    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ;;
+    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ; opts+=( --output-mkdir=1 ) ;;
     (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
     esac
 done
 
 if (( ask ))
 then
-    askyn 'Keep PDF' &&
+    askyn 'Keep PDF' && {
         printf -v postlabels '%sQuakers/mailout/%(%Y%m/postlabels-%Y%m%d%H%M)T.pdf' "${HOME:+$HOME/}" -1
+        opts+=( --output-mkdir=1 )
+    }
     printf ' * Labels will be written to \e[33;1m%s\e[39;0m\n' "$postlabels"
 
     printf 'Which recipients:\n'

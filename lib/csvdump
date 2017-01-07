@@ -8,6 +8,7 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin", "$FindBin::Bin/../lib";
 
+use Errno qw( ENOENT );
 use Fcntl qw( SEEK_CUR SEEK_SET );
 use POSIX qw(strftime);
 use Data::Dumper;
@@ -270,6 +271,7 @@ my $hide_yf_listing = 0;
 # Generic Text output options
 my $output_bom = 0;
 my $output_crlf;
+my $output_mkdir;
 
 ########################################
 # Generic PDF output options (shared between labels and book generation)
@@ -474,6 +476,8 @@ GetOptions
     'optional-include=s'          => II {                              push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
     'output-bom|bom!'             => \$output_bom,
     'output-crlf|crlf!'           => \$output_crlf,
+    'output-mkdir|mkdir:i'        => sub { $output_mkdir = $_[1] || 99 },
+    'no-output-mkdir|no-mkdir'    => N$output_mkdir,
     'output|o=s'                  => \$output_name,
     'page-height|ph=s'            => sub { $page_size = undef; $page_height = as_points pop },
     'page-numbering!'             => \$use_page_numbers,
@@ -1015,15 +1019,27 @@ sub parse_file($) {
     return \@records;
 }
 
-    sub _open_output($;$) {
+    sub _open_output($;$$) {
         my $output = shift;
         my $raw = shift;
+        my $mkdir = shift // $output_mkdir;
         my @binmode = $raw ? () : @wr_binmode;
         my @bom     = $raw ? () : @wr_bom;
         flush STDOUT;
         flush STDERR;
         if ($output && ! ref $output && $output ne '-') {
             $force_overwrite || ! -e $output or die "Output file '$output' already exists; use --force-overwrite\n";
+            if ($mkdir) {
+                my @dir;
+                for ( my $dir = $output =~ s#/[^/]*$##r
+                    ; @dir < $mkdir && $dir !~ m{^/*$} && ! -d $dir
+                    ; $dir =~ s#/+[^/]*$## ) {
+                    push @dir, $dir;
+                }
+                while (my $dir = pop @dir) {
+                    mkdir $dir, 0755 or die "Can't create directory $dir; $!\n";
+                }
+            }
             open my $outx, ">@binmode", $output or die "Can't create $output; $!\n";
             print $outx @bom if @bom;
             return $outx, $output, 1;
