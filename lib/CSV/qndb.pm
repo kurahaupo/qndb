@@ -9,6 +9,27 @@ use warnings;
 The "download all data" link from quaker.org.nz delivers a spreadsheet
 "all_members.csv" in this format...
 
+Updated version from MyDropWizard:
+uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,nz_friends_by_email,show_me_in_young_friends_listing,changed
+
+ uid users_name users_mail family_name first_name uid_of_spouse
+ uid_of_children_under_16 monthly_meeting_area formal_membership property_name
+ address suburb town postcode country po_box_number rd_no birthdate inactive
+ phone_number mobile_number fax website_url receive_local_newsletter_by_post
+ nz_friends_by_post nz_friends_by_email show_me_in_young_friends_listing
+ changed
+
+Last version from Catalyst:
+uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,nz_friends_by_email,show_me_in_young_friends_listing,last_updated
+
+ uid users_name users_mail family_name first_name uid_of_spouse
+ uid_of_children_under_16 monthly_meeting_area formal_membership property_name
+ address suburb town postcode country po_box_number rd_no birthdate inactive
+ phone_number mobile_number fax website_url receive_local_newsletter_by_post
+ nz_friends_by_post nz_friends_by_email show_me_in_young_friends_listing
+ last_updated
+
+Original version circa 2014:
 uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,show_me_in_young_friends_listing
 
  uid users_name users_mail family_name first_name uid_of_spouse
@@ -21,6 +42,8 @@ uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_u
 
 package CSV::qndb;
 use parent 'CSV::Common';
+
+use POSIX 'strftime';
 
 use verbose;
 use phone_functions 'normalize_phone';
@@ -332,6 +355,33 @@ sub nz_friends_by_post {
       # }
     }
     return uniq sort @x;
+}
+
+sub nz_friends_by_email {
+    my $r = shift;
+    my @x = $r->{nz_friends_by_email} || ();
+    (my $xmma = $x[0] || '') =~ s/\s.*//;
+    for my $rr ( $r, $r->_spouse_and_parents ) {
+        my $m = $rr->{nz_friends_by_email} or next;
+        $m =~ m{^($mm_keys_re) }o or next;
+        if ( $1 ne $xmma || !@x ) {
+            push @x, "$1 - Members in other areas";
+        }
+      # if ( $m =~ /overseas/ ) {
+      #     ;
+      # }
+    }
+    return uniq sort @x;
+}
+
+sub last_updated {
+    my $r = shift;
+    my $c = $r->{last_updated} || $r->{changed};
+    if ($c && $c =~ /^\d+$/ && $c >= 1000000000) {
+        local $ENV{TZ} = 'NZ';
+        $c = strftime "%Y-%m-%d %T", localtime $c;
+    }
+    return $c // ();
 }
 
 sub listed_email($) {
