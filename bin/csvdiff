@@ -28,9 +28,10 @@ temp=/tmp/csvdiff_$$.
 
 while (($#)) ; do
     case $1 in
-    (--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
+    (--verbose=*|--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
     (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
 
+    (--verbose)                 dump_opts+=("$1" "$2") ; shift ;;
     (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
     (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
     (--today)                   day_offsets+=( 0 ) ;;
