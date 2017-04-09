@@ -952,7 +952,7 @@ sub parse_file($) {
             $r0->[0] =~ s/^\x{feff}// and warn "Ignoring leading BoM in $in_name\n";            # ignore Byte-Order-Mark
             $r0->[0] =~ s/^!// and warn "Ignoring leading ! in $in_name\n";     # a leading "!" may be used to force headers to sort to beginning of file
             if ($r0->[0] =~ /^%/) {
-                $filetype = PDF::adhoc2::;
+                $filetype = CSV::adhoc2::;
                 # There is no "header row" as such, so the first row is actually structured data...
                 $filetype->new(undef, $r0);
             }
@@ -990,6 +990,10 @@ sub parse_file($) {
     warn sprintf "READ: parsed %u records from %u lines in %s\n", scalar(@records), $num_lines, $in_name if $verbose;
     warn sprintf "READ: file position now at %#x in %s\n", tell($in), $in_name if $verbose > 1;
     close $in or die "Error while reading $in_name; $!\n";
+
+    if (UNIVERSAL::can($filetype, 'foldrows')) {
+        $filetype->foldrows(\@records)
+    }
 
     RECORD: for my $r ( @records ) {
         if ( $r->{ZREF_parents} || $r->{ZREF_children} ) {
@@ -1603,7 +1607,10 @@ sub diffably_dump_records($$;$) {
     my @records = preferred_sort skip_unwanted_records @$rr;
     RECORD: for my $r (@records) {
         print $out "\n";
+        eval {
         _dump_one $out, $r, \@ofields;
+        1;
+        } or warn "Could not dump ".Dumper($r)."\n\t$@";
     }
     _close_output $out, $out_name, $close_when_done;
 }

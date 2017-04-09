@@ -12,7 +12,7 @@ up each entry onto a single line; tab-delimited
 
 =cut
 
-package PDF::adhoc2;
+package CSV::adhoc2;
 use parent 'CSV::Common';
 
 use Carp 'croak';
@@ -26,6 +26,10 @@ use list_functions qw( flatten uniq );
 use quaker_info;
 use verbose;
 
+my $xdebug = 0;
+
+my %special_tag = qw( post 1 postal 1 street 1 home 1 mobile 1 office 1 );
+
 sub new($\@\@) {
     my ($class, $headers, $ra) = @_;
     @$ra = grep { $_ } @$ra;
@@ -33,17 +37,25 @@ sub new($\@\@) {
 
     state %headers;
 
-    if ($ra->[0] =~ s/^%//) {
-        $headers{lc $ra->[0]} = $ra->[1];
+    if ($ra->[0] =~ s/^%(.*)/\L$1/) {
+        $headers{$ra->[0]} = $ra->[1];
+        warn sprintf "Recorded tag[%s]=%s", @$ra if $verbose > 1;
         warn "STATE ".::Dumper(\%headers) if $verbose > 4;
         return ();
+    }
+
+    if ($headers{skip}) {
+        if ($headers{skip} =~ /^\d\+/) {
+            $headers{skip}-- or $verbose && warn "Last line of %SKIP at line $.\n";
+        }
+        return ()
     }
 
     my $yf = 'No';
     my $wg = $headers{wg} || croak "Data record before first '%wg' record\n".::Dumper(\%headers);
     if ( $wg eq 'YF' ) { undef $wg; $yf = 'Yes' }
     my %family = (
-                __source_line => $. - 1,
+                __source_line => $. - 2,
                 monthly_meeting_area => $wg,
                 show_me_in_young_friends_listing => $yf,
             );
@@ -53,7 +65,7 @@ sub new($\@\@) {
     my @parents;
     my @children;
 
-    my $xdebug = 0 && grep {/Armstrong/} @$ra;
+    #my $xdebug = grep {/Leach/} @$ra;
     warn ::Dumper($ra) if $xdebug;
 
     for my $f (@$ra) {
@@ -112,7 +124,7 @@ sub new($\@\@) {
             next;
         }
 
-        my $cp = $tag && ($members{$tag} || do { warn "Tag '$tag' in #$family{__source_line} doesn't refer to a person\n" if $verbose; (); }) || $part;
+        my $cp = $tag && ($special_tag{$tag} || $members{$tag} || do { warn "Tag '$tag' in #$family{__source_line} doesn't refer to a person\n" if $verbose; (); }) || $part;
 
         if ( $f =~ /^\S+\@\S+$/ ) {
             push @{$cp->{listed_email}}, $f;
@@ -130,8 +142,10 @@ sub new($\@\@) {
         if ( (my $n = $f) =~ s{\s*\((xx|\d\d)/(xx|\d\d)/(\d\d\d\d|\d\d)\)\s*(.*)}{}x ) {
             my ($d,$m,$y,$q) = ($1,$2,$3,$4);
             warn "CHILD [$f] -> name=[$n] date=$1/$2/$3 extra=[$4]\n" if $xdebug;
-            $y += int(this_year/100)*100 if $y < 100;
-            $y -= 100 if $y > this_year;  # born in previous century
+            if ($y < 100) {
+                $y += int(this_year/100)*100;
+                $y -= 100 if $y > this_year;  # born in previous century
+            }
             my @np = split /\s*\+\s*/, $n, -1;
             @np = split /\s+/, $n if @np < 2;
             my $sn;
@@ -188,6 +202,7 @@ sub new($\@\@) {
                 my $sn;
                 if (@np >= 2) {
                     if ($i == 0) {
+                        # first name has surname first
                         $sn = shift @np;
                         if ($name_suffix && !$name_middle && $name_suffix !~ /^\(ex |^\(nee |^\(née /) {
                             $name_middle = $name_suffix;
@@ -195,6 +210,7 @@ sub new($\@\@) {
                         }
                     }
                     else {
+                        # others have firstname-surname
                         $sn = pop @np;
                     }
                 }
@@ -244,10 +260,10 @@ sub new($\@\@) {
         my $sort_by_givenname = lc join ' ', grep { $_ } $gn, $sn;
         my $sort_by_surname   = lc join ' ', grep { $_ } $sn, $gn;
         my $n = new string_with_components:: $clean_name,
-                                                            family_name       => $sn,
-                                                            given_name        => $gn,
-                                                            sort_by_surname   => $sort_by_surname,
-                                                            sort_by_givenname => $sort_by_givenname;
+                                                family_name       => $sn,
+                                                given_name        => $gn,
+                                                sort_by_surname   => $sort_by_surname,
+                                                sort_by_givenname => $sort_by_givenname;
         $m->{composite_name} = $n;
         $m->_make_name_sortable($n);
     }
@@ -262,7 +278,101 @@ sub new($\@\@) {
         }
     }
     print "parsed WordDoc line:\n", ::Dumper({ A_line => $., B_data => $ra, C_parents => \@parents, D_children => \@children, E_family => \%family, E_members => \%members }) if $verbose > 3;
+    if (my @faulty = grep { ! ref $_ || ! scalar %$_ } @parents, @children) {
+        warn sprintf "RECORD: %d faulty records\n", scalar @faulty;
+    }
     return @parents, @children;
+}
+
+sub _isarray($) {
+    my $v = shift;
+    return  #$v &&
+            UNIVERSAL::isa($v, 'ARRAY') &&
+            eval { $v == \@$v };
+}
+
+sub _relatives($) {
+    my $r = shift;
+    my @r;
+    for my $k (qw( XREF_spouse ZREF_parents ZREF_children )) {
+        my $v = $r->{$k} // next;
+        if (_isarray($v)) {
+            for my $i ( 0 .. $#{$r->{$k}} ) {
+                push @r, \($r->{$k}[$i]);
+            }
+        } else {
+            push @r, \($r->{$k});
+        }
+    }
+    return @r;
+}
+
+sub foldrows($\@) {
+    my ($class, $records) = @_;
+    if (my @faulty = grep { ! ref $_ || ! scalar %$_ } @$records) {
+        warn sprintf "PRE-FOLD: %d faulty records\n", scalar @faulty;
+    }
+    my %records;
+    my $migrate;
+    $migrate = sub {
+        my $r = shift || die "Null";
+        my $rn = "$r";
+        my $kr = $r->{composite_name}{sort_by_surname};
+        my $o = $records{$kr};
+        if ($o && $o == $r) { return $o }
+        if (!$o) {
+            $records{$kr} = $r;
+            warn sprintf "Stashed %s\n", $kr if $xdebug;
+        } else {
+            my $on = "$o";
+            warn sprintf "Unified %s %s %s\n", $kr, $on, $rn if $xdebug;
+            for my $t ( uniq keys %$r, keys %$o ) {
+                if ($t eq 'uid' || $t =~ /^__/) { next }
+                my $ar = _isarray($r->{$t});
+                my $ao = _isarray($o->{$t});
+                if ( $ar || $ao ) {
+                    # sub-array
+                    if ( $ar && $ao ) {
+                        for my $z ( @{$r->{$t}} ) {
+                            if ( ! grep { $z eq $_ } @{$o->{$t}} ) {
+                                push @{$o->{$t}}, $z;
+                            }
+                        }
+                        for my $z ( @{$o->{$t}} ) {
+                            if ( ! grep { $z eq $_ } @{$r->{$t}} ) {
+                                warn "Missing on $t item $z in $on $rn";
+                            }
+                        }
+                    }
+                    elsif ( $r->{$t} || $o->{$t} ) {
+                        die "Mismatch $on $rn on $t empty";
+                    }
+                }
+                elsif ( ! defined $r->{$t} || ! defined $o->{$t} ) {
+                    die "Mismatch $on $rn on $t undefined";
+                }
+                elsif ( $r->{$t} ne $o->{$t} ) {
+                    die "Mismatch $on $rn on $t value [$r->{$t}]!=[$o->{$t}]"
+                }
+            }
+        }
+        my @rel = _relatives($r);
+        $$_ = $migrate->($$_) for @rel;
+        return $o;
+    };
+    for my $r (@$records) {
+        eval {
+            my $n = $migrate->($r);
+            warn sprintf "FOLD: %s => %s\n", $r, $n if $xdebug;
+            1;
+        } or warn sprintf "ERROR folding %s: %s\n", $r->{composite_name}, $@;
+    }
+    print Dumper(\%records) if $xdebug;
+    @$records = values %records;
+    if (my @faulty = grep { ! ref $_ || ! scalar %$_ } @$records) {
+        warn sprintf "POST-FOLD: %d faulty records\n", scalar @faulty;
+    }
+    #print Dumper($records) if $xdebug;
 }
 
 use constant is_word_doc => 1;
@@ -288,7 +398,7 @@ sub formal_membership { my $r = shift; return $r->{formal_membership} || (); }
 
 sub uid {
     my $r = shift;
-    $r->{'uid'} ||= 'GEN'.(0+$r).'-wdt';
+    $r->{'uid'} ||= sprintf 'GEN%04d-wdt',$r->{__source_line};
 }
 
 sub uid_of_spouse            { my $r = shift; map { $_->uid } grep {$_} $r && $r->{XREF_spouse}   }
@@ -298,5 +408,10 @@ sub uid_of_children_under_16 { my $r = shift; map { $_->uid }   flatten $r && $r
 sub receive_local_newsletter_by_post { () }
 #sub nz_friends_by_email { 'No' }
 sub nz_friends_by_post { 'No' }
+
+use overload '""' => sub {
+    my $r = shift;
+    $r->{__formatted} //= sprintf "{%d:%s:%s}", $r->{__source_line}, $r->{composite_name}{sort_by_surname}, $r->uid;
+};
 
 1;
