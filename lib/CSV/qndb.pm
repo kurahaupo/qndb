@@ -322,10 +322,18 @@ sub _spouse_and_parents {
 use list_functions 'uniq';
 use quaker_info;
 
+sub formal_membership {
+    my $r = shift;
+    my $m = $r->{formal_membership} || return ();
+    s/\bWG\b/WT/ for $m;
+    return $m;
+}
+
 sub monthly_meeting_area {
     my $r = shift;
     my @x = $r->{monthly_meeting_area} || ();
     s/Thames and Coromandel/Thames \& Coromandel/ for @x;
+    s/\bWG\b/WT/ for @x;
     (my $xmma = $x[0] || '') =~ s/\s.*//;
     for my $rr ( $r, $r->_spouse_and_parents ) {
         my $m = $rr->{formal_membership} or next;
