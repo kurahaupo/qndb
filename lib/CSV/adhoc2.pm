@@ -319,7 +319,7 @@ sub foldrows($\@) {
         my $rn = "$r";
         my $kr = $r->{composite_name}{sort_by_surname};
         my $o = $records{$kr};
-        if ($o && $o == $r) { return $o }
+        if ($o && "$o" eq "$r") { return $o }
         if (!$o) {
             $records{$kr} = $r;
             warn sprintf "Stashed %s\n", $kr if $xdebug;
@@ -334,12 +334,12 @@ sub foldrows($\@) {
                     # sub-array
                     if ( $ar && $ao ) {
                         for my $z ( @{$r->{$t}} ) {
-                            if ( ! grep { $z eq $_ } @{$o->{$t}} ) {
+                            if ( ! grep { "$z" eq "$_" } @{$o->{$t}} ) {
                                 push @{$o->{$t}}, $z;
                             }
                         }
                         for my $z ( @{$o->{$t}} ) {
-                            if ( ! grep { $z eq $_ } @{$r->{$t}} ) {
+                            if ( ! grep { "$z" eq "$_" } @{$r->{$t}} ) {
                                 warn "Missing on $t item $z in $on $rn";
                             }
                         }
@@ -351,7 +351,7 @@ sub foldrows($\@) {
                 elsif ( ! defined $r->{$t} || ! defined $o->{$t} ) {
                     die "Mismatch $on $rn on $t undefined";
                 }
-                elsif ( $r->{$t} ne $o->{$t} ) {
+                elsif ( "$r->{$t}" ne "$o->{$t}" ) {
                     die "Mismatch $on $rn on $t value [$r->{$t}]!=[$o->{$t}]"
                 }
             }
