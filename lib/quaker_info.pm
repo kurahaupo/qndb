@@ -16,16 +16,17 @@ our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
     'MNI - Mid North Island',
     'NT - Northern',
     'PN - Palmerston North',
-  # 'WG - Whanganui Taranaki',  # old code
+    'TN - Taranaki',
+    'WG - Whanganui ',
   # 'WK - Waikato Hauraki',
     'WN - Wellington',
-    'WT - Whanganui Taranaki',
+  # 'WT - Whanganui Taranaki',  # old code
     'YF - Young Friends',
     'NO - not in any meeting',
 ;
 
 # Arrange Monthly Meetings in North-to-South order
-our @mm_order = qw( NT MNI WT PN KP WN CH DN NO );
+our @mm_order = qw( NT MNI WG TN PN KP WN CH DN NO );
 
 our %skip_mm_listing = (
 #       AK => 1,
@@ -62,10 +63,13 @@ our @wg_order = (
     'PN - elsewhere',
     'PN - overseas',
 
-    'WT - Whanganui',
-    'WT - Taranaki',
-    'WT - elsewhere',
-    'WT - overseas',
+    'WG - Whanganui',
+    'WG - elsewhere',
+    'WG - overseas',
+
+    'TN - Taranaki',
+    'TN - elsewhere',
+    'TN - overseas',
 
     'KP - Kapiti',
     'KP - Paraparaumu',
@@ -137,10 +141,13 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'PN - elsewhere'            => [ undef, undef, '+P', '+PN', 'exPN', 'ex-PN', ],
         'PN - overseas'             => [ undef, undef, '*P', '*PN', 'osPN', 'os-PN', 'o/s-PN', ],
 
-        'WT - Taranaki'             => [ undef, 'T',   'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki', 'Taranaki', ], # WT
-        'WT - Whanganui'            => [ undef, 'Ŵ',   'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui', 'Whanganui', ], # WT
-        'WT - elsewhere'            => [ undef, undef, '+Ŵ', '+WT', 'exWT', 'ex-WT', ],
-        'WT - overseas'             => [ undef, undef, '*Ŵ', '*WT', 'osWT', 'os-WT', 'o/s-WT', ],
+        'WG - Whanganui'            => [ undef, 'Ŵ',   'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui', 'Whanganui', ], # WG
+        'WG - elsewhere'            => [ undef, undef, '+Ŵ', '+WG', 'exWG', 'ex-WG', ],
+        'WG - overseas'             => [ undef, undef, '*Ŵ', '*WG', 'osWG', 'os-WG', 'o/s-WG', ],
+
+        'TN - Taranaki'             => [ undef, 'T',   'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki', 'Taranaki', ], # TN
+        'TN - elsewhere'            => [ undef, undef, '+Ŵ', '+TN', 'exTN', 'ex-TN', ],
+        'TN - overseas'             => [ undef, undef, '*Ŵ', '*TN', 'osTN', 'os-TN', 'o/s-TN', ],
 
         'KP - Kapiti'               => [ undef, 'K',   'Kp', 'Kpt', 'Kapt', 'Kapti', 'Kapiti', ], # KP
         'KP - elsewhere'            => [ undef, undef, '+K', '+KP', 'exKP', 'ex-KP', ],

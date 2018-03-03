@@ -71,9 +71,6 @@ my %patch_types = (
 
 # Handle fields with multiple values; apply patches before caching the results.
 my %patchlist = (
-    group_membership => sub {
-        s#\bWG\b#WT# for @{$_[0]};
-    }
 );
 
 sub _list($$) {
