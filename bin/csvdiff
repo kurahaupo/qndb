@@ -14,6 +14,7 @@ glist=()
 list_before=false
 once=false
 patch_files=()
+patch_opts=()
 plist=()
 show_line_offsets=false
 smart_diff=true
@@ -52,6 +53,7 @@ while (($#)) ; do
     (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
     (--once)                    once=true ;;
     (--patch)                   patch_files+=( "$2" ) ; shift ;;
+    (--qp|--quiet-patch)        patch_opts=(--quiet) ;;
     (--show-lines)              show_line_offsets=true ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
@@ -60,6 +62,7 @@ while (($#)) ; do
     (--ug|--use-gmail)          use_google=true  ;;
     (--up|--use-profile)        use_profile=true ;;
     (--verbose)                 dump_opts+=("$1=$2") ; shift ;;
+    (--vp|--verbose-patch)      patch_opts=(--verbose) ;;
     (--yesterday)               day_offsets+=( 1 ) ;;
     (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
     (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
@@ -147,13 +150,13 @@ do
 
                     printf "$__f_cp" "cp $curr $fwd"
                     cp -v "$curr" "$fwd" || exit  # inside pipeline
-                    printf "$__f_patch" "patch $fwd $patch_file"
-                    patch "$fwd" "$patch_file" || exit  # inside pipeline
+                    printf "$__f_patch" "patch ${patch_opts[*]} $fwd $patch_file"
+                    patch "${patch_opts[@]}" "$fwd" "$patch_file" || exit  # inside pipeline
 
                     printf "$__f_cp" "cp $fwd $rev"
                     cp -v "$fwd" "$rev" || exit  # inside pipeline
-                    printf "$__f_patch" "patch -R $rev $patch_file"
-                    patch -R "$rev" "$patch_file" || exit  # inside pipeline
+                    printf "$__f_patch" "patch ${patch_opts[*]} -R $rev $patch_file"
+                    patch "${patch_opts[@]}" -R "$rev" "$patch_file" || exit  # inside pipeline
 
                     printf "$__f_diff" "diff $curr $rev"
                     diff -s "$curr" "$rev" || exit  # inside pipeline
