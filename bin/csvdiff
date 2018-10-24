@@ -1,8 +1,11 @@
 #!/bin/bash
-
+shopt -s extglob
+## line break needed here -- extglob has to preceed parsing
+{
 . $HOME/Quakers/lib/qlib.bash
-
 : ${PAGER:='less -iR'}
+
+true=1 false=0
 
 day_offsets=()
 diff_ignore_dir="${dbdir}DIFF/"
@@ -13,7 +16,6 @@ once=false
 patch_files=()
 plist=()
 smart_diff=true
-true=1 false=0
 use_google=true
 use_profile=true
 vim_opts=()
@@ -51,6 +53,8 @@ while (($#)) ; do
     (--up|--use-profile)        use_profile=true ;;
     (--verbose)                 dump_opts+=("$1=$2") ; shift ;;
     (--yesterday)               day_offsets+=( 1 ) ;;
+    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
+    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
     (-*)                        dumpopts+=( "$1" ) ;;
     (*/google*|google*)         glist+=( "$1" ) ;;
     (*/*\
@@ -176,3 +180,4 @@ do
 done
 
 [[ -n $temp ]] && rm -fv "$temp"*
+}
