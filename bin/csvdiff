@@ -31,28 +31,26 @@ while (($#)) ; do
     (--verbose=*|--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
     (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
 
-    (--verbose)                 dump_opts+=("$1" "$2") ; shift ;;
-    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
-    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
-    (--today)                   day_offsets+=( 0 ) ;;
-    (--yesterday)               day_offsets+=( 1 ) ;;
-    (--last-week)               day_offsets+=( 7 ) ;;
     (--after)                   list_before=false ;;
     (--before)                  list_before=true ;;
     (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
+    (--ignore)                  ignore=true ;;
+    (--last-week)               day_offsets+=( 7 ) ;;
+    (--loop)                    once=false ;;
     (--ng|--no-gmail)           use_google=false  ;;
     (--np|--no-profile)         use_profile=false ;;
-    (--patch)                   patch_files+=( "$2" ) ; shift ;;
     (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
     (--once)                    once=true ;;
-    (--loop)                    once=false ;;
-    (--ignore)                  ignore=true ;;
+    (--patch)                   patch_files+=( "$2" ) ; shift ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
     (--today)                   day_offsets+=( 0 ) ;;
+    (--today)                   day_offsets+=( 0 ) ;;
     (--ug|--use-gmail)          use_google=true  ;;
     (--up|--use-profile)        use_profile=true ;;
+    (--verbose)                 dump_opts+=("$1=$2") ; shift ;;
+    (--yesterday)               day_offsets+=( 1 ) ;;
     (-*)                        dumpopts+=( "$1" ) ;;
     (*/google*|google*)         glist+=( "$1" ) ;;
     (*/*\
