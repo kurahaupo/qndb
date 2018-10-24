@@ -179,7 +179,6 @@ do
         ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
         set -x
         for (( i=0 ; i<nff ; ++i )) do
-            [[ ${ff[i]} = *.csv ]] || continue
             exec {fd}< <( "${libdir}"csvdump --dump "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[i]}" 2>&1)
             fz[i]=$fd
             ff[i]=/proc/$BASHPID/fd/$fd
