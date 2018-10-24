@@ -17,10 +17,8 @@ our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
     'NT - Northern',
     'PN - Palmerston North',
     'TN - Taranaki',
-    'WG - Whanganui ',
-  # 'WK - Waikato Hauraki',
+    'WG - Whanganui',
     'WN - Wellington',
-  # 'WT - Whanganui Taranaki',  # old code
     'YF - Young Friends',
     'NO - not in any meeting',
 ;
@@ -41,17 +39,15 @@ our @wg_order = (
     'NT - Whangarei',
     'NT - North Shore',
     'NT - Mt Eden',
-    'NT - West Auckland',
     'NT - Howick',
     'NT - Waiheke',
+    'NT - Warkworth',
     'NT - elsewhere',
     'NT - overseas',
 
     'MNI - Thames & Coromandel',
-   #'MNI - Thames',
     'MNI - Waikato',
     'MNI - Tauranga',
-   #'MNI - Rotorua',
     'MNI - Rotorua-Taupo',
     'MNI - Whakatane',
     'MNI - elsewhere',
@@ -146,8 +142,8 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'WG - overseas'             => [ undef, undef, '*Ŵ', '*WG', 'osWG', 'os-WG', 'o/s-WG', ],
 
         'TN - Taranaki'             => [ undef, 'T',   'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki', 'Taranaki', ], # TN
-        'TN - elsewhere'            => [ undef, undef, '+Ŵ', '+TN', 'exTN', 'ex-TN', ],
-        'TN - overseas'             => [ undef, undef, '*Ŵ', '*TN', 'osTN', 'os-TN', 'o/s-TN', ],
+        'TN - elsewhere'            => [ undef, undef, '+T', '+TN', 'exTN', 'ex-TN', ],
+        'TN - overseas'             => [ undef, undef, '*T', '*TN', 'osTN', 'os-TN', 'o/s-TN', ],
 
         'KP - Kapiti'               => [ undef, 'K',   'Kp', 'Kpt', 'Kapt', 'Kapti', 'Kapiti', ], # KP
         'KP - elsewhere'            => [ undef, undef, '+K', '+KP', 'exKP', 'ex-KP', ],

@@ -332,7 +332,6 @@ sub monthly_meeting_area {
     my $r = shift;
     my @x = $r->{monthly_meeting_area} || ();
     s/Thames and Coromandel/Thames \& Coromandel/ for @x;
-    s/\bWG - Taranaki\b/TN - Taranaki/ for $m;
     (my $xmma = $x[0] || '') =~ s/\s.*//;
     for my $rr ( $r, $r->_spouse_and_parents ) {
         my $m = $rr->{formal_membership} or next;
