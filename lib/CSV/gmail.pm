@@ -483,9 +483,10 @@ sub listed_email($) {
     my $r = shift;
     my $e = $r->_map('e_mail');
     return uniq sort(
-            flatten(
-             map { $e->{$_} }
-              'listing', @key_prefs )); #, keys %$e
+             map { lc $_ }
+               flatten(
+                 map { $e->{$_} }
+                  'listing', @key_prefs )); #, keys %$e
 }
 
 sub listed_phone($) {
