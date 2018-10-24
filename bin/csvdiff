@@ -82,6 +82,10 @@ done
     patch_files=( "${_def_patch_files[@]}" )
 }
 
+if [[ ${patch_files[*]} = none ]]; then
+    patch_files=()
+fi
+
 echo "Day-offsets are: ${day_offsets[*]}"
 
 mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
