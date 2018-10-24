@@ -15,6 +15,7 @@ list_before=false
 once=false
 patch_files=()
 plist=()
+show_line_offsets=false
 smart_diff=true
 use_google=true
 use_profile=true
@@ -40,14 +41,18 @@ while (($#)) ; do
     (--before)                  list_before=true ;;
     (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
+    (--hide-lines)              show_line_offsets=false ;;
     (--ignore)                  ignore=true ;;
     (--last-week)               day_offsets+=( 7 ) ;;
     (--loop)                    once=false ;;
     (--ng|--no-gmail)           use_google=false  ;;
+    (--no-hide-lines)           show_line_offsets=true ;;
+    (--no-show-lines)           show_line_offsets=false ;;
     (--np|--no-profile)         use_profile=false ;;
     (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
     (--once)                    once=true ;;
     (--patch)                   patch_files+=( "$2" ) ; shift ;;
+    (--show-lines)              show_line_offsets=true ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
     (--today)                   day_offsets+=( 0 ) ;;
@@ -154,15 +159,22 @@ do
             }
 
             rm -f "$temp"*~
-            printf "$__f_ls" "ls -ldU $temp*"
-            ls -ldU "$temp"*
+            printf "$__f_ls" "ls -ldS $temp*"
+            ls -ldS "$temp"*
             printf "$__f_result" "DIFFERENCES $curr"
             grep -Ev '^IGNORE' < "$curr" |
             cat -s
         else
             "${libdir}"csvdump --diff "${dumpopts[@]}" "${ignore_opts[@]}" "${ff[@]}"
         fi 2>&1 |
-            ${PAGER} +/"^=.*DIFFERENCES.*=$"
+            if ((show_line_offsets))
+            then
+                cat
+            else
+                grep -vE '^Hunk #[0-9][0-9]* succeeded at [0-9][0-9]* \(offset -*[0-9][0-9]* lines*\)\.$'
+            fi |
+                tee "$temp".tee |
+                ${PAGER} +/"^=.*DIFFERENCES.*=$"
     else
         ff=( "${diff_ignore_file[@]}" "${ff[@]}" ) nff=${#ff[@]}
         set -x
