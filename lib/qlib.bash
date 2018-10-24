@@ -76,6 +76,24 @@ set_current_vars
 
 # make sure any new downloads are filed in proper locations
 file_downloads() {
+    local max_age=30
+    while (($#)) ; do
+        case $1 in
+            --help) printf >&2 'Usage: files_download [--max-age=DAYS]\n' ; return 0 ;;
+            --no-max-age) max_age= ;;
+            --max-age=*) max_age=${1#*=} ;;
+            -m?*) max_age=${1:2} ;;
+            -m) max_age=$2 ; shift ;;
+            --) shift ; break ;;
+            -?*) printf >&2 'files_download: invalid option "%s"\n' "$1" ; return 1 ;;
+            *) break ;;
+        esac
+        shift
+    done
+    (($#)) && {
+        printf >&2 'files_download: non-option args not allowed\n'
+        return 1
+    }
     local delay=false f t tt fmt
     while IFS=$'\t' read -d '' t f
     do
@@ -84,7 +102,7 @@ file_downloads() {
                                     continue ;;
         (*/google*.csv)             fmt=$gT ;;  # gmail download
         (*/all_members*.csv)        fmt=$pT ;;  # profile download
-        (*/profile*.csv)            fmt=$pT ;;  # profile download
+        (*/profile*.csv)            fmt=$pT ;;  # profile previously download
         (*)                         printf "Skipping '%s'\n" "$f"
                                     continue ;;
         esac
@@ -94,7 +112,7 @@ file_downloads() {
             mv -vb "$f" "$tt"
         }
     done < <(
-        find "${dldirs[@]}" -maxdepth 1 \( -name google\*.csv -o -name all_members\*.csv \) -mtime -30 -printf '%Ts\t%p\0'
+        find "${dldirs[@]}" -maxdepth 1 \( -name google\*.csv -o -name all_members\*.csv \) ${max_age:+ -mtime -$max_age } -printf '%Ts\t%p\0'
     )
     ((delay)) && sleep 1.25
 

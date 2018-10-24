@@ -2,4 +2,4 @@
 
 . $HOME/Quakers/lib/qlib.bash
 
-file_downloads
+file_downloads "$@"
