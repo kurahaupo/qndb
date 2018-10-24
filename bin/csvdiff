@@ -138,7 +138,7 @@ do
 
                     printf "$__f_cp" "cp $fwd $rev"
                     cp -v "$fwd" "$rev" || exit  # inside pipeline
-                    printf "$__f_patch" "patch -r $rev $patch_file"
+                    printf "$__f_patch" "patch -R $rev $patch_file"
                     patch -R "$rev" "$patch_file" || exit  # inside pipeline
 
                     printf "$__f_diff" "diff $curr $rev"
