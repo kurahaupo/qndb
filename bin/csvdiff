@@ -26,7 +26,10 @@ __f_diff='\e[34m==== %s ====\e[49;0m\n'
 __f_ls='\e[34m==== %s ====\e[49;0m\n'
 __f_result='\e[41;1m==== %s ====\e[49;0m\n'
 
-temp=/tmp/csvdiff_$$.
+# Use process session ID so that each login shell keeps the same set of
+# temporary files.
+read psid < <( ps -p $$ -o sid= ) || psid=$$
+temp=/tmp/csvdiff_$psid.
 
 while (($#)) ; do
     case $1 in
