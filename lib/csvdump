@@ -955,6 +955,7 @@ sub parse_file($) {
                 $filetype = CSV::adhoc2::;
                 # There is no "header row" as such, so the first row is actually structured data...
                 $filetype->new(undef, $r0);
+                $r0 = []; # headers are not meaningful
             }
             elsif ($r0->[0] eq 'uid') {
                 $filetype = CSV::qndb::;
@@ -1332,7 +1333,7 @@ use quaker_info '$mm_keys_re';
             if ($skip_unlisted) {
                 if (! $r->gtags( 'meeting', 'role', 'admin', 'members', 'attenders', 'enquirer', 'child', 'inactive' )) {
                     if ( $why_not ) {
-                        if ($r->gtags( 'newsletter-only' )) {
+                        if ($r->gtags( 'newsletter-only', 'newsletter-people', 'newsletter-misc' )) {
                             warn sprintf "Skipping NEWS-ONLY %s\n", $r->debuginfo;
                         } else {
                             warn sprintf "Skipping NON-PERSON %s\n", $r->debuginfo;
@@ -1411,6 +1412,11 @@ use quaker_info '$mm_keys_re';
     my $B_cyan  = "\e[44m";
     my $B_white = "\e[47m";
 
+    my %rename_field = qw(
+        receive_local_newsletter_by_post  rx_mm_news_by_post
+        receive_local_newsletter_by_email rx_mm_news_by_email
+    );
+
     sub show_one_diff($$$$) {
         my ($out, $r1, $r2, $ofields) = @_;
         state $fmt = "%-18.18s %-32s %-3.3s %s";
@@ -1488,21 +1494,21 @@ use quaker_info '$mm_keys_re';
                         for my $i ( 0 .. max $#v1, $#v2 ) {
                             my $vl1 = $v1[$i] || '';
                             my $vl2 = $v2[$i] || '';
-                            $f = '' if $said_label++;
+                            my $fn = $said_label++ ? '' : $rename_field{$f} || $f;
                             if ( $vl1 eq '' ) {
                                 if ( $vl2 eq '' ) {
                                     next if $diff_quietly;
-                                    printf "$fmt\n", $f, '', 'x', '';
+                                    printf "$fmt\n", $fn, '', 'x', '';
                                 } else {
-                                    printf "$C_green$fmt$C_plain\n", $f, "(add)", "→", $vl2;
+                                    printf "$C_green$fmt$C_plain\n", $fn, "(add)", "→", $vl2;
                                 }
                             } elsif ( $vl2 eq '' ) {
-                                    printf "$C_red$fmt$C_plain\n", $f, $vl1, "←", "(del)";
+                                    printf "$C_red$fmt$C_plain\n", $fn, $vl1, "←", "(del)";
                             } elsif ( $vl1 eq $vl2 ) {
                                 next if $diff_quietly;
-                                printf "$fmt\n", $f, $vl1, "=", $vl2;
+                                printf "$fmt\n", $fn, $vl1, "=", $vl2;
                             } else {
-                                printf "$C_yellow$fmt$C_plain\n", $f, $vl1, "≠", $vl2;
+                                printf "$C_yellow$fmt$C_plain\n", $fn, $vl1, "≠", $vl2;
                             }
                         }
                     }

@@ -451,7 +451,7 @@ sub postal_address($) {
 
 sub receive_local_newsletter_by_post($) {
     my $r = shift;
-    _notno $r->{receive_local_newsletter_by_post};
+    $r->{receive_local_newsletter_by_post};
 }
 
 sub receive_local_newsletter_by_email($) {
