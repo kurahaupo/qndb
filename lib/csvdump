@@ -563,6 +563,7 @@ EndOfHelp
 
 See:
     $0 --help-dump
+    $0 --help-selection
     $0 --help-output
     $0 --help-generic
 EndOfHelp
@@ -657,6 +658,26 @@ EndOfHelp
         --utf8  --u8                                (--decoding=UTF-8    --encoding=UTF-8)
         --utf16be  --u16b                           (--decoding=UTF-16BE --encoding=UTF-16BE)
         --utf16le  --u16l                           (--decoding=UTF-16LE --encoding=UTF-16LE)
+    
+    --show-*   ⇔   --no-hide-*
+    --hide-*   ⇔   --no-show-*
+
+    --show-adult-birthdays    --hide-adult-birthdays
+    --show-hyperlinks         --hide-hyperlinks
+    --show-last-updated       --hide-last-updated
+    --show-relationships      --hide-relationships
+    --show-send               --hide-send
+    --show-send-by-email      --hide-send-by-email
+    --show-send-by-post       --hide-send-by-post
+    --show-status             --hide-status
+    --show-uid                --hide-uid
+    --show-yf-listing         --hide-yf-listing
+
+    "show" and "hide" refer to fields
+    "include" and "skip" refer to records
+
+See also:
+    $0 --help-selection
 EndOfHelp
 
     'help-generic'                => sub { print <<EndOfHelp; exit 0 },
@@ -690,19 +711,38 @@ EndOfHelp
 
     'help-selection'              => sub { print <<EndOfHelp; exit 0 },
 "record-selection" options:
-    --[only-]region=REGION[,REGION...]          exclude records not in any of the REGIONs
+
     --all-regions           --any-region        include records with any region
-    --no-need-region --no-hide-no-region     --include-no-region include records without a region
-       --need-region    --hide-no-region  --no-include-no-region exclude records without a region
-    --[no-]include-archived --[no-]skip-archived
-    --include-deceased      --skip-deceased
-    --include-meetings      --skip-meetings
-    --include-unsubscribed  --skip-unsubscribed
-    --only-region=REGION
+    --[only-]region=REGION[,REGION...]          exclude records not in any of the REGIONs
+        NB: "none" is treated as a region
+
     --select-and-include=TAG[,TAG...]
     --select=TAG[,TAG...]
     --optional-include=TAG[,TAG...]
     --why-not  --why-skipped        [explain exclusion of each record]
+
+    --include-*   ⇔   --no-skip-*
+    --skip-*      ⇔   --no-include-*
+
+    --include-archived              --skip-archived
+    --include-children              --skip-children
+    --include-deceased              --skip-deceased
+    --include-enquirers             --skip-enquirers
+    --include-inactive              --skip-inactive
+    --include-meetings              --skip-meetings
+    --include-newsletters-only      --skip-newsletters-only
+    --include-roles                 --skip-roles
+    --include-suppressed-email      --skip-suppressed-email
+    --include-suppressed-listing    --skip-suppressed-listing
+    --include-suppressed-post       --skip-suppressed-post
+    --include-unlisted              --skip-unlisted
+    --include-unsubscribed          --skip-unsubscribed
+
+    "include" and "skip" refer to records
+    "show" and "hide" refer to fields
+
+See also:
+    $0 --help-output
 EndOfHelp
 
     'help-tuning'                 => sub { print <<EndOfHelp; exit 0 },
