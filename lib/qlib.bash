@@ -100,7 +100,8 @@ file_downloads() {
         case /$f in
         (*"${dbdir:-//SKIP//}"*)    # don't move any files which are already under $dbdir
                                     continue ;;
-        (*/google*.csv)             fmt=$gT ;;  # gmail download
+        (*/contacts*.csv)           fmt=$gT ;;  # gmail download (new from 2019)
+        (*/google*.csv)             fmt=$gT ;;  # gmail download (old until 2018)
         (*/all_members*.csv)        fmt=$pT ;;  # profile download
         (*/profile*.csv)            fmt=$pT ;;  # profile previously download
         (*)                         printf "Skipping '%s'\n" "$f"
@@ -112,7 +113,7 @@ file_downloads() {
             mv -vb "$f" "$tt"
         }
     done < <(
-        find "${dldirs[@]}" -maxdepth 1 \( -name google\*.csv -o -name all_members\*.csv \) ${max_age:+ -mtime -$max_age } -printf '%Ts\t%p\0'
+        find "${dldirs[@]}" -maxdepth 1 \( -name contacts\*.csv -o -name google\*.csv -o -name all_members\*.csv \) ${max_age:+ -mtime -$max_age } -printf '%Ts\t%p\0'
     )
     ((delay)) && sleep 1.25
 
