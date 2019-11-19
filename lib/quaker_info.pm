@@ -24,7 +24,7 @@ our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
 ;
 
 # Arrange Monthly Meetings in North-to-South order
-our @mm_order = qw( NT MNI WG TN PN KP WN CH DN NO );
+our @mm_order = qw( NT MNI WG TN PN KP WN CH DN YF NO );
 
 our %skip_mm_listing = (
 #       AK => 1,
@@ -204,7 +204,15 @@ CHECK {
 
 ################################################################################
 
+our %local_country = (
+    'NZ' => 1,
+    'New Zealand' => 1,
+);
+
+################################################################################
+
 use export qw(
+    %local_country
     %mm_names
     @mm_order
     %skip_mm_listing

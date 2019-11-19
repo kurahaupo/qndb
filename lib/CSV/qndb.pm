@@ -9,6 +9,14 @@ use warnings;
 The "download all data" link from quaker.org.nz delivers a spreadsheet
 "all_members.csv" in this format...
 
+Updated version circa 20190301
+ uid users_name users_mail family_name first_name uid_of_spouse
+ monthly_meeting_area formal_membership property_name address suburb town
+ state_or_province postcode country po_box_number rd_no birthdate inactive
+ phone_number mobile_number fax website_url receive_local_newsletter_by_post
+ nz_friends_by_post nz_friends_by_email show_me_in_young_friends_listing
+ uid_of_children_under_16 changed
+
 Updated version from MyDropWizard:
 uid,users_name,users_mail,family_name,first_name,uid_of_spouse,uid_of_children_under_16,monthly_meeting_area,formal_membership,property_name,address,suburb,town,postcode,country,po_box_number,rd_no,birthdate,inactive,phone_number,mobile_number,fax,website_url,receive_local_newsletter_by_post,nz_friends_by_post,nz_friends_by_email,show_me_in_young_friends_listing,changed
 
@@ -48,6 +56,10 @@ use POSIX 'strftime';
 use verbose;
 use phone_functions 'normalize_phone';
 
+use quaker_info '%local_country';
+
+my $qNL = do { use utf8; "␤"; };
+
 # This is a hack -- this lookup should be done as part of the database export
 # process.
 my %country_map = qw(
@@ -64,7 +76,15 @@ my %country_map = qw(
     212 USA
 );
 
-sub _titlecase($$) { $_[1] }    # don't do TitleCase QNDB files any more; they should be uptodate
+# don't do TitleCase QNDB files any more; they should be uptodate
+sub _titlecase($$) {
+    my ($r,$x) = @_;
+    my $v = lc $x;
+    $v =~ s/\b\w/\U$&/g;
+    $v =~ /^Mc/ and substr($v,2,1) = uc substr($v,2,1);
+    $v eq $x or warn sprintf "Not [%s] title-case [%s] in record #%u\n", $v, $x, $r->{uid};
+    return $x;
+}
 
 sub _hash_uid($) {
     my $z = shift;
@@ -75,7 +95,10 @@ sub _hash_uid($) {
 
 sub fix_one($) {
     my $r = shift;
-    $r->name or return 0;  # ignore records without names; also force components into {composite_name}
+    $r->name or return 0;  # ignore records without names; this also forces name components into {composite_name}
+
+    my $flag_this = $r->{uid} == 1085;
+
     $r->{$_} //= '' for qw{ property_name users_mail country mobile_number fax phone_number };
     $r->{$_} =~ s/^-$// for qw{ users_mail };
     $r->{$_} //= 'Maybe' for qw{ show_me_in_young_friends_listing receive_local_newsletter_by_post };
@@ -121,27 +144,59 @@ sub fix_one($) {
         my $rd_no         = $r->{rd_no};
         my $suburb        = $r->{suburb};
         my $city          = $r->{town};
+        my $state         = $r->{state_or_province};
         my $postcode      = $r->{postcode};
         my $country       = $r->{country};
+
+        warn sprintf "FLAG: raw pobox=[%s], pname=[%s], streetnum=[%s], street=[%s], suburb=[%s], city=[%s], state=[%s], postcode=[%s], country=[%s]\n",
+                ($po_box         // '(none)') =~ s/\n/$qNL/rg,
+                ($property_name  // '(none)') =~ s/\n/$qNL/rg,
+                ($streetnum      // '(none)') =~ s/\n/$qNL/rg,
+                ($street         // '(none)') =~ s/\n/$qNL/rg,
+                ($suburb         // '(none)') =~ s/\n/$qNL/rg,
+                ($city           // '(none)') =~ s/\n/$qNL/rg,
+                ($state          // '(none)') =~ s/\n/$qNL/rg,
+                ($postcode       // '(none)') =~ s/\n/$qNL/rg,
+                ($country        // '(none)') =~ s/\n/$qNL/rg,
+            if $flag_this;
 
         if ($city =~ /\d{4,}$|\b\w\w?\d+[- ]\d+\w$/) {
             warn sprintf "Record for %s has city field '%s' which appears to hold a postcode '%s'\n", $r->name, $city, $&;
         }
 
         $_ and s/\s*,\s*/\n/g
-            for $property_name, $street, $suburb, $city;
+            for $property_name, $street, $suburb, $city, $state;
         $care_of = "c/- $1"
             if $property_name =~ s<^c/[-o]\s+(\S.*)\n?><>i;
-        $_ = $r->_titlecase($_) for $suburb, $city;
+        $_ = $r->_titlecase($_)
+            for $suburb, $city, grep {/\s/} $state;
         $country &&= $country_map{$country} || $r->_titlecase($country);
-        $country = '' if $country eq 'NZ';
+        $country = '' if $local_country{$country};
         $r->{country} = $country;
-        $suburb ne $city or $suburb = undef if $suburb && $city;
+        $suburb = undef if $suburb && $city && $suburb eq $city;
+
+        if ($state && $state =~ /^[A-Z]{1,4}$/ && $city) {
+            $city .= " $state";
+            $state = '';
+        }
+
+        warn sprintf "FLAG: cleaned pobox=[%s], pname=[%s], streetnum=[%s], street=[%s], suburb=[%s], city=[%s], state=[%s], postcode=[%s], country=[%s]\n",
+                ($po_box         // '(none)') =~ s/\n/$qNL/rg,
+                ($property_name  // '(none)') =~ s/\n/$qNL/rg,
+                ($streetnum      // '(none)') =~ s/\n/$qNL/rg,
+                ($street         // '(none)') =~ s/\n/$qNL/rg,
+                ($suburb         // '(none)') =~ s/\n/$qNL/rg,
+                ($city           // '(none)') =~ s/\n/$qNL/rg,
+                ($state          // '(none)') =~ s/\n/$qNL/rg,
+                ($postcode       // '(none)') =~ s/\n/$qNL/rg,
+                ($country        // '(none)') =~ s/\n/$qNL/rg,
+            if $flag_this;
 
         if ( $po_box ) {
+            warn "FLAG: Has PO Box\n" if $flag_this;
             if ( $po_box =~ /^\d+$/ ) {
                 $po_box = "PO Box $po_box";
-                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, $suburb, $city;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, $suburb, $city, $state;
                 $fulladdr .= ' '.$postcode if $postcode;
                 $fulladdr .= "\n".$country if $country;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -152,6 +207,7 @@ sub fix_one($) {
                         property_name   => $property_name,
                         po_box          => $po_box,
                         city            => $suburb || $city,
+                        state           => $state,
                         postcode        => $postcode,
                         country         => $country;
             }
@@ -160,7 +216,7 @@ sub fix_one($) {
                 my $xcountry = @lines > 1 && $lines[-1] !~ /\d$/ ? pop @lines : $country;
                 my $xpostcode = @lines && $lines[-1] =~ s/\s+([- 0-9]{3,9}\d)$// ? $1 : $postcode;
                 my $xcity = pop @lines || $suburb || $city;
-                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, @lines, $xcity;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $po_box, @lines, $xcity, $state;
                 $fulladdr .= ' '.$xpostcode if $xpostcode;
                 $fulladdr .= "\n".$xcountry if $xcountry;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -171,14 +227,16 @@ sub fix_one($) {
                         property_name   => $property_name,
                         po_box          => $po_box,
                         city            => $xcity,
+                        state           => $state,
                         postcode        => $xpostcode,
                         country         => $xcountry;
             }
         }
         if ( $rd_no ) {
+            warn "FLAG: Has RD number\n" if $flag_this;
             if ( $rd_no  =~ /^\d+$/ ) {
                 $rd_no  = "RD $rd_no";
-                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $street, $rd_no, $city;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $street, $rd_no, $city, $state;
                 $fulladdr .= ' '.$postcode if $postcode;
                 $fulladdr .= "\n".$country if $country;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -191,6 +249,7 @@ sub fix_one($) {
                         street          => $qstreet,
                         rd_no           => $rd_no,
                         city            => $suburb || $city,
+                        state           => $state,
                         postcode        => $postcode,
                         country         => $country;
             }
@@ -199,7 +258,7 @@ sub fix_one($) {
                 my $xcountry = @lines > 1 && pop @lines || $country;
                 my $xpostcode = @lines && $lines[-1] =~ s/\s+([- 0-9]{3,9}\d)$// ? $1 : $postcode;
                 my $xcity = pop @lines || $suburb || $city;
-                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $rd_no, @lines, $xcity;
+                my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $rd_no, @lines, $xcity, $state;
                 $fulladdr .= ' '.$xpostcode if $xpostcode;
                 $fulladdr .= "\n".$xcountry if $xcountry;
                 $fulladdr = $r->_canon_address($fulladdr);
@@ -210,14 +269,15 @@ sub fix_one($) {
                         property_name => $property_name,
                         rd_no         => $rd_no,
                         city          => $xcity,
+                        state         => $state,
                         postcode      => $xpostcode,
                         country       => $xcountry;
             }
         }
 
         if ( $street || ! $po_box && ! $rd_no ) {
+            warn "FLAG: has Street (or lacks both PO Box and RD No)\n" if $flag_this;
             if ($street =~ s/^\(([^()]*)\)$/$1/) {
-                warn "Unwrapping bracketed street [$street]\n" if $verbose;
                 if ($street =~ s/\s*\n\s*(.*)$//) {
                     $city = $1;
                     $postcode = $suburb = undef;
@@ -228,14 +288,16 @@ sub fix_one($) {
                         $suburb = $1;
                     }
                 }
-                warn sprintf "Unwrapped bracketed street street=[%s], suburb=[%s], city=[%s], postcode=[%s]\n",
-                        $street // '(none)',
-                        $suburb // '(none)',
-                        $city // '(none)',
-                        $postcode // '(none)',
-                    if $verbose;
+                warn sprintf "FLAG: unwrapped bracketed street street=[%s], suburb=[%s], city=[%s], state=[%s], postcode=[%s]\n",
+                        ($street   // '(none)') =~ s/\n/$qNL/rg,
+                        ($suburb   // '(none)') =~ s/\n/$qNL/rg,
+                        ($city     // '(none)') =~ s/\n/$qNL/rg,
+                        ($state    // '(none)') =~ s/\n/$qNL/rg,
+                        ($postcode // '(none)') =~ s/\n/$qNL/rg,
+                    if $verbose || $flag_this;
             }
-            my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $street, $suburb, $city;
+            my $fulladdr = join "\n", grep {$_} $care_of, $property_name, $street, $suburb, $city, $state;
+            warn sprintf "FLAG: fulladdr=[%s]\n", $fulladdr =~ s/\n/$qNL/rg if $flag_this;
             if ($postcode) {
                 if ($postcode =~ /^[A-Za-z]+\b/ || !$fulladdr) {
                     # XX or XXX is state or province; XX NNNNN is US
@@ -245,6 +307,7 @@ sub fix_one($) {
                 else {
                     $fulladdr .= ' '.$postcode;
                 }
+                warn sprintf "FLAG: attached postcode [%s]\n", $fulladdr if $flag_this;
             }
             $fulladdr .= "\n".$country if $country;
             $fulladdr = $r->_canon_address($fulladdr);
@@ -257,6 +320,7 @@ sub fix_one($) {
                     street        => $qstreet,
                     suburb        => $suburb,
                     city          => $city,
+                    state         => $state,
                     postcode      => $postcode,
                     country       => $country;
         };
