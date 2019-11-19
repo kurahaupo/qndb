@@ -63,8 +63,9 @@ printf >&2 "DEBUG: libdir = '%s'\n" "$libdir"
 printf >&2 "DEBUG: dbdir = '%s'\n" "$dbdir"
 
 # templates for the filenames for archived downloads
-pT="${dbdir}profile-%(%Y%m%d)T.csv" # for gmail.com distrodude downloads
-gT="${dbdir}google-%(%Y%m%d)T.csv"  # for quaker.org.nz all_members downloads
+gT="${dbdir}google-%(%Y%m%d)T.csv"  # for gmail.com distrodude downloads
+pT="${dbdir}profile-%(%Y%m%d)T.csv" # for quaker.org.nz all_members downloads
+uT="${dbdir}users-%(%Y%m%d)T.csv"   # for quakers.nz users downloads
 
 dldirs=( "$HOME/Downloads/" )
 
@@ -106,9 +107,10 @@ file_downloads() {
         (*"${dbdir:-//SKIP//}"*)    # don't move any files which are already under $dbdir
                                     continue ;;
         (*/contacts*.csv)           fmt=$gT ;;  # gmail download (new from 2019)
-        (*/google*.csv)             fmt=$gT ;;  # gmail download (old until 2018)
-        (*/all_members*.csv)        fmt=$pT ;;  # profile download
-        (*/profile*.csv)            fmt=$pT ;;  # profile previously download
+        (*/google*.csv)             fmt=$gT ;;  # gmail download (old until 2018) or previously downloaded
+        (*/all_members*.csv)        fmt=$pT ;;  # profile current download (old until 2019)
+        (*/profile*.csv)            fmt=$pT ;;  # profile previously downloaded (old until 2019)
+        (*/users*.csv)              fmt=$uT ;;  # users download (new from 2020)
         (*)                         printf "Skipping '%s'\n" "$f"
                                     continue ;;
         esac
@@ -118,7 +120,7 @@ file_downloads() {
             mv -vb "$f" "$tt"
         }
     done < <(
-        find "${dldirs[@]}" -maxdepth 1 \( -name contacts\*.csv -o -name google\*.csv -o -name all_members\*.csv \) "${age_limit[@]}" -printf '%Ts\t%p\0'
+        find "${dldirs[@]}" -maxdepth 1 \( -name users\*.csv -o -name contacts\*.csv -o -name google\*.csv -o -name all_members\*.csv \) "${age_limit[@]}" -printf '%Ts\t%p\0'
     )
     ((delay)) && sleep 1.25
 
