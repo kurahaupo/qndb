@@ -3,6 +3,7 @@
 # Usage:
 #   . $HOME/Quakers/lib/qlib.bash
 
+# shellcheck disable=SC2034
 die() {
     STATUS=$?       EX_STATUS=STATUS
     OK=0            EX_OK=OK
@@ -38,7 +39,11 @@ die() {
 }
 
 shopt -s extglob
+# shellcheck disable=SC2034
+# (values used indirectly in numeric context)
 true=1 false=0
+
+sprintf() { printf -v "$@" ; }
 
 printf >&2 "DEBUG-source: %s\n" "${BASH_SOURCE[@]}"
 
@@ -61,29 +66,29 @@ printf >&2 "DEBUG: dbdir = '%s'\n" "$dbdir"
 pT="${dbdir}profile-%(%Y%m%d)T.csv" # for gmail.com distrodude downloads
 gT="${dbdir}google-%(%Y%m%d)T.csv"  # for quaker.org.nz all_members downloads
 
-dldirs=( $HOME/Downloads/ )
+dldirs=( "$HOME/Downloads/" )
 
-printf -v baseline_snapshot  "$pT" 1393541773   # baseline comparison file (first snapshot)
-printf -v greenbook_snapshot "$pT" 1402216718   # snapshot on which the Green Book was based
+sprintf baseline_snapshot  "$pT" 1393541773   # baseline comparison file (first snapshot)
+sprintf greenbook_snapshot "$pT" 1402216718   # snapshot on which the Green Book was based
 
 set_current_vars() {
     # update time-related vars to reflect "now" or "today"
-    printf -v now '%(%s)T' -1
-    printf -v current_gmail "$gT" $now      # today's gmail.com distrodude download
-    printf -v current_profile "$pT" $now    # today's quaker.org.nz profile download
+    sprintf now '%(%s)T' -1
+    sprintf current_gmail "$gT" "$now"    # today's gmail.com distrodude download
+    sprintf current_profile "$pT" "$now"  # today's quaker.org.nz profile download
 }
 set_current_vars
 
 # make sure any new downloads are filed in proper locations
 file_downloads() {
-    local max_age=30
+    local -a age_limit=( -mtime -30 )
     while (($#)) ; do
         case $1 in
             --help) printf >&2 'Usage: files_download [--max-age=DAYS]\n' ; return 0 ;;
-            --no-max-age) max_age= ;;
-            --max-age=*) max_age=${1#*=} ;;
-            -m?*) max_age=${1:2} ;;
-            -m) max_age=$2 ; shift ;;
+            --no-max-age) age_limit=() ;;
+            --max-age=*) age_limit=( -mtime "-${1#*=}" ) ;;
+            -m?*) age_limit=( -mtime "-${1:2}" ) ;;
+            -m) age_limit=( -mtime "-$2" ) ; shift ;;
             --) shift ; break ;;
             -?*) printf >&2 'files_download: invalid option "%s"\n' "$1" ; return 1 ;;
             *) break ;;
@@ -107,13 +112,13 @@ file_downloads() {
         (*)                         printf "Skipping '%s'\n" "$f"
                                     continue ;;
         esac
-        printf -v tt "$fmt" "$t" &&
+        sprintf tt "$fmt" "$t" &&
         [[ -s "$f" ]] && {
             delay=true
             mv -vb "$f" "$tt"
         }
     done < <(
-        find "${dldirs[@]}" -maxdepth 1 \( -name contacts\*.csv -o -name google\*.csv -o -name all_members\*.csv \) ${max_age:+ -mtime -$max_age } -printf '%Ts\t%p\0'
+        find "${dldirs[@]}" -maxdepth 1 \( -name contacts\*.csv -o -name google\*.csv -o -name all_members\*.csv \) "${age_limit[@]}" -printf '%Ts\t%p\0'
     )
     ((delay)) && sleep 1.25
 
