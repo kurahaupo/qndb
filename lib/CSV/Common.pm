@@ -136,7 +136,7 @@ sub _canon_address($$$) {
         s#^#c/- # if $use_care_of && $c;
         if ( $canon_address ) {
             state $ax = do {
-                            my $r = join '|', reverse sort keys %address_designators;
+                            my $r = join '|', map { quotemeta $_ } reverse sort keys %address_designators;
                             my $q = eval "qr/\\b(?:$r)\\b/";
                             warn "Initialized designators re=$q\n" if $verbose > 1;
                             $q;
