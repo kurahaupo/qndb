@@ -7,20 +7,31 @@ shopt -s extglob
 
 true=1 false=0
 
-day_offsets=()
 diff_ignore_dir="${dbdir}DIFF/"
 dumpopts=( --hide-send --skip-suppressed-listing )
 glist=()
-list_before=false
+ignore=false
+ignore_patch_failure=true
 once=false
 patch_files=()
-patch_opts=()
+patch_opts=(-F 0)
 plist=()
+profile_day_offset_map=(0)
+gmail_day_offset_map=(0)
 show_line_offsets=false
 smart_diff=true
 use_google=true
-use_profile=true
 vim_opts=()
+
+add_plist_min_age() {
+    local t=$1 u=$2 px
+    for (( ; t<=u || !u ; ++t)) do
+        printf -v px "$pT" $((now-t*86400))
+        [[ -s "$px" ]] || continue
+        plist+=( "$px" )
+        return
+    done
+}
 
 __f_cp='\e[34;2m==== %s ====\e[49;0m\n'
 __f_patch='\e[32m==== %s ====\e[49;0m\n'
@@ -33,41 +44,84 @@ __f_result='\e[41;1m==== %s ====\e[49;0m\n'
 read psid < <( ps -p $$ -o sid= ) || psid=$$
 temp=/tmp/csvdiff_$psid.
 
+show_help() { cat <<'EOF' ; }
+    --after                     put files listed on the command line after the search paths
+    --before                    put files listed on the command line before the search paths
+    --bl, --baseline            include baseline snapshot
+    --book, --book2014          include 2014 "greenbook" snapshot
+    --ignore-patch-failures     continue on patch failure
+    --halt-on-patch-failures    halt on patch failure
+    --hide-lines                don't show line offsets
+    --ignore                    ignore trivial or intentional differences
+    --loop                      repeatedly compare downloads
+    --ng, --no-gmail            don't use today's GMail Contacts download
+    --no-hide-lines             show line offsets
+    --no-show-lines             don't show line offsets
+    --once                      exit after one comparison cycle
+    --patch FILE                add FILE to the list of patches
+    --qp, --quiet-patch         patch quietly
+    --show-lines                show line offsets
+    --smart                     use the diff build into csvdump
+    --stupid                    use external diff
+    --ug, --use-gmail           use today's GMail Contacts download
+    --verbose
+    --vp, --verbose-patch
+
+    --up|--use-profile          scan for website profile downloads
+    --np|--no-profile           don't scan for website profile downloads
+    --yesterday                 look for yesterday's downloads
+    --NUM-day(s)(-ago)          look for downloads from NUM days ago
+    --+([0-9] -week?(s)?(-ago)) look for downloads from NUM weeks ago
+    --last-week                 only check for website profile downloads less than 7 days old
+    --offset-time=DAYS          check for website profile downloads exactly DAYS old
+    --today                     check for website profile downloads less than one day old
+
+    filenames starting with "google" are added to the "gmail contacts" list
+    other filenames, including book scans, are added to the "profiles" list
+EOF
+
 while (($#)) ; do
     case $1 in
     (--verbose=*|--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
     (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
 
-    (--after)                   list_before=false ;;
-    (--before)                  list_before=true ;;
     (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
+    (--ignore-patch-failures)   ignore_patch_failure=true ;;
+    (--halt-on-patch-failures)  ignore_patch_failure=false ;;
+    (--help)                    show_help ; exit 0 ;;
     (--hide-lines)              show_line_offsets=false ;;
     (--ignore)                  ignore=true ;;
-    (--last-week)               day_offsets+=( 7 ) ;;
     (--loop)                    once=false ;;
-    (--ng|--no-gmail)           use_google=false  ;;
+    (--ng|--no-gmail)           gmail_day_offset_map=() use_google=false  ;;
     (--no-hide-lines)           show_line_offsets=true ;;
     (--no-show-lines)           show_line_offsets=false ;;
-    (--np|--no-profile)         use_profile=false ;;
-    (--offset-time)             day_offsets+=( "$2" ) ; shift ;;
+
+    (--np|--no-profile)         profile_day_offset_map=() ;;
+    (--up|--profile)            profile_day_offset_map[0]=true ;;
+    (--profile-offset-days)     profile_day_offset_map[10#$2]=true ; shift ;;
+    (--profile-offset-weeks)    profile_day_offset_map[(10#$2)*7]=true ; shift ;;
+
+    (--profile-days-ago)        add_plist_min_age $((10#$2)) ; shift ;;
+    (--profile-weeks-ago)       add_plist_min_age $(((10#$2)*7)) ; shift ;;
+    (--profile-months-ago)      add_plist_min_age $(((10#$2)*365/12)) ; shift ;;
+    (--profile-years-ago)       add_plist_min_age $(((10#$2)*365)) ; shift ;;
+    (--profile-last-week)       add_plist_min_age 7 ;;
+    (--profile-today)           add_plist_min_age 0 ;;
+    (--profile-yesterday)       add_plist_min_age 1 ;;
+
     (--once)                    once=true ;;
     (--patch)                   patch_files+=( "$2" ) ; shift ;;
-    (--qp|--quiet-patch)        patch_opts=(--quiet) ;;
+    (--qp|--quiet-patch)        patch_opts+=(--quiet) ;;
     (--show-lines)              show_line_offsets=true ;;
     (--smart)                   smart_diff=true ;;
     (--stupid)                  smart_diff=false ;;
-    (--today)                   day_offsets+=( 0 ) ;;
-    (--today)                   day_offsets+=( 0 ) ;;
-    (--ug|--use-gmail)          use_google=true  ;;
-    (--up|--use-profile)        use_profile=true ;;
+    (--ug|--use-gmail)          gmail_day_offset_map=(0) use_google=true  ;;
     (--verbose)                 dump_opts+=("$1=$2") ; shift ;;
-    (--vp|--verbose-patch)      patch_opts=(--verbose) ;;
-    (--yesterday)               day_offsets+=( 1 ) ;;
-    (--+([0-9])-day?(s)?(-ago)) day_offsets+=( ${1//[^0-9]/} ) ;;
-    (--+([0-9])-week?(s)?(-ago)) day_offsets+=( $(( 7 * ${1//[^0-9]/} )) ) ;;
+    (--vp|--verbose-patch)      patch_opts+=(--verbose) ;;
     (-*)                        dumpopts+=( "$1" ) ;;
-    (*/google*|google*)         glist+=( "$1" ) ;;
+    (*/contacts*|contacts*|*/google*|google*)
+                                glist+=( "$1" ) ;;
     (*/*\
     |*/profile*|profile*\
     |*/mma-book*)               plist+=( "$1" ) ;;
@@ -75,9 +129,6 @@ while (($#)) ; do
     esac
     shift
 done
-
-((${#day_offsets[@]})) || day_offsets=( 0 )
-
 
 (( ! ${#patch_files[@]} )) && {
   _def_patch_files=( ${dbdir}profiles*.patch )
@@ -89,37 +140,39 @@ if [[ ${patch_files[*]} = none ]]; then
     patch_files=()
 fi
 
-echo "Day-offsets are: ${day_offsets[*]}"
+echo "Day-offsets are: ${profile_day_offset_map[*]}"
 
 mvs() { [[ -s "$1" ]] && { delay=true ; mv -vb "$1" "$2" ; } ; }
 
-while
-    $once || {
-    printf 'Diff? '
-    read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
-    }
-do
+oneshot() {
     # update time-related vars to reflect "now" or "today"
     set_current_vars
 
     # make sure any new downloads are filed in proper locations
     file_downloads
 
+    # make a list of places to compare, in order
+
         ff=()
-    ((list_before)) &&
-        ff+=( "${plist[@]}" )
 
+    for t in "${!gmail_day_offset_map[@]}"
+    do
+        printf -v gx "$gT" $((now-t*86400))
+        [[ -s "$gx" ]] || continue
+        ff+=( "$gx" )
+    done
+
+#   ((use_google)) &&
+#       ff+=( "$current_gmail" )
         ff+=( "${glist[@]}" )
-    ((use_google)) &&
-        ff+=( "$current_gmail" )
 
-    ((use_profile)) &&
-    for t in "${day_offsets[@]}"
+    for t in "${!profile_day_offset_map[@]}"
     do
         printf -v px "$pT" $((now-t*86400))
+        [[ -s "$px" ]] || continue
         ff+=( "$px" )
     done
-    ((! list_before)) &&
+
         ff+=( "${plist[@]}" )
 
     ignore_opts=()
@@ -151,12 +204,12 @@ do
                     printf "$__f_cp" "cp $curr $fwd"
                     cp -v "$curr" "$fwd" || exit  # inside pipeline
                     printf "$__f_patch" "patch ${patch_opts[*]} $fwd $patch_file"
-                    patch "${patch_opts[@]}" "$fwd" "$patch_file" || exit  # inside pipeline
+                    patch "${patch_opts[@]}" "$fwd" "$patch_file" || ((ignore_patch_failure)) || exit  # inside pipeline
 
                     printf "$__f_cp" "cp $fwd $rev"
                     cp -v "$fwd" "$rev" || exit  # inside pipeline
                     printf "$__f_patch" "patch ${patch_opts[*]} -R $rev $patch_file"
-                    patch "${patch_opts[@]}" -R "$rev" "$patch_file" || exit  # inside pipeline
+                    patch "${patch_opts[@]}" -R "$rev" "$patch_file" || ((ignore_patch_failure)) || exit  # inside pipeline
 
                     printf "$__f_diff" "diff $curr $rev"
                     diff -s "$curr" "$rev" || exit  # inside pipeline
@@ -196,9 +249,19 @@ do
             exec {fd}<&-
         done
     fi
+}
 
-    ((once)) && break
-done
+if ((once))
+then
+    oneshot
+else
+    while
+        printf 'Diff? '
+        read x && [[ $x != @(n|no|q|quit|stop|exit) ]]
+    do
+        oneshot
+    done
+fi
 
 [[ -n $temp ]] && rm -fv "$temp"*
 }
