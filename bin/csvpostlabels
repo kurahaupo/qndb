@@ -32,23 +32,23 @@ for x do
     case $x in
     (-*)                opts+=( "$1" ) ;;
     (ask)               (( ask = true  )) ;;
-    (noask)             (( ask = false )) ;;
+    (no-ask)            (( ask = false )) ;;
     (nz-all)            inc+=(               --select='#all'                                ) ;;
     (nt-bayis|nt-boi)   inc+=(               --select='@listing - NT - Bay of Islands'      ) ;;
     (nt-hwick)          inc+=(               --select='@listing - NT - Howick'              ) ;;
     (nt-ktaia)          inc+=(               --select='@listing - NT - Kaitaia'             ) ;;
     (nt-mtedn)          inc+=(               --select='@listing - NT - Mt Eden'             ) ;;
     (nt-nshor)          inc+=(               --select='@listing - NT - North Shore'         ) ;;
-    (nt-wakld)          inc+=(               --select='@listing - NT - Waiheke'             ) ;;
-    (nt-wheke)          inc+=(               --select='@listing - NT - West Auckland'       ) ;;
+    (nt-wheke)          inc+=(               --select='@listing - NT - Waiheke'             ) ;;
     (nt-whrei)          inc+=(               --select='@listing - NT - Whangarei'           ) ;;
+    (nt-wkwth)          inc+=(               --select='@listing - NT - Warkworth'           ) ;;
     (nt-oseas)          inc+=(               --select='@listing - NT - overseas'            ) ;;
     (nt-elsew)          inc+=(               --select='@listing - NT - elsewhere'           ) ;;
     (nt-all)            inc+=(   --select-and-include='NT notice=!post NT everyone'         ) ;;
     (nt-news)           inc+=(   --select-and-include='NT news=!post NT news'               ) ;;
     (nt-minutes)        inc+=(   --select-and-include='NT minutes=!post NT minutes'         ) ;;
-    (me-minutes)        inc+=(   --select-and-include='MtEdn minutes=!post Mt Eden minutes' ) ;;
-    (me-everyone)       inc+=(     --optional-include='MtEdn info=@listing - NT - Mt Eden'  ) ;;
+    (mtedn-minutes)     inc+=(   --select-and-include='MtEdn minutes=!post Mt Eden minutes' ) ;;
+    (mtedn-everyone)    inc+=(     --optional-include='MtEdn info=@listing - NT - Mt Eden'  ) ;;
     (reminder)          inc+=(     --optional-include='reminder note=!post reminder'        ) ;;
     (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
     (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
@@ -72,7 +72,7 @@ then
     elif askyn ' - whole of NTMM (@listing - NT - *; @member - NT)'
     then
         inc+=( --select="@member - NT" )
-        for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke 'West Auckland' Whangarei overseas elsewhere
+        for i in 'Bay of Islands' Howick Kaitaia 'Mt Eden' 'North Shore' Waiheke Warkworth Whangarei overseas elsewhere
         do
             inc+=( --select="@listing - NT - $i" )
         done
@@ -96,7 +96,7 @@ fi
 
 file_downloads
 
-"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$@" "$current_gmail" &&
+"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$current_gmail" &&
 { sleep 1 ; evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?
