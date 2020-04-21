@@ -69,9 +69,13 @@ uT="${dbdir}users-%(%Y%m%d)T.csv"   # for quakers.nz users downloads
 
 dldirs=( "$HOME/Downloads/" )
 
+# shellcheck disable=SC2059
+{
 sprintf baseline_snapshot  "$pT" 1393541773   # baseline comparison file (first snapshot)
 sprintf greenbook_snapshot "$pT" 1402216718   # snapshot on which the Green Book was based
+}
 
+# shellcheck disable=SC2059
 set_current_vars() {
     # update time-related vars to reflect "now" or "today"
     sprintf now '%(%s)T' -1
@@ -81,6 +85,7 @@ set_current_vars() {
 set_current_vars
 
 # make sure any new downloads are filed in proper locations
+# shellcheck disable=SC2059
 file_downloads() {
     local -a age_limit=( -mtime -30 )
     while (($#)) ; do

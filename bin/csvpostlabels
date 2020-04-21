@@ -5,6 +5,7 @@
 inc=()
 
 askyn() {
+    local yn
     printf '%s? ' "$*"
     while
         read -rsn1 yn || return 2
@@ -13,7 +14,7 @@ askyn() {
     do
         [[ $yn = Q ]] && exit
     done
-    printf '%s\n' $yn
+    printf '%s\n' "$yn"
     [[ $yn = Y ]]
 }
 
@@ -52,7 +53,7 @@ for x do
     (reminder)          inc+=(     --optional-include='reminder note=!post reminder'        ) ;;
     (has-email)         inc+=(     --optional-include='Email flyer=#has-email'              ) ;;
     (anzfn)             inc+=(   --select-and-include='ANZ Friends=!post NZ Friends'        ) ;;
-    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" $now ; opts+=( --output-mkdir=1 ) ;;
+    (go)                printf -v postlabels '%sQuakers/mailout/%(%Y%m)T/postlabels.pdf' "$HOME${HOME:+/}" "$now" ; opts+=( --output-mkdir=1 ) ;;
     (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
     esac
 done

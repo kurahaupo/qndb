@@ -55,7 +55,7 @@ while
 do
     case $n in
     '') echo SKIP ;;
-    [0+]*) iphone $n ;;
-    *) titlecase $n ;;
+    [0+]*) iphone "$n" ;;
+    *) titlecase "$n" ;;
     esac
 done

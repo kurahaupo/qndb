@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. $HOME/Quakers/lib/qlib.bash
+. "${libdir:-$HOME/Quakers/lib/}"qlib.bash
 
 file_downloads
 
@@ -11,4 +11,4 @@ for (( i=$# ; i >= 1 ; --i )) do
     esac
 done
 
-exec ${libdir}csvdump "$@"
+exec "${libdir}csvdump" "$@"

@@ -1,5 +1,5 @@
 #!/bin/bash
 
-. $HOME/Quakers/lib/qlib.bash
+. "${libdir:-$HOME/Quakers/lib/}"qlib.bash
 
 file_downloads "$@"
