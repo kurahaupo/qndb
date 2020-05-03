@@ -82,6 +82,7 @@ use CSV::gmail;
 use CSV::qndb;
 use CSV::adhoc1;
 use CSV::adhoc2;
+use SQL::generic;
 
 ################################################################################
 
@@ -206,6 +207,17 @@ if (my $lang = $ENV{LANG}) {
     $presume_decoding =
     $use_encoding = 'UTF-8' if $lang =~ /\.UTF-8$/;
 }
+
+########################################
+# How to connect to database, if using that method
+
+my $sql_dsn     = $ENV{QDB_DSN}    // 'dbi:mysql:database=quakers;host=ip6-localhost;port=33060',
+my $sql_dbtype  = $ENV{QDB_DBTYPE} // 'mysql';
+my $sql_dbname  = $ENV{QDB_DBNAME} // 'quakers';
+my $sql_host    = $ENV{QDB_HOST}   // '::1';        # note that IPv6 addresses with colons cannot be included in a DSN
+my $sql_port    = $ENV{QDB_PORT}   // 33060;
+my $sql_user    = $ENV{QDB_USER}   // 'quakers_user';
+my $sql_pass    = $ENV{QDB_PASS}   || undef;
 
 ########################################
 # How are records selected (these affect various modes in DWIM ways...)
@@ -528,6 +540,14 @@ GetOptions
     'verbose=s'                   => \&set_verbose,
     'why-not|why-skipped'         => sub { set_verbose 'why='.$_[-1] },
 
+    'sql-dsn=s'                   => \$sql_dsn,
+    'sql-dbtype=s'                => \$sql_dbtype,
+    'sql-dbname=s'                => \$sql_dbname,
+    'sql-host=s'                  => \$sql_host,
+    'sql-port=s'                  => \$sql_port,
+    'sql-user=s'                  => \$sql_user,
+    'sql-pass=s'                  => \$sql_pass,
+
     'help|h'                      => sub { print <<EndOfHelp ; exit 0 },
 $0 --birthday-dump [ "generic" options ]...
 $0 --book-{index|listing}-{all|by-{mm|wg}} [ "book", "pdf-output" & "generic" options ]...
@@ -546,6 +566,7 @@ For additional options see:
     $0 --help-generic
 
     $0 --help-input
+    $0 --help-sql
     $0 --help-selection
     $0 --help-tuning
 
@@ -691,6 +712,7 @@ EndOfHelp
 
 See also:
     $0 --help-input
+    $0 --help-sql
     $0 --help-selection
     $0 --help-tuning
 EndOfHelp
@@ -709,6 +731,24 @@ EndOfHelp
     --fs-char=CHAR --sep-char=CHAR  field separating character
     --quote-char=CHAR               quote character
     --escape-char=CHAR              escape character
+
+See:
+    $0 --help-sql
+    $0 --help-generic
+EndOfHelp
+
+    'help-sql'                   => sub { print <<EndOfHelp; exit 0 },
+"sql" options:
+    --sql-dbtype="mysql"        Fixed, don't change
+    --sql-dbname=STRING         Use 'quakers' or 'quaker_d6' for production sites
+    --sql-host=HOST             hostname or IP address; use ::1 for proxy
+    --sql-port=NUMBER           3306 for standard MySQL, or forwarding port for proxy
+    --sql-user="quakers_user"   Fixed, don't change
+    --sql-pass=SECRET           (use of this option is discouraged)
+
+See:
+    $0 --help-input
+    $0 --help-generic
 EndOfHelp
 
     'help-selection'              => sub { print <<EndOfHelp; exit 0 },
@@ -1017,7 +1057,6 @@ sub parse_file($) {
 
     my $num_lines = $. - 1;
     my @records;
-    my %record_by_uid;
     my $fpos = tell $in;
     $! = 0;
     RECORD: while ( my $ra = $csv->getline($in) ) {
@@ -1025,7 +1064,6 @@ sub parse_file($) {
         print "Read line#$num_lines: " . Dumper($ra) if $verbose > 5 && $debug;
         my @r = $filetype->new(\@headers, $ra, $fpos);
         push @records, @r;
-        $record_by_uid{$_->uid} = $_ for @r;
         $fpos = tell $in;
         $! = 0;
     }
@@ -1033,12 +1071,45 @@ sub parse_file($) {
     warn sprintf "READ: parsed %u records from %u lines in %s\n", scalar(@records), $num_lines, $in_name if $verbose;
     warn sprintf "READ: file position now at %#x in %s\n", tell($in), $in_name if $verbose > 1;
     close $in or die "Error while reading $in_name; $!\n";
+    return $filetype, $in_name, \@records;
+}
 
-    if (UNIVERSAL::can($filetype, 'foldrows')) {
-        $filetype->foldrows(\@records)
+sub fetch_sql($) {
+    state $connected;
+    my %sql_opts = (
+        dsn     => $sql_dsn,
+        dbtype  => $sql_dbtype,
+        dbname  => $sql_dbname,
+        host    => $sql_host,
+        port    => $sql_port,
+        user    => $sql_user,
+        pass    => $sql_pass,
+    );
+    $connected++ or SQL::generic->Connect(\%sql_opts);
+    return 'SQL', $_[0], SQL::generic->fetch_users;
+}
+
+sub read_source($) {
+    my ($s) = @_;
+    my $records;
+    my $in_name;
+    my $filetype;
+    if ($s =~ m<^dbi:> ) {
+        ($filetype, $in_name, $records) = fetch_sql($s);
+    } else {
+        ($filetype, $in_name, $records) = parse_file($s);
     }
 
-    RECORD: for my $r ( @records ) {
+    if (UNIVERSAL::can($filetype, 'foldrows')) {
+        $filetype->foldrows($records)
+    }
+
+    my %record_by_uid;
+    for my $r ( @$records ) {
+        $record_by_uid{$r->uid} = $r
+    }
+
+    RECORD: for my $r ( @$records ) {
         if ( $r->{ZREF_parents} || $r->{ZREF_children} ) {
             $r->{XREF_parents}  = delete $r->{ZREF_parents};
             $r->{XREF_children} = delete $r->{ZREF_children};
@@ -1061,9 +1132,9 @@ sub parse_file($) {
         }
     }
 
-    warn sprintf "READ: cross-referenced %u records from %s\n", scalar @records, $in_name if $verbose;
+    warn sprintf "READ: cross-referenced %u records from %s\n", scalar @$records, $in_name if $verbose;
 
-    return \@records;
+    return $records;
 }
 
     sub _open_output($;$$) {
@@ -3011,8 +3082,8 @@ elsif ($do_diff) {
     my $f1 = shift @ARGV;
     my $f2 = shift @ARGV || '-';
     @ARGV == 0 or die "Need two files (or one file and stdin) with --diff\n";
-    my $rr1 = parse_file $f1;
-    my $rr2 = parse_file $f2;
+    my $rr1 = read_source $f1;
+    my $rr2 = read_source $f2;
     generate_diff( $output_name, $rr1, $f1, $rr2, $f2 );
 }
 else {
@@ -3024,7 +3095,7 @@ else {
     $do_book + $do_labels + $do_birthday_dump + $do_diffable_dump + $do_tag_report + $do_qndb_map == 1 or die "Only one function allowed with --output\n";
 
     for my $a (@ARGV) {
-        my $rr = parse_file $a;
+        my $rr = read_source $a;
         if ($do_book) {
             # Force overwrite if the output filename is related to (but not the same as) the input filename
             my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-book.pdf/r );

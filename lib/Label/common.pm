@@ -28,7 +28,7 @@ my ($ref_evenly_squash_to_fit,
 
 my $seen_imports;
 sub import {
-    my $pkg = shift;
+    my $self = shift;
     @_ == 0 && return;
     @_ == 10 || croak "Wrong number of args";
     #@_ == 14 || croak "Wrong number of args";
@@ -57,7 +57,7 @@ sub import {
                 $ref_line_spacing ) {
         $j && ref $j eq 'SCALAR' or croak "import passed '$j'";
     }
-    warn sprintf "IMPORT %s into %s\n", $pkg, (caller)[0];
+    warn sprintf "Importing from %s into %s (direct)\n", $self, scalar caller if $debug;
 }
 
 sub new {

@@ -4,7 +4,7 @@ package verbose;
 
 use Carp 'croak';
 
-my $debug = 0;
+my $debug = $^C;
 my $why_not = 0;
 
 my %vx;
