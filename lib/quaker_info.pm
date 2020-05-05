@@ -8,6 +8,8 @@ use utf8;
 
 package quaker_info;
 
+use verbose;
+
 our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
     'BP - Bay of Plenty',
     'CH - Christchurch',
@@ -180,9 +182,10 @@ CHECK {
         my $v = $wg_abbrev{$k};
         for my $i ( reverse 0 .. $#$v ) {
             my $a = $v->[$i] // next;
-            length($a) <= $i or die sprintf "Abbreviation '%s' is too long, should be %u\n", $a, $i;
-            length($a) == $i or warn sprintf "Abbreviation '%s' is shorter than %u\n", $a, $i;
-            $i > 0 || next;
+            my $l = length $a;
+            $l == $i
+                or $^C || $debug || $l > $i
+                    and warn sprintf "Abbreviation '%s' is length %u, but should be %u\n", $a, $l, $i ;
         }
         (my $kk = $k) =~ s/^$mm_keys_re[- ]+// or next;
         $kk =~ s/\W//g;
