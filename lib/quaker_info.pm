@@ -113,59 +113,59 @@ our %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) 
                                 #         ╭─────────┼┼─╯╰─┼┼─╮╭─┼┼─╯╰─┼┼─╮╭─┼┼─────────╯
 our %wg_abbrev = (              #         ╰─────────╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯▽
 
-        'NT - Bay of Islands'       => [ undef, 'B',   'BI', 'BoI', 'BayI', 'BayIs', 'BayOfl', 'BayOfIs', 'BayOfIsl', 'BayIsland', 'BayOfIslnd', 'BayOfIslnds', 'BayOfIslands', 'Bay ofIslands', 'Bay of Islands', ], # NT
-        'NT - Howick'               => [ undef, 'Ḣ',   'Hw', 'Hwk', 'Hwck', 'Howck', 'Howick', ], # NT
-        'NT - Kaitaia'              => [ undef, undef, 'Kt', 'Kta', 'Ktai', 'Ktaia', 'Kaitai', 'Kaitaia', ], # NT
-        'NT - Mt Eden'              => [ undef, 'Ṁ',   'ME', 'MtE', 'MtEd', 'MtEdn', 'MtEden', 'Mt Eden', ], # NT
-        'NT - North Shore'          => [ undef, 'Ṅ',   'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre', 'NorthShore', 'North Shore', ], # NT
-        'NT - Waiheke'              => [ undef, 'Ẁ',   'WI', 'WkI', 'Whke', 'Wheke', 'Waihke', 'Waiheke', ], # NT
+        'NT - Bay of Islands'       => [ undef, 'B',   'BI', 'BoI', 'BayI', 'BayIs', 'BayOfl', 'BayOfIs', 'BayOfIsl', 'BayIsland', 'BayOfIslnd', 'BayOfIslnds', 'BayOfIslands', 'Bay ofIslands', 'Bay of Islands', ],
+        'NT - Howick'               => [ undef, 'Ḣ',   'Hw', 'Hwk', 'Hwck', 'Howck', 'Howick', ],
+        'NT - Kaitaia'              => [ undef, undef, 'Kt', 'Kta', 'Ktai', 'Ktaia', 'Kaitai', 'Kaitaia', ],
+        'NT - Mt Eden'              => [ undef, 'Ṁ',   'ME', 'MtE', 'MtEd', 'MtEdn', 'MtEden', 'Mt Eden', ],
+        'NT - North Shore'          => [ undef, 'Ṅ',   'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre', 'NorthShore', 'North Shore', ],
+        'NT - Waiheke'              => [ undef, 'Ẁ',   'WI', 'WkI', 'Whke', 'Wheke', 'Waihke', 'Waiheke', ],
         'NT - Warkworth'            => [ undef, undef, 'Ww', 'Wkw', 'Wwth', 'Wkwth', 'Wrkwth', 'Warkwth', 'Warkwrth', 'Warkworth', ],
-        'NT - Whangarei'            => [ undef, 'Ẉ',   'Wr', 'Whr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei', 'Whangarei', ], # NT
+        'NT - Whangarei'            => [ undef, 'Ẉ',   'Wr', 'Whr', 'Wrei', 'Whrei', 'Whgrei', 'Whgarei', 'Whngarei', 'Whangarei', ],
         'NT - elsewhere'            => [ undef, undef, '+N', '+NT', 'exNT', 'ex-NT', ],
         'NT - overseas'             => [ undef, undef, '*N', '*NT', 'osNT', 'os-NT', 'o/s-NT', ],
 
-        'MNI - Rotorua-Taupo'       => [ undef, 'R',   'RT', 'RrT', 'RrTp', 'RrTpo', 'RruTpo', 'RruaTpo', 'RtruaTpo', 'RruaTaupo', 'RotoruaTpo', 'RotoruaTaup', 'RotoruaTaupo', 'Rotorua Taupo', ], # MNI
-        'MNI - Tauranga'            => [ undef, 'Ť',   'Tg', 'Tga', 'Tnga', 'Trnga', 'Tranga', 'Taurnga', 'Tauranga', ], # MNI
-        'MNI - Thames & Coromandel' => [ undef, 'Ṫ',   'TC', 'ThC', 'TmCo', 'ThmCo', 'ThmCor', 'ThmCoro', 'ThamesCo', 'ThamesCor', 'ThamesCoro', 'ThamesCmndl', 'ThamesCrmndl', 'ThamesCormndl', 'ThamesCoromndl', 'ThamesCoromandl', 'ThamesCoromandle', 'Thames Coromandle', ], # NT
-        'MNI - Waikato'             => [ undef, 'W',   'Wk', 'Wko', 'Wkto', 'Wkato', 'Waikto', 'Waikato', ], # NMI
+        'MNI - Rotorua-Taupo'       => [ undef, 'R',   'RT', 'RrT', 'RrTp', 'RrTpo', 'RruTpo', 'RruaTpo', 'RtruaTpo', 'RruaTaupo', 'RotoruaTpo', 'RotoruaTaup', 'RotoruaTaupo', 'Rotorua Taupo', ],
+        'MNI - Tauranga'            => [ undef, 'Ť',   'Tg', 'Tga', 'Tnga', 'Trnga', 'Tranga', 'Taurnga', 'Tauranga', ],
+        'MNI - Thames & Coromandel' => [ undef, 'Ṫ',   'TC', 'ThC', 'TmCo', 'ThmCo', 'ThmCor', 'ThmCoro', 'ThamesCo', 'ThamesCor', 'ThamesCoro', 'ThamesCmndl', 'ThamesCrmndl', 'ThamesCormndl', 'ThamesCoromndl', 'ThamesCoromandl', 'ThamesCoromandle', 'Thames Coromandle', ],
+        'MNI - Waikato'             => [ undef, 'W',   'Wk', 'Wko', 'Wkto', 'Wkato', 'Waikto', 'Waikato', ],
         'MNI - elsewhere'           => [ undef, undef, '+M', '+MN', 'exMN', 'ex-MN', ],
         'MNI - overseas'            => [ undef, undef, '*M', '*MN', 'osMN', 'os-MN', 'o/s-MN', 'o/s-MNI', ],
 
-        'PN - Hawkes Bay'           => [ undef, 'H',   'HB', 'HkB', 'HwkB', 'HwkBy', 'HawkBy', 'HawksBy', 'HawkesBy', 'HawkesBay', 'Hawkes Bay', ], # PN
-        'PN - Levin'                => [ undef, 'L',   'Lv', 'Lvn', 'Levn', 'Levin', ], # PN
-        'PN - Palmerston North'     => [ undef, 'P',   'PN', 'PmN', 'PNth', 'PmNth', 'PmtNth', 'PmstonN', 'PlmrstnN', 'PalmstonN', 'PalmstnNth', 'PalmstnNrth', 'PalmstnNorth', 'PalmrstnNorth', 'PalmrstonNorth', 'PalmerstonNorth', 'Palmerston North', ], # PN
+        'PN - Hawkes Bay'           => [ undef, 'H',   'HB', 'HkB', 'HwkB', 'HwkBy', 'HawkBy', 'HawksBy', 'HawkesBy', 'HawkesBay', 'Hawkes Bay', ],
+        'PN - Levin'                => [ undef, 'L',   'Lv', 'Lvn', 'Levn', 'Levin', ],
+        'PN - Palmerston North'     => [ undef, 'P',   'PN', 'PmN', 'PNth', 'PmNth', 'PmtNth', 'PmstonN', 'PlmrstnN', 'PalmstonN', 'PalmstnNth', 'PalmstnNrth', 'PalmstnNorth', 'PalmrstnNorth', 'PalmrstonNorth', 'PalmerstonNorth', 'Palmerston North', ],
         'PN - elsewhere'            => [ undef, undef, '+P', '+PN', 'exPN', 'ex-PN', ],
         'PN - overseas'             => [ undef, undef, '*P', '*PN', 'osPN', 'os-PN', 'o/s-PN', ],
 
-        'WG - Whanganui'            => [ undef, 'Ŵ',   'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui', 'Whanganui', ], # WG
+        'WG - Whanganui'            => [ undef, 'Ŵ',   'Wg', 'Wnu', 'Wnui', 'Whnui', 'Whgnui', 'Whganui', 'Whnganui', 'Whanganui', ],
         'WG - elsewhere'            => [ undef, undef, '+Ŵ', '+WG', 'exWG', 'ex-WG', ],
         'WG - overseas'             => [ undef, undef, '*Ŵ', '*WG', 'osWG', 'os-WG', 'o/s-WG', ],
 
-        'TN - Taranaki'             => [ undef, 'T',   'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki', 'Taranaki', ], # TN
+        'TN - Taranaki'             => [ undef, 'T',   'Tn', 'Tnk', 'Tnki', 'Tnaki', 'Trnaki', 'Taranki', 'Taranaki', ],
         'TN - elsewhere'            => [ undef, undef, '+T', '+TN', 'exTN', 'ex-TN', ],
         'TN - overseas'             => [ undef, undef, '*T', '*TN', 'osTN', 'os-TN', 'o/s-TN', ],
 
-        'KP - Kapiti'               => [ undef, 'K',   'Kp', 'Kpt', 'Kapt', 'Kapti', 'Kapiti', ], # KP
+        'KP - Kapiti'               => [ undef, 'K',   'Kp', 'Kpt', 'Kapt', 'Kapti', 'Kapiti', ],
         'KP - elsewhere'            => [ undef, undef, '+K', '+KP', 'exKP', 'ex-KP', ],
         'KP - overseas'             => [ undef, undef, '*K', '*KP', 'osKP', 'os-KP', 'o/s-KP', ],
 
-        'WN - Wellington'           => [ undef, 'Ẃ',   'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ], # WN
-        'WN - Wairarapa'            => [ undef, 'Ẅ',   'Wp', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ], # WN
-        'WN - Hutt Valley'          => [ undef, 'Ḧ',   'HV', 'HtV', 'HutV', 'HutVl', 'HuttVl', 'HuttVly', 'HuttVlly', 'HuttVally', 'HuttValley', 'Hutt Valley', ], # WN
+        'WN - Wellington'           => [ undef, 'Ẃ',   'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ],
+        'WN - Wairarapa'            => [ undef, 'Ẅ',   'Wp', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ],
+        'WN - Hutt Valley'          => [ undef, 'Ḧ',   'HV', 'HtV', 'HutV', 'HutVl', 'HuttVl', 'HuttVly', 'HuttVlly', 'HuttVally', 'HuttValley', 'Hutt Valley', ],
         'WN - elsewhere'            => [ undef, undef, '+Ẃ', '+WN', 'exWN', 'ex-WN', ],
         'WN - overseas'             => [ undef, undef, '*Ẃ', '*WN', 'osWN', 'os-WN', 'o/s-WN', ],
 
-        'CH - Canterbury'           => [ undef, 'C',   'Cn', 'Cnb', 'Cnby', 'Cntby', 'Cantby', 'Cantbry', 'Cantbury', 'Cantrbury', 'Canterbury', ], # CH
-        'CH - Golden Bay'           => [ undef, 'G',   'GB', 'GoB', 'GldB', 'GldnB', 'GldnBy', 'GoldenB', 'GoldnBay', 'GoldenBay', 'Golden Bay', ], # CH
-        'CH - Marlborough'          => [ undef, 'M',   'Mb', 'Mbr', 'Mbro', 'Mboro', 'Mlboro', 'Marlbor', 'Marlboro', 'Marlborou', 'Marlbrough', 'Marlborough', ], # CH
-        'CH - Nelson'               => [ undef, 'N',   'Nn', 'Nsn', 'Nlsn', 'Nelsn', 'Nelson', ], # CH
-        'CH - South Canterbury'     => [ undef, 'Ṡ',   'SC', 'SCt', 'SCtb', 'SCntb', 'SCntby', 'SthCnby', 'SthCntby', 'SthCantby', 'SthCantbry', 'SthCantbury', 'SthCantrbury', 'SthCanterbury', 'SouthCantrbury', 'SouthCanterbury', 'South Canterbury', ], # CH
-        'CH - Westland'             => [ undef, 'Ẇ',   'Wl', 'Wld', 'Wlnd', 'Wland', 'Westld', 'Westlnd', 'Westland', ], # CH
+        'CH - Canterbury'           => [ undef, 'C',   'Cn', 'Cnb', 'Cnby', 'Cntby', 'Cantby', 'Cantbry', 'Cantbury', 'Cantrbury', 'Canterbury', ],
+        'CH - Golden Bay'           => [ undef, 'G',   'GB', 'GoB', 'GldB', 'GldnB', 'GldnBy', 'GoldenB', 'GoldnBay', 'GoldenBay', 'Golden Bay', ],
+        'CH - Marlborough'          => [ undef, 'M',   'Mb', 'Mbr', 'Mbro', 'Mboro', 'Mlboro', 'Marlbor', 'Marlboro', 'Marlborou', 'Marlbrough', 'Marlborough', ],
+        'CH - Nelson'               => [ undef, 'N',   'Nn', 'Nsn', 'Nlsn', 'Nelsn', 'Nelson', ],
+        'CH - South Canterbury'     => [ undef, 'Ṡ',   'SC', 'SCt', 'SCtb', 'SCntb', 'SCntby', 'SthCnby', 'SthCntby', 'SthCantby', 'SthCantbry', 'SthCantbury', 'SthCantrbury', 'SthCanterbury', 'SouthCantrbury', 'SouthCanterbury', 'South Canterbury', ],
+        'CH - Westland'             => [ undef, 'Ẇ',   'Wl', 'Wld', 'Wlnd', 'Wland', 'Westld', 'Westlnd', 'Westland', ],
         'CH - elsewhere'            => [ undef, undef, '+C', '+CH', 'exCH', 'ex-CH', ],
         'CH - overseas'             => [ undef, undef, '*C', '*CH', 'osCH', 'os-CH', 'o/s-CH', ],
 
-        'DN - Otago'                => [ undef, 'O',   'Ot', 'Otg', 'Otgo', 'Otago', ], # DN
-        'DN - Southland'            => [ undef, 'S',   'Sl', 'Sld', 'Sthl', 'Sthld', 'Sthlnd', 'Sthland', 'Southlnd', 'Southland', ], # DN
+        'DN - Otago'                => [ undef, 'O',   'Ot', 'Otg', 'Otgo', 'Otago', ],
+        'DN - Southland'            => [ undef, 'S',   'Sl', 'Sld', 'Sthl', 'Sthld', 'Sthlnd', 'Sthland', 'Southlnd', 'Southland', ],
         'DN - elsewhere'            => [ undef, undef, '+D', '+DN', 'exDN', 'ex-DN', ],
         'DN - overseas'             => [ undef, undef, '*D', '*DN', 'osDN', 'os-DN', 'o/s-DN', ],
 
