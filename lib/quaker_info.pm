@@ -149,9 +149,9 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'KP - elsewhere'            => [ undef, undef, '+K', '+KP', 'exKP', 'ex-KP', ],
         'KP - overseas'             => [ undef, undef, '*K', '*KP', 'osKP', 'os-KP', ],
 
-        'WN - Wellington'           => [ undef, undef, 'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ],
-        'WN - Wairarapa'            => [ undef, undef, 'Wp', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ],
-        'WN - Hutt Valley'          => [ undef, undef, 'HV', 'HtV', 'HutV', 'HutVl', 'HuttVl', 'HuttVly', 'HuttVlly', 'HuttVally', 'HuttValley', 'Hutt Valley', ],
+        'WN - Wellington'           => [ undef, 'Ẃ',   'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ], # WN
+        'WN - Wairarapa'            => [ undef, 'Ẅ',   'Wp', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ], # WN
+        'WN - Hutt Valley'          => [ undef, 'Ḧ',   'HV', 'HtV', 'HutV', 'HutVl', 'HuttVl', 'HuttVly', 'HuttVlly', 'HuttVally', 'HuttValley', 'Hutt Valley', ], # WN
         'WN - elsewhere'            => [ undef, undef, undef,'+WN', 'exWN', 'ex-WN', ],
         'WN - overseas'             => [ undef, undef, undef,'*WN', 'osWN', 'os-WN', ],
 
@@ -169,7 +169,7 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'DN - elsewhere'            => [ undef, undef, '+D', '+DN', 'exDN', 'ex-DN', ],
         'DN - overseas'             => [ undef, undef, '*D', '*DN', 'osDN', 'os-DN', ],
 
-        'elsewhere',                => [ undef, '+',   'NZ', 'NZ ', 'NZ  ', 'other', 'other ', 'other  ', 'other   ', 'elsewhere', ], # elsewhere in NZ
+        'elsewhere',                => [ undef, '+',   'NZ', 'NZ ', 'NZ  ', 'other', ], # elsewhere in NZ
         'overseas',                 => [ undef, '*',   'os', 'o/s', 'o/s ', 'oseas', 'o/seas', 'ovrseas', 'overseas', ], # not in NZ
 
     );
