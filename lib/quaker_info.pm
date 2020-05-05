@@ -149,7 +149,7 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'KP - elsewhere'            => [ undef, undef, '+K', '+KP', 'exKP', 'ex-KP', ],
         'KP - overseas'             => [ undef, undef, '*K', '*KP', 'osKP', 'os-KP', ],
 
-        'WN - Wellington'           => [ undef, 'Ẃ',   'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ], # WN
+        'WN - Wellington'           => [ undef, undef, 'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Welngton', 'Wellngton', 'Wellington', ],
         'WN - Wairarapa'            => [ undef, undef, 'Wp', 'Wrp', 'Wrpa', 'Wrrpa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ],
         'WN - Hutt Valley'          => [ undef, undef, 'HV', 'HtV', 'HutV', 'HuttV', 'HuttVl', 'HuttVly', 'HuttValy', 'HuttVally', 'HuttValley', 'Hutt Valley', ],
         'WN - elsewhere'            => [ undef, undef, undef,'+WN', 'exWN', 'ex-WN', ],
