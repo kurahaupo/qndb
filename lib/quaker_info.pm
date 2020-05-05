@@ -169,8 +169,8 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
         'DN - elsewhere'            => [ undef, undef, '+D', '+DN', 'exDN', 'ex-DN', ],
         'DN - overseas'             => [ undef, undef, '*D', '*DN', 'osDN', 'os-DN', ],
 
-        'elsewhere',                => [ undef, '+',   'nz', 'nz',  'nz',   'other', 'other',  'other',   'other',    'elsewhere', ], # elsewhere in NZ
-        'overseas',                 => [ undef, '*',   'os', 'o/s', 'o/s',  'oseas', 'o/seas', 'ovrseas', 'overseas', ], # not in NZ
+        'elsewhere',                => [ undef, '+',   'NZ', 'NZ ', 'NZ  ', 'other', 'other ', 'other  ', 'other   ', 'elsewhere', ], # elsewhere in NZ
+        'overseas',                 => [ undef, '*',   'os', 'o/s', 'o/s ', 'oseas', 'o/seas', 'ovrseas', 'overseas', ], # not in NZ
 
     );
 
