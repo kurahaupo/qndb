@@ -151,7 +151,7 @@ our %wg_abbrev = (              #         ╰─────────╯╰�
 
         'WN - Wellington'           => [ undef, 'Ẃ',   'Wn', 'Wtn', 'Wgtn', 'Wlgtn', 'Wlngtn', 'Wlngton', 'Wllngton', 'Wellngton', 'Wellington', ], # WN
         'WN - Wairarapa'            => [ undef, 'Ẅ',   'Wp', 'Wrp', 'Wrpa', 'Wrapa', 'Wairpa', 'Wairrpa', 'Wairarpa', 'Wairarapa', ], # WN
-        'WN - Hutt Valley'          => [ undef, 'Ḧ',   'HV', 'HtV', 'HutV', 'HutVl', 'HuttVl', 'HuttVly', 'HuttVlly', 'HuttVally', 'HuttValley', 'Hutt Valley', ], # WN
+        'WN - Hutt Valley'          => [ undef, undef, 'HV', 'HtV', 'HutV', 'HuttV', 'HuttVl', 'HuttVly', 'HuttValy', 'HuttVally', 'HuttValley', 'Hutt Valley', ],
         'WN - elsewhere'            => [ undef, undef, undef,'+WN', 'exWN', 'ex-WN', ],
         'WN - overseas'             => [ undef, undef, undef,'*WN', 'osWN', 'os-WN', ],
 
