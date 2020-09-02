@@ -78,7 +78,8 @@ create or replace view exp_unpivot_mm_subs as
                      from user_subscription_meeting
                     where updates
             ) as s
-  left join field_data_field_short_name as mmt on mmt.entity_id = xmid;
+  left join field_data_field_short_name as mmt on mmt.entity_id = xmid
+                                              and not mmt.deleted;
 
 /**** Same again for YM ****/
 

@@ -18,6 +18,7 @@ use Data::Dumper;
 use PDF::API2;
 use Text::CSV;
 use Getopt::Long qw( :config auto_abbrev bundling );
+use File::Slurp 'read_file';
 
 use Carp 'croak', 'carp';
 
@@ -211,13 +212,14 @@ if (my $lang = $ENV{LANG}) {
 ########################################
 # How to connect to database, if using that method
 
-my $sql_dsn     = $ENV{QDB_DSN}    // 'dbi:mysql:database=quakers;host=ip6-localhost;port=33060',
-my $sql_dbtype  = $ENV{QDB_DBTYPE} // 'mysql';
-my $sql_dbname  = $ENV{QDB_DBNAME} // 'quakers';
-my $sql_host    = $ENV{QDB_HOST}   // '::1';        # note that IPv6 addresses with colons cannot be included in a DSN
-my $sql_port    = $ENV{QDB_PORT}   // 33060;
-my $sql_user    = $ENV{QDB_USER}   // 'quakers_user';
-my $sql_pass    = $ENV{QDB_PASS}   || undef;
+my $sql_dsn;
+my $sql_driver;
+my $sql_dbname;
+my $sql_host;        # note that IPv6 addresses with colons cannot be included in a DSN
+my $sql_port;
+my $sql_user;
+my $sql_pass;
+my $sql_pass_file;
 
 ########################################
 # How are records selected (these affect various modes in DWIM ways...)
@@ -541,12 +543,13 @@ GetOptions
     'why-not|why-skipped'         => sub { set_verbose 'why='.$_[-1] },
 
     'sql-dsn=s'                   => \$sql_dsn,
-    'sql-dbtype=s'                => \$sql_dbtype,
+    'sql-driver|sql-dbtype=s'     => \$sql_driver,
     'sql-dbname=s'                => \$sql_dbname,
     'sql-host=s'                  => \$sql_host,
     'sql-port=s'                  => \$sql_port,
     'sql-user=s'                  => \$sql_user,
     'sql-pass=s'                  => \$sql_pass,
+    'sql-passfile=s'              => \$sql_pass_file,
 
     'help|h'                      => sub { print <<EndOfHelp ; exit 0 },
 $0 --birthday-dump [ "generic" options ]...
@@ -681,7 +684,7 @@ EndOfHelp
         --utf8  --u8                                (--decoding=UTF-8    --encoding=UTF-8)
         --utf16be  --u16b                           (--decoding=UTF-16BE --encoding=UTF-16BE)
         --utf16le  --u16l                           (--decoding=UTF-16LE --encoding=UTF-16LE)
-    
+
     --show-*   ⇔   --no-hide-*
     --hide-*   ⇔   --no-show-*
 
@@ -738,15 +741,58 @@ See:
 EndOfHelp
 
     'help-sql'                   => sub { print <<EndOfHelp; exit 0 },
-"sql" options:
-    --sql-dbtype="mysql"        Fixed, don't change
-    --sql-dbname=STRING         Use 'quakers' or 'quaker_d6' for production sites
-    --sql-host=HOST             hostname or IP address; use ::1 for proxy
-    --sql-port=NUMBER           3306 for standard MySQL, or forwarding port for proxy
-    --sql-user="quakers_user"   Fixed, don't change
-    --sql-pass=SECRET           (use of this option is discouraged)
+SQL data sources are given as fake filenames of the form starting with "dbi:",
+generally of the form:
+
+  dbi:\$driver:database=\$dbname;host=\$host;port=\$port
+
+The DSN and options used for connecting to the database are constructed by
+taking components in this order of precedence:
+
+  1. An explicit DSN via --sql-dsn=DSN is passed through untouched, which means
+     it effectively overrides all other options (except user and pass, because
+     those are not recognized within a DSN by most drivers).
+  2. A DSN is constructed from individual parameters, where each parameter
+     is taken from the first available of:
+      A. individual explicit options --sql-xxx=VALUE
+      B. the disassembled components of a dbi: "filename"
+      C. individual QDB_XXX environment variables
+      D. the disassembled components of a QDB_DSN environment variable
+      E. in the case of the driver, a hard-coded default of "mysql".
 
 See:
+    $0 --help-sql-dsn
+    $0 --help-sql-options
+    $0 --help-input
+    $0 --help-generic
+EndOfHelp
+
+    'help-sql-dsn'                => sub { print <<EndOfHelp; exit 0 },
+The a SQL
+EndOfHelp
+
+    'help-sql-options'            => sub { print <<EndOfHelp; exit 0 },
+
+These components can be specified with command-line arguments or environment variables:
+    --sql-dsn=DSN               use DSN as-is
+
+    dbi:* parameter,
+    or \$QDB_DSN environment    split into components and used with other
+                                values to construct a DSN and/or options
+
+    --sql-driver=DRIVER   \$QDB_DRIVER          Currently only "mysql" is useful
+    --sql-dbname=STRING   \$QDB_DBNAME          Use 'quakers' or 'quaker_d6' for production sites
+    --sql-host=HOST       \$QDB_HOST            hostname or IP address; use ::1 for proxy
+    --sql-port=NUMBER     \$QDB_PORT            3306 for standard MySQL, or forwarding port for proxy
+    --sql-user=USER       \$QDB_USER
+    --sql-pass=SECRET     \$QDB_PASS            (use of this option is discouraged)
+    --sql-passfile=FILE   \$QDB_PASSFILE        read SECRET from named file; this
+
+If no USER is given, use your Linux username.
+If no SECRET is given, attempt to read one from /run/user/\$UID/qdb_secret
+
+See:
+    $0 --help-sql
     $0 --help-input
     $0 --help-generic
 EndOfHelp
@@ -799,6 +845,8 @@ EndOfHelp
 
 $verbose and *STDOUT{IO}->autoflush(1);
 $verbose and *STDERR{IO}->autoflush(1);
+
+$sql_pass && $sql_pass_file && die "Can't use both --sql-pass and --sql-pass-file\n";
 
 $verbose and warn sprintf "RUN: %s\n", join ' ', map { ! m{[^0-9A-Za-z!#%+,-./:=@^_~]|^\#} ? $_ : ! m/['\\]/ ? "'$_'" : ! m/["\\\$]/ ? '"'.$_.'"' : s{[^0-9A-Za-z!#%+,-./:=@^_~]}{\\$&}gr } $0, @ORIG_ARGV;
 
@@ -1074,19 +1122,56 @@ sub parse_file($) {
     return $filetype, $in_name, \@records;
 }
 
+sub read_passfile($;$) {
+    my ($filename, $soft) = @_;
+    if (! defined $filename and $soft // 1) { return (); }
+    my $r = read_file $filename,
+                      array_ref   => 1,
+                      chomp       => 1,
+                      err_mode    => ($soft ? 'quiet' : 'croak');
+    return $r && @$r == 1 && $r->[0] || ();
+}
+
 sub fetch_sql($) {
-    state $connected;
-    my %sql_opts = (
-        dsn     => $sql_dsn,
-        dbtype  => $sql_dbtype,
-        dbname  => $sql_dbname,
-        host    => $sql_host,
-        port    => $sql_port,
-        user    => $sql_user,
-        pass    => $sql_pass,
-    );
-    $connected++ or SQL::generic->Connect(\%sql_opts);
-    return 'SQL', $_[0], SQL::generic->fetch_users;
+    my ($pseudo_filename) = @_;
+    my %sql_opts;
+
+    if (!$pseudo_filename || !ref $pseudo_filename && $pseudo_filename =~ /^dbi:*$/) {
+        $pseudo_filename = undef;
+    }
+
+    SQL::generic::ParseOpts
+            \%sql_opts,
+
+            ';dsn'      => $pseudo_filename,
+
+            driver      => $sql_driver,
+            dbname      => $sql_dbname,
+            host        => $sql_host,
+            port        => $sql_port,
+            user        => $sql_user,
+            pass        => $sql_pass // read_passfile( $sql_pass_file, 1 ),
+
+            ';dsn'      => $sql_dsn,
+
+            driver      => $ENV{QDB_DRIVER},
+            dbname      => $ENV{QDB_DBNAME},
+            host        => $ENV{QDB_HOST},
+            port        => $ENV{QDB_PORT},
+            user        => $ENV{QDB_USER},
+            pass        => $ENV{QDB_PASS} // read_passfile( $ENV{QDB_PASSFILE}, 1 ),
+
+            ';dsn'      => $ENV{QDB_DSN},
+
+            driver      => 'mysql',
+            host        => '::1',
+            port        => 33060,
+            user        => read_passfile( "/run/user/$</qdb_user", 1 ),
+            pass        => read_passfile( "/run/user/$</qdb_secret", 1 ),
+            ;
+
+    my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
+    return 'SQL', $pseudo_filename, $dbx->fetch_users;
 }
 
 sub read_source($) {

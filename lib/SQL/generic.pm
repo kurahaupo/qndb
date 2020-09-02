@@ -9,42 +9,98 @@ package SQL::generic;
 use DBI;
 use Data::Dumper;
 use Time::HiRes 'time';
+use Carp 'croak';
 
 use verbose;
 
-my $dbh;
+sub ParseDSN(\%$);
 
-my %def_opts = (
-    dsn     => $ENV{QDB_DSN}    // 'dbi:mysql:database=quakers;host=ip6-localhost;port=33060',
-  # dbtype  => $ENV{QDB_DBTYPE} // 'mysql',
-  # dbname  => $ENV{QDB_DBNAME} // 'quakers',
-  # host    => $ENV{QDB_HOST}   // 'ip6-localhost', # ::1
-  # port    => $ENV{QDB_PORT}   // 33060,
-    user    => $ENV{QDB_USER}   // 'quakers_user',
-    pass    => $ENV{QDB_PASS},
-);
+# Call this for each --sql-FOO=BAR option, and for each $QDB_FOO variable, or
+# with a collection of such as key-value pairs.
+# Early values take precedence over later values.
+sub ParseOpts {
+    my $this = $_[0] && UNIVERSAL::isa($_[0], __PACKAGE__) ? shift : __PACKAGE__;
 
-sub Connect {
-    $dbh and return $dbh;
+    my $opts = shift;
 
-    my $arg = pop @_;
-    my %opts = ref $arg ? %$arg : %def_opts;
-    my $dsn  = delete $opts{dsn} //
-                join ':', 'dbi',
-                          delete $opts{dbtype} // 'mysql',
-                          delete $opts{dbname} // 'quakers',
-                          ;
+    while (@_) {
+        my $arg = lc shift;
+
+        if (ref $arg) {
+            UNIVERSAL::isa($arg, 'HASH') or croak "Invalid reference parameter";
+            %$opts = (%$arg, %$opts);
+            next;
+        }
+
+        my $val = shift;
+
+        if ($arg eq ';dsn') {
+            ParseDSN(%$opts, $val) if $val;
+            next;
+        }
+
+        if ($arg eq 'dbi') {
+            $opts->{driver} //= $val;
+            next;
+        }
+
+        if ($arg eq 'db' || $arg eq 'database') {
+            $arg = 'dbname';
+        }
+
+        $opts->{lc $arg} //= $val;
+        next;
+    }
+    return ();
+}
+
+# Takes a single DSN string and splits it into parts, which are then handed to
+# ParseOpts.
+# Do nothing if the DSN string is undef or empty, so that cascading rules work
+# properly.
+sub ParseDSN(\%$) {
+    my ($opts, $dsn) = @_;
+    $dsn or return;
+    my ($dbi_, $driver, $args) = split /:/, $dsn, 3;
+    $dbi_ eq 'dbi' or croak "Invalid DSN $dsn";
+    $opts->{driver} //= $driver if $driver;
+    $opts->{dsn} //= $1 if $args =~ s/;dsn=(.*)//;   # for "proxy"
+    $args or return;
+    if ($args !~ /[;=]/) {
+        $opts->{dbname} //= $args;
+        return;
+    }
+    ParseOpts $opts, map { my ($x,$y) = split '=', $_, 2 } split ';', $args;
+}
+
+# Connect
+sub Connect($\%) {
+    my $class = $_[0] && UNIVERSAL::isa($_[0], __PACKAGE__)
+                    ? shift
+                    : __PACKAGE__;
+    @_ == 2 or croak "Exactly 2 args required";
+    my ($dsn, $opts) = @_;
+
+    my %opts = %$opts;
+    if (! $dsn || $dsn eq '-') {
+        my $driver = delete $opts->{driver} // die "Missing driver";
+        my $dbname = delete $opts->{dbname} // die "Missing dbname";
+
+        $dsn  = join ':', 'dbi', $driver, $dbname;
+    }
+
+    $opts{RaiseError}  = 1;
     my $user = delete $opts{user};
     my $pass = delete $opts{pass};
-    $opts{RaiseError} = 1;
 
     my $t0 = time;
 
-    $dbh ||= DBI->connect( $dsn, $user, $pass, \%opts )
+    my $dbh = DBI->connect( $dsn, $user, $pass, \%opts )
          || do {
-            my $host = delete $opts{host} // '(missing)' || '(empty)';
-            my $port = delete $opts{port} // '(missing)' || '(empty or zero)';
-            die "Failed to connect to $dsn on $host port $port as $user; $!"
+            my $host = $opts{host} // '(missing)' || '(empty)';
+            my $port = $opts{port} // '(missing)' || '(empty or zero)';
+            $pass =~ s/./X/g;
+            die "Failed to connect to $dsn on $host port $port as $user pw $pass; $!"
          };
 
     my $t1 = time;
@@ -53,13 +109,16 @@ sub Connect {
                 $dsn, $t1-$t0
             if $debug;
 
-    return $dbh;
+    return bless { dbh => $dbh }, $class;
 }
 
-sub Disconnect() {
+sub Disconnect($) {
+    my $dbx = shift;
+    my $dbh = delete $dbx->{dbh};
     $dbh->disconnect if $dbh;
-    $dbh = undef;
 }
+
+BEGIN { *DESTROY = \&Disconnect; }
 
 sub _flatten($) { @{$_[0]} }
 
@@ -87,11 +146,9 @@ sub _hashify(\@$) {
 { package SQL::generic::user_notes;     use parent 'SQL::generic::Common'; }
 { package SQL::generic::all_subs;       use parent 'SQL::generic::Common'; }
 
-sub _fetch_rows($$) {
-    my $class = ref $_[0] || UNIVERSAL::isa($_[0], __PACKAGE__) ? shift : __PACKAGE__;
-    my ($view, $class) = @_;
+sub _fetch_rows($$$) {
+    my ($dbh, $view, $class) = @_;
 
-    Connect();
     my $t0 = time;
 
     my $sth = $dbh->prepare($view) or die "Could not prepare '$view':" . $dbh->errstr . "\n";
@@ -146,22 +203,26 @@ sub _map_of_rows($\@) {
     return \%M;
 }
 
-sub fetch_mms() {
-    Connect();
-    return _fetch_rows(<<'EoQ', 'SQL::generic::mm')
+sub fetch_mms($) {
+    my $dbx = shift;
+    my $dbh = $dbx->{dbh};
+    return _fetch_rows($dbh, <<'EoQ', 'SQL::generic::mm')
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
 EoQ
 }
 
-sub fetch_distrib() {
-    Connect();
-    return _fetch_rows("select * from export_all_subs", 'SQL::generic::all_subs');
+sub fetch_distrib($) {
+    my $dbx = shift;
+    my $dbh = $dbx->{dbh};
+    return _fetch_rows($dbh, "select * from export_all_subs", 'SQL::generic::all_subs');
 }
 
-sub fetch_users() {
-    Connect();
+sub fetch_users($) {
+    my $dbx = shift;
+    my $dbh = $dbx->{dbh};
+
     my %RZ;
     my %RZM;
     for my $tk (qw( full_users/uid user_addresses/address_uid
@@ -169,7 +230,7 @@ sub fetch_users() {
                     user_wgroup/wgroup_uid user_notes/notes_uid all_subs/uid
                 )) {
         my ($t, $k) = split '/', $tk;
-        my $rr = _fetch_rows("select * from export_$t", "SQL::generic::${t}");
+        my $rr = _fetch_rows($dbh, "select * from export_$t", "SQL::generic::${t}");
         $RZ{$t} = $rr;
         $RZM{$t} = _map_of_rows $k, @$rr if $k;
     }
@@ -179,6 +240,10 @@ sub fetch_users() {
     return \@users;
 }
 
-END { Disconnect(); }
-
 1;
+
+__END__
+
+y{ AEI OUY BCDFGHJLMS WPQTVKXRNZ aei ouy bcdfghjlms wpqtvkxrnz }
+ { OUY AEI PQTVKXWRNZ JBCDFGHLMS ouy aei pqtvkxwrnz jbcdfghlms };
+
