@@ -10,8 +10,9 @@ package export;
 use Carp qw( croak carp );
 use Symbol 'gensym';
 
-# Local debug; not controlled by -x command line option
-my $debug = $ENV{PERL_debug_export} // $^C;
+# $export::debug is separate from $verbose::debug and is not controlled by the
+# -x/--debug command line option.
+our $debug = $ENV{PERL_debug_export} // $^C;
 
 my %typemap = (
     # These are the elements of a glob, taken in this order from "man perlref",
