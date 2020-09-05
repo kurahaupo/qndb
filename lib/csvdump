@@ -8,6 +8,8 @@ use utf8;
 use FindBin;
 use lib "$FindBin::Bin", "$FindBin::Bin/../lib";
 
+use utf8_stdio;
+
 use Errno qw( ENOENT );
 use Fcntl qw( SEEK_CUR SEEK_SET );
 use POSIX qw(strftime);
