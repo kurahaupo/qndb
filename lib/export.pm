@@ -8,42 +8,56 @@ use utf8;
 package export;
 
 use Carp qw( croak carp );
+use Symbol 'gensym';
 
 # Local debug; not controlled by -x command line option
 my $debug = $ENV{PERL_debug_export} || $^C;
 
 my %typemap = (
-    # These are the elements of a glob, taken in this order from "man perlref"
+    # These are the elements of a glob, taken in this order from "man perlref",
+    # using the sigils that would normally appear in code.
     '$'  => 'SCALAR',
     '@'  => 'ARRAY',
     '%'  => 'HASH',
-    '&'  => 'CODE',
-    '*'  => 'IO',       # by perlref, '*' refers to the glob, but the IO handle
-                        # is usually what's really wanted
-    '**' => 'GLOB',     # made up prefix to disambiguate from the IO handle
-    '^'  => 'FORMAT',   # made up prefix
+    '&'  => 'CODE',     # default if no type prefix is supplied
+    '*'  => 'GLOB',
 
-    # These parts are defined in "man perlref", but cannot be imported into the
-    # receiving package where they are read-only.
-    '='  => 'NAME',     # read-only
-    '==' => 'PACKAGE',  # read-only
+    # The following prefix patterns are not the same as the sigils.
 
-    # This is made up, to search the @ISA graph
-    '->' => 'METHOD',   # made up prefix, not part of "man perlref"
-                        # Note that for this to work, you need to set up @ISA
-                        # BEFORE 'use export' takes effect at compile time.
+    # These glob parts don't have sigils, so use fake ones:
+    '<'  => 'IO',       # input and output
+    '>'  => 'IO',
+    '/'  => 'IO',       # DirIO, which is hidden inside a normal IO
+
+    '^'  => 'FORMAT',   # formats don't have a sigil
+
+    # These glob parts don't have sigils, and moreover cannot be imported into
+    # the receiving package because they are always read-only.
+    '.'  => 'NAME',
+    '::' => 'PACKAGE',
+
+    # CODE found by searching the @ISA graph
+    '->' => 'METHOD',   # This is a made up prefix, not part of "man perlref".
+                        # Note that for this to work, you need to use 'use
+                        # parent' (or use an equivalent method to set up @ISA
+                        # at compile time) BEFORE 'use export'.
+
+    # Constant that can be folded at compile time
+    '='  => 'CONST'
 );
 
 sub import {
+    my %exportable;
+    my %optimized_exportable;
+    my ($epkg, $efile) = caller;
     my $meta = shift;
     my $not_faking = @_ && $_[0] eq '-' && shift;
     my $exportable = \@_;
-    my ($epkg, $efile) = caller;
+    {
 
     my $symtab = do { no strict 'refs'; \%{"${epkg}::"}; }
         or die "Can't connect to calling package $epkg";
 
-    my %exportable;
     for my $e (@$exportable) {
         my $n = $e;
         my $m = '';
@@ -64,7 +78,8 @@ sub import {
                 # instead holds the scalar which is the optimized constant.
                 # (See &constant::_CAN_PCS)
                 # Sorry, this de-optimization will make things slow!!!
-                $m = " (downgraded constant)";
+                $optimized_exportable{$n} = $eg;
+                $m = " (constant)";
                 my $const = $$eg;
                 $o = sub () { $const };
             } else {
@@ -77,6 +92,23 @@ sub import {
     }
     if ($debug) {
         warn sprintf "... exported from %-22s  %s\n", "$epkg:", join ", ", sort keys %exportable;
+        warn sprintf "... exported constants from %-22s  %s\n", "$epkg:", join ", ", sort keys %optimized_exportable;
+
+        if ($debug > 1) {
+            use Data::Dumper;
+            warn sprintf "*** exported: %s\n", Dumper(\%exportable);
+            warn sprintf "*** exported constants: %s\n", Dumper(\%optimized_exportable);
+        }
+    }
+    # Adjust %INC so that « require "Path/To/Package.pm"; » succeeds, and thus
+    # « use parent Path::To::Package; » and « use Path::To::Package; » also
+    # succeed.
+    my $epath = $epkg;
+        $epath =~ s#::$##;
+        $epath =~ s#::#/#g;
+        $epath .= '.pm';
+    warn "Faking \$INC{$epath} = '$efile';\n" if $debug;
+    $INC{$epath} ||= $efile;
     }
 
     # Create an import method for the target package
@@ -85,7 +117,7 @@ sub import {
         my $pkg = caller;
         $epkg eq $self or croak "${epkg}::import seems to be linked to ${self}::import, which won't work";
         $epkg ne $pkg or croak "$pkg can't import from itself";
-        warn "Importing from $epkg into $pkg\n" if $debug;
+        warn "Importing from $epkg into $pkg (via export)\n" if $debug;
         for my $i (@_ ? @_ : @$exportable) {
             if ($i =~ /^#/) { carp "Ignoring $i"; next }
 
@@ -100,17 +132,30 @@ sub import {
                 croak "Can't import $t$n$as into $pkg (not exported by $epkg)";
             };
 
+            if ( my $eg = $optimized_exportable{$ni} ) {
+                no strict 'refs';
+                my $pkg_ref = \%{"${pkg}::"};
+
+                if (! exists $pkg_ref->{$ni}) {
+                    $pkg_ref->{$ni} = $eg;
+                    warn "... $t${epkg}::$n imported as $t${pkg}::$ni (optimized)\n" if $debug;
+                    next;
+                }
+                if ('SCALAR' eq ref $pkg_ref->{$ni} && $pkg_ref->{$ni} == $eg) {
+                    warn "... $t${epkg}::$n imported as $t${pkg}::$ni (optimized duplicate suppressed)\n" if $debug;
+                    next;
+                }
+                warn "... $t${epkg}::$n importing as $t${pkg}::$ni (optimization failed)\n" if $debug;
+            }
             {
-              no strict 'refs';
-              *{"${pkg}::$ni"} = $o;
+                no strict 'refs';
+                *{"${pkg}::$ni"} = $o;
             }
             warn "... $t${epkg}::$n imported as $t${pkg}::$ni\n" if $debug;
         }
     };
     warn "Creating ${epkg}::import\n" if $debug;
     { no strict 'refs'; *{"${epkg}::import"} = $im; };
-    # Fake things so that when "use" does "require FILE", it thinks it's already loaded
-    $INC{$epkg} ||= $efile;
 }
 
 1;
