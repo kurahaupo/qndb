@@ -21,16 +21,23 @@ sub ParseDSN(\%$);
 sub ParseOpts {
     my $this = $_[0] && UNIVERSAL::isa($_[0], __PACKAGE__) ? shift : __PACKAGE__;
 
+    v && printf "BEGIN: ParseOpts with %u args %s\n", scalar(@_), Dumper(\@_);
+
     my $opts = shift;
+    UNIVERSAL::isa($opts, 'HASH') or croak "First arg must be opts hash";
 
     while (@_) {
-        my $arg = lc shift;
+        my $arg = shift;
+
+        v && printf "ParseOpts checking arg '%s'\n", $arg // '(undef)';
 
         if (ref $arg) {
             UNIVERSAL::isa($arg, 'HASH') or croak "Invalid reference parameter";
             %$opts = (%$arg, %$opts);
             next;
         }
+
+        $arg = lc $arg;
 
         my $val = shift;
 
@@ -51,26 +58,35 @@ sub ParseOpts {
         $opts->{lc $arg} //= $val;
         next;
     }
+
+    v && printf "FINISH: ParseOpts\n";
     return ();
 }
 
 # Takes a single DSN string and splits it into parts, which are then handed to
-# ParseOpts.
-# Do nothing if the DSN string is undef or empty, so that cascading rules work
-# properly.
+# ParseOpts.  Do nothing if the DSN string is undef or empty, so that cascading
+# rules work properly.
 sub ParseDSN(\%$) {
+
+    v && printf "BEGIN: ParseDSN with %u args %s\n", scalar(@_), Dumper(\@_);
+
     my ($opts, $dsn) = @_;
-    $dsn or return;
-    my ($dbi_, $driver, $args) = split /:/, $dsn, 3;
-    $dbi_ eq 'dbi' or croak "Invalid DSN $dsn";
-    $opts->{driver} //= $driver if $driver;
-    $opts->{dsn} //= $1 if $args =~ s/;dsn=(.*)//;   # for "proxy"
-    $args or return;
-    if ($args !~ /[;=]/) {
-        $opts->{dbname} //= $args;
-        return;
+    if ( $dsn ) {
+        my ($dbi_, $driver, $args) = split /:/, $dsn, 3;
+        $dbi_ eq 'dbi' or croak "Invalid DSN $dsn";
+        $opts->{driver} //= $driver if $driver;
+        $opts->{dsn} //= $1 if $args =~ s/;dsn=(.*)//;   # for "proxy"
+        if ($args) {
+            if ($args !~ /[;=]/) {
+                $opts->{dbname} //= $args;
+            } else {
+                # This apparent mutual recursion bottoms out because ';dsn'
+                # cannot be present after splitting on ';'.
+                ParseOpts $opts, map { my ($x,$y) = split '=', $_, 2 } split ';', $args;
+            }
+        }
     }
-    ParseOpts $opts, map { my ($x,$y) = split '=', $_, 2 } split ';', $args;
+    v && printf "FINISH: ParseDSN\n";
 }
 
 # Connect

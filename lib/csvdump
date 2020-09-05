@@ -1150,7 +1150,7 @@ sub fetch_sql($) {
             host        => $sql_host,
             port        => $sql_port,
             user        => $sql_user,
-            pass        => $sql_pass // read_passfile( $sql_pass_file, 1 ),
+            pass        => $sql_pass // scalar read_passfile( $sql_pass_file ),
 
             ';dsn'      => $sql_dsn,
 
@@ -1159,15 +1159,15 @@ sub fetch_sql($) {
             host        => $ENV{QDB_HOST},
             port        => $ENV{QDB_PORT},
             user        => $ENV{QDB_USER},
-            pass        => $ENV{QDB_PASS} // read_passfile( $ENV{QDB_PASSFILE}, 1 ),
+            pass        => $ENV{QDB_PASS} // scalar read_passfile( $ENV{QDB_PASSFILE} ),
 
             ';dsn'      => $ENV{QDB_DSN},
 
             driver      => 'mysql',
             host        => '::1',
             port        => 33060,
-            user        => read_passfile( "/run/user/$</qdb_user", 1 ),
-            pass        => read_passfile( "/run/user/$</qdb_secret", 1 ),
+            user        => scalar read_passfile( "/run/user/$</qdb_user" ),
+            pass        => scalar read_passfile( "/run/user/$</qdb_secret" ),
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
