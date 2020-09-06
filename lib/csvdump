@@ -1122,13 +1122,25 @@ sub parse_file($) {
     return $filetype, $in_name, \@records;
 }
 
-sub read_passfile($;$) {
+# 0 or negative → croak if filename missing or file cannot be read
+# 1 → ignore missing filename, but croak if file unreadable
+# 2 → croak if no filename given, but ignore unreadable file
+# 3 → ignore missing filenames and unreadable files
+use constant {
+    RP_REQUIRED          => 0,
+    RP_IGNORE_MISSING    => 1,
+    RP_IGNORE_UNREADABLE => 2,
+};
+sub read_passfile($$) {
     my ($filename, $soft) = @_;
-    if (! defined $filename and $soft // 1) { return (); }
+    if (! defined $filename) {
+        return () if $soft & RP_IGNORE_MISSING;
+        croak 'read_passfile: no filename supplied';
+    }
     my $r = read_file $filename,
                       array_ref   => 1,
                       chomp       => 1,
-                      err_mode    => ($soft ? 'quiet' : 'croak');
+                      err_mode    => $soft & RP_IGNORE_UNREADABLE ? 'quiet' : 'croak';
     return $r && @$r == 1 && $r->[0] || ();
 }
 
@@ -1150,7 +1162,7 @@ sub fetch_sql($) {
             host        => $sql_host,
             port        => $sql_port,
             user        => $sql_user,
-            pass        => $sql_pass // scalar read_passfile( $sql_pass_file ),
+            pass        => $sql_pass // scalar read_passfile( $sql_pass_file, RP_IGNORE_MISSING ),
 
             ';dsn'      => $sql_dsn,
 
@@ -1159,15 +1171,15 @@ sub fetch_sql($) {
             host        => $ENV{QDB_HOST},
             port        => $ENV{QDB_PORT},
             user        => $ENV{QDB_USER},
-            pass        => $ENV{QDB_PASS} // scalar read_passfile( $ENV{QDB_PASSFILE} ),
+            pass        => $ENV{QDB_PASS} // scalar read_passfile( $ENV{QDB_PASSFILE}, RP_IGNORE_MISSING ),
 
             ';dsn'      => $ENV{QDB_DSN},
 
             driver      => 'mysql',
             host        => '::1',
             port        => 33060,
-            user        => scalar read_passfile( "/run/user/$</qdb_user" ),
-            pass        => scalar read_passfile( "/run/user/$</qdb_secret" ),
+            user        => scalar read_passfile( "/run/user/$</qdb_user", RP_IGNORE_UNREADABLE ),
+            pass        => scalar read_passfile( "/run/user/$</qdb_secret", RP_IGNORE_UNREADABLE ),
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
