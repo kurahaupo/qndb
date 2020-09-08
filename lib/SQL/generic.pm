@@ -13,6 +13,8 @@ use Carp 'croak';
 
 use verbose;
 
+use classref;
+
 sub ParseDSN(\%$);
 
 # Call this for each --sql-FOO=BAR option, and for each $QDB_FOO variable, or
