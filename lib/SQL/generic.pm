@@ -125,6 +125,8 @@ sub Connect($\%) {
                 $dsn, $t1-$t0
             if $debug;
 
+    $class = classname $class;
+
     return bless { dbh => $dbh }, $class;
 }
 
@@ -153,7 +155,7 @@ sub _hashify(\@$) {
     sub foooooooooo {1}
 }
 
-{ package SQL::generic::mm;             use parent 'SQL::generic::Common'; }
+{ package SQL::generic::mm_member;      use parent 'SQL::generic::Common'; }
 { package SQL::generic::full_users;     use parent 'SQL::generic::Common'; }
 { package SQL::generic::user_addresses; use parent 'SQL::generic::Common'; }
 { package SQL::generic::user_phones;    use parent 'SQL::generic::Common'; }
@@ -161,6 +163,9 @@ sub _hashify(\@$) {
 { package SQL::generic::user_wgroup;    use parent 'SQL::generic::Common'; }
 { package SQL::generic::user_notes;     use parent 'SQL::generic::Common'; }
 { package SQL::generic::all_subs;       use parent 'SQL::generic::Common'; }
+{ package SQL::generic::export_email_subs; use parent 'SQL::generic::Common'; }
+{ package SQL::generic::export_print_subs; use parent 'SQL::generic::Common'; }
+
 
 sub _fetch_rows($$$) {
     my ($dbh, $view, $class) = @_;
@@ -191,6 +196,8 @@ sub _fetch_rows($$$) {
 
     splice @rows, $ri;
 
+    $class = classname $class;
+
     for my $row (@rows) {
         my %r;
         @r{ @$fields } = @$row;
@@ -209,50 +216,62 @@ sub _fetch_rows($$$) {
     return \@rows;
 }
 
-sub _map_of_rows($\@) {
-    my $K = $_[-2];
-    my $R = $_[-1];
-    my %M;
-    for my $r (@$R) {
-        $M{ $r->{$K} } = $r;
-    }
-    return \%M;
-}
-
 sub fetch_mms($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    return _fetch_rows($dbh, <<'EoQ', 'SQL::generic::mm')
+    return _fetch_rows $dbh, <<'EoQ', 'SQL::generic::mm'
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
 EoQ
 }
 
-sub fetch_distrib($) {
+sub fetch_distrib($$) {
     my $dbx = shift;
+    my $type = shift;
+    $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
     my $dbh = $dbx->{dbh};
-    return _fetch_rows($dbh, "select * from export_all_subs", 'SQL::generic::all_subs');
+    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::generic::all_subs';
 }
 
 sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
 
-    my %RZ;
-    my %RZM;
-    for my $tk (qw( full_users/uid user_addresses/address_uid
-                    user_phones/phone_uid user_kin/kin_uid
-                    user_wgroup/wgroup_uid user_notes/notes_uid all_subs/uid
+    my $ru = _fetch_rows $dbh, "select * from export_full_users", "SQL::generic::users";
+    my @users = @$ru;
+    my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
+
+    for my $tk (qw(
+                    exp_normalise_user_addresses.address_uid
+                    exp_user_mm_member.mmm_uid
+                    export_email_subs.uid
+                    export_print_subs.uid
+                    export_user_kin.kin_uid
+                    export_user_notes.notes_uid
+                    export_user_phones.phone_uid
+                    export_user_wgroup.wgroup_uid
                 )) {
-        my ($t, $k) = split '/', $tk;
-        my $rr = _fetch_rows($dbh, "select * from export_$t", "SQL::generic::${t}");
-        $RZ{$t} = $rr;
-        $RZM{$t} = _map_of_rows $k, @$rr if $k;
+        my ($tt, $k) = split /\./, $tk;
+        my $t = $tt =~ s/^.*user_|^exp.*?_//r;
+        my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::generic::user_$t";
+        my %rz;
+        for my $r (@$rr) {
+            my $uid = delete $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
+            my $u = $mu{$uid} // do { warn sprintf "No user with UID value %s in %s\n", $uid, Dumper($r); next };
+            push @{$u->{'__'.$t}}, $r;
+            $rz{$t}++;
+        }
+
+        warn sprintf "Read %s, got %u rows mapped %u keys %s\n mapkeys=%s\n intkeys=%s intcounts=%s\n",
+                    $tt,
+                    scalar @$rr, scalar keys %rz,
+                    $k,
+                    join(',', keys %rz),
+                    join(',', values %rz),
+                if $debug;
     }
-    my @users = @{ $RZ{full_users} };
-    my $RM_uid = _map_of_rows 'uid', @users;
-    #print Dumper($RM_uid);
+    print Dumper(\@users);
     return \@users;
 }
 
