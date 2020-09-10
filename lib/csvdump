@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use 5.010;
+use 5.018;
 use strict;
 use warnings;
 use utf8;
@@ -1127,20 +1127,20 @@ sub parse_file($) {
 # 2 → croak if no filename given, but ignore unreadable file
 # 3 → ignore missing filenames and unreadable files
 use constant {
-    RP_REQUIRED          => 0,
-    RP_IGNORE_MISSING    => 1,
-    RP_IGNORE_UNREADABLE => 2,
+    RP_REQUIRED         => 0,
+    RP_IGNORE_UNDEF     => 1,
+    RP_IGNORE_BADFILE   => 2,
 };
 sub read_passfile($$) {
     my ($filename, $soft) = @_;
     if (! defined $filename) {
-        return () if $soft & RP_IGNORE_MISSING;
+        return () if $soft & RP_IGNORE_UNDEF;
         croak 'read_passfile: no filename supplied';
     }
     my $r = read_file $filename,
                       array_ref   => 1,
                       chomp       => 1,
-                      err_mode    => $soft & RP_IGNORE_UNREADABLE ? 'quiet' : 'croak';
+                      err_mode    => $soft & RP_IGNORE_BADFILE ? 'quiet' : 'croak';
     return $r && @$r == 1 && $r->[0] || ();
 }
 
@@ -1152,34 +1152,42 @@ sub fetch_sql($) {
         $pseudo_filename = undef;
     }
 
+    SQL::generic::ParseDSN \%sql_opts, $pseudo_filename;
+
     SQL::generic::ParseOpts
             \%sql_opts,
-
-            ';dsn'      => $pseudo_filename,
 
             driver      => $sql_driver,
             dbname      => $sql_dbname,
             host        => $sql_host,
             port        => $sql_port,
             user        => $sql_user,
-            pass        => $sql_pass // scalar read_passfile( $sql_pass_file, RP_IGNORE_MISSING ),
+            pass        => scalar read_passfile( $sql_pass_file, RP_IGNORE_UNDEF ),
+            pass        => $sql_pass;
 
-            ';dsn'      => $sql_dsn,
+    SQL::generic::ParseDSN \%sql_opts, $sql_dsn;
+
+    SQL::generic::ParseOpts
+            \%sql_opts,
 
             driver      => $ENV{QDB_DRIVER},
             dbname      => $ENV{QDB_DBNAME},
             host        => $ENV{QDB_HOST},
             port        => $ENV{QDB_PORT},
             user        => $ENV{QDB_USER},
-            pass        => $ENV{QDB_PASS} // scalar read_passfile( $ENV{QDB_PASSFILE}, RP_IGNORE_MISSING ),
+            pass        => scalar read_passfile( $ENV{QDB_PASSFILE}, RP_IGNORE_UNDEF ),
+            pass        => $ENV{QDB_PASS};
 
-            ';dsn'      => $ENV{QDB_DSN},
+    SQL::generic::ParseDSN \%sql_opts, $ENV{QDB_DSN};
+
+    SQL::generic::ParseOpts
+            \%sql_opts,
 
             driver      => 'mysql',
             host        => '::1',
             port        => 33060,
-            user        => scalar read_passfile( "/run/user/$</qdb_user", RP_IGNORE_UNREADABLE ),
-            pass        => scalar read_passfile( "/run/user/$</qdb_secret", RP_IGNORE_UNREADABLE ),
+            user        => scalar read_passfile( "/run/user/$</qdb_user", RP_IGNORE_BADFILE ),
+            pass        => scalar read_passfile( "/run/user/$</qdb_secret", RP_IGNORE_BADFILE ),
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);

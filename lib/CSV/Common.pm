@@ -103,7 +103,7 @@ sub _make_name_sortable($$) {
     s#\bliz+[aeiy]*\b#elizabeth#,
     s#\bm[ei]gs?\b|\bmargo\b|\bma[rg]g[eiy]+\b#margaret#,
     s#\bma+rt[iey]+n?\b#martin#,
-    s#\bmike\b#michael#,
+    s#\bmiki?e?y?\b#michael#,
     s#\bnicky?\b|\bnicolas\b#nicholas#,
     s#\bnik+[iy]\b|\bnic\b#nicole#,
     s#\bted(?:d[iey]*|)\b#edward#,

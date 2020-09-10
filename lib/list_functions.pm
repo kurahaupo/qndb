@@ -1,6 +1,12 @@
 #!/module/for/perl
 
+use 5.018;
+use strict;
+use warnings;
+use utf8;
+
 package list_functions;
+
 sub min(@) { my $r = shift; $r < $_ or $r = $_ for @_; $r }
 sub max(@) { my $r = shift; $r > $_ or $r = $_ for @_; $r }
 sub sum(@) { my $r = shift; $r += $_ for @_; $r }

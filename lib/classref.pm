@@ -2,6 +2,8 @@
 
 use 5.018;
 use strict;
+use warnings;
+use utf8;
 
 package classref;
 

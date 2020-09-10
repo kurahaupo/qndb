@@ -1,5 +1,10 @@
 #!/module/for/perl
 
+use 5.018;
+use strict;
+use warnings;
+use utf8;
+
 package string_with_components;
 
 #

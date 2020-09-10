@@ -4,6 +4,8 @@ use 5.010;
 use strict;
 use warnings;
 
+use utf8;
+
 package SQL::generic;
 
 use DBI;
@@ -15,7 +17,7 @@ use verbose;
 
 use classref;
 
-sub ParseDSN(\%$);
+sub ParseDSN;
 
 # Call this for each --sql-FOO=BAR option, and for each $QDB_FOO variable, or
 # with a collection of such as key-value pairs.
@@ -43,10 +45,10 @@ sub ParseOpts {
 
         my $val = shift;
 
-        if ($arg eq ';dsn') {
-            ParseDSN(%$opts, $val) if $val;
-            next;
-        }
+#       if ($arg eq ';dsn') {
+#           ParseDSN \%$opts, $val if $val;
+#           next;
+#       }
 
         if ($arg eq 'dbi') {
             $opts->{driver} //= $val;
@@ -68,7 +70,7 @@ sub ParseOpts {
 # Takes a single DSN string and splits it into parts, which are then handed to
 # ParseOpts.  Do nothing if the DSN string is undef or empty, so that cascading
 # rules work properly.
-sub ParseDSN(\%$) {
+sub ParseDSN {
 
     v && printf "BEGIN: ParseDSN with %u args %s\n", scalar(@_), Dumper(\@_);
 
@@ -96,6 +98,9 @@ sub Connect($\%) {
     my $class = $_[0] && UNIVERSAL::isa($_[0], __PACKAGE__)
                     ? shift
                     : __PACKAGE__;
+
+    $class = classname $class;
+
     @_ == 2 or croak "Exactly 2 args required";
     my ($dsn, $opts) = @_;
 
@@ -127,8 +132,6 @@ sub Connect($\%) {
                 $dsn, $t1-$t0
             if $debug;
 
-    $class = classname $class;
-
     return bless { dbh => $dbh }, $class;
 }
 
@@ -153,24 +156,23 @@ sub _hashify(\@$) {
     use export; # also patches up %INC so that use « parent 'SQL::generic::Common' » later works
 
     sub uid { $_[0]->{uid}; }
-
-    sub foooooooooo {1}
 }
 
-{ package SQL::generic::mm_member;      use parent 'SQL::generic::Common'; }
-{ package SQL::generic::full_users;     use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_addresses; use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_phones;    use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_kin;       use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_wgroup;    use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_notes;     use parent 'SQL::generic::Common'; }
-{ package SQL::generic::all_subs;       use parent 'SQL::generic::Common'; }
-{ package SQL::generic::export_email_subs; use parent 'SQL::generic::Common'; }
-{ package SQL::generic::export_print_subs; use parent 'SQL::generic::Common'; }
+{ package SQL::generic::users;              use parent 'SQL::generic::Common'; }
 
+{ package SQL::generic::user_addresses;     use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_email_subs;    use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_kin;           use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_mm_member;     use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_notes;         use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_phones;        use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_print_subs;    use parent 'SQL::generic::Common'; }
+{ package SQL::generic::user_wgroup;        use parent 'SQL::generic::Common'; }
 
 sub _fetch_rows($$$) {
     my ($dbh, $view, $class) = @_;
+
+    $class = classname $class;
 
     my $t0 = time;
 
@@ -186,7 +188,16 @@ sub _fetch_rows($$$) {
 
     my $ri = 0;
     while (my $row = $sth->fetchrow_arrayref) {
+
+        $row = bless do {
+            my %r;
+            @r{ @$fields } = @$row;
+            \%r
+        }, $class;
+
+        # Make sure array is large enough
         $ri < @rows or push @rows, (undef) x (@rows);
+
         $rows[$ri++] = $row;
     }
 
@@ -196,24 +207,17 @@ sub _fetch_rows($$$) {
 
     my $t3 = time;
 
+    # Trim array
     splice @rows, $ri;
-
-    $class = classname $class;
-
-    for my $row (@rows) {
-        my %r;
-        @r{ @$fields } = @$row;
-        $row = bless \%r, $class;
-    }
 
     my $t4 = time;
 
-    warn sprintf "Fetching %u rows from %s took %.0fms (prep=%.1fms retr=%.2fms finn=%.4fms hash=%.2fms)\n",
+    warn sprintf "Fetched %u rows from %s, took %.0fms (prep=%.1fms retr=%.2fms finn=%.2fµs trim=%.2fµs)\n",
                 scalar @rows,
                 $view,
                 ($t4-$t0)*1000,
                                 ($t1-$t0)*1000, ($t2-$t1)*1000,
-                                ($t3-$t2)*1000, ($t4-$t3)*1000
+                                ($t3-$t2)*1e6, ($t4-$t3)*1e6
             if $debug;
     return \@rows;
 }
@@ -221,7 +225,7 @@ sub _fetch_rows($$$) {
 sub fetch_mms($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, <<'EoQ', 'SQL::generic::mm'
+    return _fetch_rows $dbh, <<'EoQ', 'SQL::generic::mm_member'
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
@@ -233,7 +237,7 @@ sub fetch_distrib($$) {
     my $type = shift;
     $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::generic::all_subs';
+    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::generic::{$type}_sub';
 }
 
 sub fetch_users($) {
@@ -259,19 +263,37 @@ sub fetch_users($) {
         my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::generic::user_$t";
         my %rz;
         for my $r (@$rr) {
-            my $uid = delete $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
+            my $uid = $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
             my $u = $mu{$uid} // do { warn sprintf "No user with UID value %s in %s\n", $uid, Dumper($r); next };
             push @{$u->{'__'.$t}}, $r;
-            $rz{$t}++;
+            $rz{$uid}++;
         }
 
-        warn sprintf "Read %s, got %u rows mapped %u keys %s\n mapkeys=%s\n intkeys=%s intcounts=%s\n",
+        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s\n",
                     $tt,
                     scalar @$rr, scalar keys %rz,
                     $k,
-                    join(',', keys %rz),
-                    join(',', values %rz),
                 if $debug;
+    }
+    for my $m (@users) {
+        my $sn = delete $m->{surname} || '';
+        my $pn = delete $m->{pref_name} || '';
+        my $gn = delete $m->{given_name} || '';
+        #$pn ||= $gn;
+        #$gn ||= $pn;
+        my $clean_name  = delete $m->{full_name}
+                       || join( ' ', grep { $_ } $gn || $pn, $sn )
+                       || '';
+        my $sort_by_givenname = lc join ' ', grep { $_ } $gn, $sn;
+        my $sort_by_surname   = lc join ' ', grep { $_ } $sn, $gn;
+        my $n = new string_with_components:: $clean_name,
+                                                family_name       => $sn,
+                                                given_name        => $gn,
+                                                pref_name         => $pn,
+                                                sort_by_surname   => $sort_by_surname,
+                                                sort_by_givenname => $sort_by_givenname;
+        $m->{composite_name} = $n;
+        $m->_make_name_sortable($n);
     }
     print Dumper(\@users);
     return \@users;
