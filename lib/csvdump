@@ -84,6 +84,7 @@ use CSV::qndb;
 use CSV::adhoc1;
 use CSV::adhoc2;
 use SQL::generic;
+use SQL::Drupal7;
 
 ################################################################################
 
@@ -1144,7 +1145,7 @@ sub read_passfile($$) {
     return $r && @$r == 1 && $r->[0] || ();
 }
 
-sub fetch_sql($) {
+sub fetch_dbi($) {
     my ($pseudo_filename) = @_;
     my %sql_opts;
 
@@ -1191,7 +1192,7 @@ sub fetch_sql($) {
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
-    return 'SQL', $pseudo_filename, $dbx->fetch_users;
+    return 'SQL::Drupal7::', $pseudo_filename, $dbx->fetch_users;
 }
 
 sub read_source($) {
@@ -1200,7 +1201,7 @@ sub read_source($) {
     my $in_name;
     my $filetype;
     if ($s =~ m<^dbi:> ) {
-        ($filetype, $in_name, $records) = fetch_sql($s);
+        ($filetype, $in_name, $records) = fetch_dbi($s);
     } else {
         ($filetype, $in_name, $records) = parse_file($s);
     }
