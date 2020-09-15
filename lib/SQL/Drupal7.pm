@@ -44,6 +44,43 @@ sub name($) {
     }
 }
 
+sub listed_email {
+    my $r = shift;
+    return $r->{visible_email};
+}
+
+    my %phone_slot_map = (
+        M => 'personal_phone',
+        H => 'household_phone',
+    );
+    sub _mash_phones {
+        my $r = shift;
+        my $pp = delete $r->{__phones} or return;
+        for my $p (@$pp) {
+            my $slot = $phone_slot_map{ $p->{phone_slot} } || 'other_phone';
+            my @numbers = split /\s*[;:|]\s*/, $p->{phone};
+            push @{$r->{$slot}}, @numbers if @numbers;
+        }
+    }
+
+    sub flatten {
+        my $s = shift;
+        ref $s or return $s;
+        join "\n", @$s;
+    }
+
+sub mobile_number {
+    my $r = shift;
+    _mash_phones $r;
+    return flatten $r->{personal_phone};
+}
+
+sub phone_number {
+    my $r = shift;
+    _mash_phones $r;
+    return flatten $r->{household_phone};
+}
+
 }
 
 { package SQL::Drupal7::user_addresses;     use parent 'SQL::Drupal7'; use export; }

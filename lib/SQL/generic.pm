@@ -129,12 +129,14 @@ sub Connect($\%) {
 
     my $t0 = time;
 
-    my $dbh = DBI->connect( $dsn, $user, $pass, \%opts )
+    my $dbh = eval { DBI->connect( $dsn, $user, $pass, \%opts ) }
          || do {
             my $host = $opts{host} // '(missing)' || '(empty)';
             my $port = $opts{port} // '(missing)' || '(empty or zero)';
             $pass =~ s/./X/g;
-            die "Failed to connect to $dsn on $host port $port as $user pw $pass; $!"
+            warn "Failed to connect to $dsn on host $host port $port as $user pw $pass\n";
+            warn "Opts:".Dumper(\%opts);
+            confess $@;
          };
 
     my $t1 = time;
@@ -217,7 +219,7 @@ sub _fetch_rows($$$) {
 sub fetch_mms($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, <<'EoQ', 'SQL::generic::mm_member'
+    return _fetch_rows $dbh, <<'EoQ', 'SQL::Drupal7::mm_member'
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
@@ -229,15 +231,17 @@ sub fetch_distrib($$) {
     my $type = shift;
     $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::generic::{$type}_sub';
+    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::Drupal7::{$type}_sub';
 }
 
 sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
 
-    my $ru = _fetch_rows $dbh, "select * from export_full_users", "SQL::generic::users";
+    my $ru = _fetch_rows $dbh, "select * from export_full_users", "SQL::Drupal7::users";
     my @users = @$ru;
+
+    splice @users, 30 if @users > 30;
 
     $_->{user_name} = delete $_->{name} for @users;     # WTF?!? whyyyy, Drupal?
 
@@ -255,7 +259,7 @@ sub fetch_users($) {
                 )) {
         my ($tt, $k) = split /\./, $tk;
         my $t = $tt =~ s/^.*user_|^exp.*?_//r;
-        my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::generic::user_$t";
+        my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::Drupal7::user_$t";
         my %rz;
         for my $r (@$rr) {
             my $uid = $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
@@ -270,7 +274,7 @@ sub fetch_users($) {
                     $k,
                 if $debug;
     }
-    print Dumper(\@users);
+    print Dumper(\@users) if $debug;
     return \@users;
 }
 
