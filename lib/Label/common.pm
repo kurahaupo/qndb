@@ -57,7 +57,7 @@ sub import {
                 $ref_line_spacing ) {
         $j && ref $j eq 'SCALAR' or croak "import passed '$j'";
     }
-    warn sprintf "Importing from %s into %s (direct)\n", $self, scalar caller if $debug;
+    warn sprintf "Importing from %s into %s (direct)\n", $self, scalar caller if $export::debug;
 }
 
 sub new {
