@@ -16,12 +16,12 @@ use utf8;
 
 package SQL::generic;
 
-use SQL::Common;
+use SQL::Drupal7;
 
 use DBI;
 use Data::Dumper;
 use Time::HiRes 'time';
-use Carp qw( carp croak );
+use Carp qw( carp cluck croak );
 
 use verbose;
 
@@ -219,7 +219,7 @@ sub _fetch_rows($$$) {
 sub fetch_mms($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, <<'EoQ', 'SQL::Drupal7::mm_member'
+    return _fetch_rows $dbh, <<'EoQ', SQL::Drupal7::mm_member::
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
@@ -238,12 +238,12 @@ sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
 
-    my $ru = _fetch_rows $dbh, "select * from export_full_users", "SQL::Drupal7::users";
+    my $ru = _fetch_rows $dbh, 'select * from export_full_users', SQL::Drupal7::users::;
     my @users = @$ru;
 
     splice @users, 30 if @users > 30;
 
-    $_->{user_name} = delete $_->{name} for @users;     # WTF?!? whyyyy, Drupal?
+    $_->{user_name} //= delete $_->{name} for @users;   # WTF?!? whyyyy, Drupal?
 
     my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
 
@@ -273,6 +273,14 @@ sub fetch_users($) {
                     scalar @$rr, scalar keys %rz,
                     $k,
                 if $debug;
+    }
+
+    if ( my $fix = UNIVERSAL::can(SQL::Drupal7::users::, 'fix_one') ) {
+        cluck "Trying fix_one on users $fix" if $debug;
+        for my $u ( @users ) { $fix->($u) }
+    }
+    else {
+        cluck "Can't fix_one for SQL::Drupal7::users";
     }
     print Dumper(\@users) if $debug;
     return \@users;

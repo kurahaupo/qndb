@@ -9,7 +9,7 @@ use utf8;
 
 package CSV::Common;
 
-use Carp 'croak';
+use Carp 'cluck', 'croak';
 use string_with_components;
 use verbose;
 
@@ -69,14 +69,19 @@ sub new($\@\@$) {
 #
 # Always finish fix_one in any derived class with a call to the parent
 # implementation, like this:
-#   goto &{$_[0]->can("SUPER::fix_one")}
+#   goto &{$_[0]->can("SUPER::fix_one")};
 # or this:
 #   return $_[0]->SUPER::fix_one;
+# or simply:
+#   $_[0]->make_name_sortable; 1;
+
+BEGIN { cluck 'Defining '.__PACKAGE__.'::fix_one = '.\&fix_one; }
+      { cluck 'Defined  '.__PACKAGE__.'::fix_one = '.\&fix_one; }
 
 sub fix_one {
     my ($r) = @_;
-    make_name_sortable($r->name);
-    return 1;
+    make_name_sortable($r);
+    return $r;
 }
 
 # Bulk post-processing step.
@@ -84,10 +89,11 @@ sub fix_one {
 
 sub foldrows {
     my ($records) = @_;
-    #warn sprintf "CSV::Common::foldrows; start with %u rows, keeping all\n", scalar @$records;
+    cluck sprintf "CSV::Common::foldrows; start with %u rows\n", scalar @$records if $debug;
     for my $r (@$records) {
-        make_name_sortable($r->name);
+        make_name_sortable($r);
     }
+    cluck sprintf "CSV::Common::foldrows; finish with %u rows\n", scalar @$records if $debug;
 }
 
 sub _titlecase($$) {
@@ -108,7 +114,8 @@ sub _titlecase($$) {
 }
 
 sub make_name_sortable($) {
-    my ($n) = @_;
+    my ($r) = @_;
+    my $n = $r->name || return;
     s#\s*\([^()]*\)\s*# #g,
     s#\s*\([^()]*\)\s*# #g,
     s#\s*\([^()]*\)\s*# #g,  # thrice, to clean double-nested brackets
@@ -138,6 +145,7 @@ sub make_name_sortable($) {
     s#\bted(?:d[iey]*|)\b#edward#,
     s#\btony\b|\bantony\b#anthony#,
         for $n->{sort_by_givenname};
+    $r;
 }
 
 sub _map($$) {

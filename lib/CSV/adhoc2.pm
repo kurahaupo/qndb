@@ -265,7 +265,7 @@ sub new($\@\@) {
                                                 sort_by_surname   => $sort_by_surname,
                                                 sort_by_givenname => $sort_by_givenname;
         $m->{composite_name} = $n;
-        CSV::Common::make_name_sortable($n);
+        CSV::Common::make_name_sortable($m);
     }
     if (@parents == 2) {
         $parents[0]->{XREF_spouse} = $parents[1];

@@ -20,7 +20,7 @@ use Text::CSV;
 use Getopt::Long qw( :config auto_abbrev bundling );
 use File::Slurp 'read_file';
 
-use Carp 'croak', 'carp';
+use Carp 'croak', 'carp', 'cluck';
 
 use string_with_components;
 
@@ -61,14 +61,14 @@ sub group_by_type(@) {
 }
 
 sub sort_by_surname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
-    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { die "Records have names without sort-by-surname:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak sprintf "Can't sort because %u/%u records don't have names:\n%s", scalar @x, scalar @_, Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_surname} } @_ ) { croak sprintf "Can't sort by surname because %u/%u records don't have sort_by_surname:\n%s", scalar @x, scalar @_, Dumper(\@x) }
     return sort { $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname}
                || $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname} } @_;
 }
 sub sort_by_givenname(@) {
-    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak "Records don't have names:\n" . Dumper(\@x) }
-    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { die "Records have names without sort-by-givenname:\n" . Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name} } @_ ) { croak sprintf "Can't sort because %u/%u records don't have names:\n%s", scalar @x, scalar @_, Dumper(\@x) }
+    if ( my @x = grep { ! defined $_->{composite_name}->{sort_by_givenname} } @_ ) { croak sprintf "Can't sort by given-name because %u/%u records don't have sort_by_givenname:\n%s", scalar @x, scalar @_, Dumper(\@x) }
     return sort { $a->{composite_name}->{sort_by_givenname} cmp $b->{composite_name}->{sort_by_givenname}
                || $a->{composite_name}->{sort_by_surname}   cmp $b->{composite_name}->{sort_by_surname} } @_;
 }
@@ -1192,7 +1192,7 @@ sub fetch_dbi($) {
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
-    return 'SQL::Drupal7::', $pseudo_filename, $dbx->fetch_users;
+    return SQL::Drupal7::, $pseudo_filename, $dbx->fetch_users;
 }
 
 sub read_source($) {
@@ -1206,8 +1206,13 @@ sub read_source($) {
         ($filetype, $in_name, $records) = parse_file($s);
     }
 
-    if (UNIVERSAL::can($filetype, 'foldrows')) {
-        $filetype->foldrows($records)
+    if (my $fold = UNIVERSAL::can($filetype, 'foldrows')) {
+        cluck sprintf "Trying foldrows for %s, using %s; starting with %d records", $filetype, $fold, scalar @$records if $debug;
+        $fold->($records);
+        cluck sprintf "Completed foldrows; finished with %d records", scalar @$records if $debug;
+    }
+    else {
+        cluck sprintf "Can't foldrows, not defined for %s", $filetype;
     }
 
     my %record_by_uid;
@@ -1560,6 +1565,12 @@ use quaker_info '$mm_keys_re';
                     }
                     return 1;
                 }
+            }
+        }
+        elsif ( $r->can('hide_listing') ) {
+            if ( my $reason = $r->hide_listing ) {
+                warn sprintf "Skipping UNLISTED %s [%s]\n", $r->debuginfo, $reason if $why_not;
+                return 1;
             }
         }
         else {
