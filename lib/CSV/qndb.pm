@@ -325,7 +325,7 @@ sub fix_one($) {
                     country       => $country;
         };
     };
-    1;
+    return $r->SUPER::fix_one;
 }
 
 # QNDB list
@@ -360,14 +360,12 @@ sub name($) {
         my $clean_name = join " ", @p;
         my $sort_by_surname = lc join " ", reverse @p;
         my $sort_by_givenname = lc join " ", @p;
-        my $n = new string_with_components::
+        new string_with_components::
             $clean_name,
             family_name       => $family_name,
             given_name        => $given_name,
             sort_by_surname   => $sort_by_surname,
             sort_by_givenname => $sort_by_givenname;
-        $r->_make_name_sortable($n);
-        $n;
     };
 }
 

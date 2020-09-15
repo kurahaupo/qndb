@@ -265,7 +265,7 @@ sub new($\@\@) {
                                                 sort_by_surname   => $sort_by_surname,
                                                 sort_by_givenname => $sort_by_givenname;
         $m->{composite_name} = $n;
-        $m->_make_name_sortable($n);
+        CSV::Common::make_name_sortable($n);
     }
     if (@parents == 2) {
         $parents[0]->{XREF_spouse} = $parents[1];
@@ -373,6 +373,7 @@ sub foldrows($\@) {
         warn sprintf "POST-FOLD: %d faulty records\n", scalar @faulty;
     }
     #print Dumper($records) if $xdebug;
+    $class->SUPER::foldrows($records);
 }
 
 use constant is_word_doc => 1;

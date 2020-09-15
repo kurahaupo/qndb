@@ -422,7 +422,8 @@ sub fix_one($) {
 
     $r->name or do { warn sprintf "Skipping NAMELESS %s\n", $r->debuginfo if $why_not; return 0 };  # ignore records without names
     $r->gtags('explanatory texts') and do { warn sprintf "Skipping EXPLANATORY %s\n", $r->debuginfo if $why_not; return 0 };
-    1;
+
+    return $r->SUPER::fix_one;
 }
 
 sub name($) {
@@ -431,7 +432,7 @@ sub name($) {
         my $sort_by_surname   = lc join " ", map { $r->{$_} || () } qw{family_name given_name additional_name full_name};
         my $sort_by_givenname = lc join " ", map { $r->{$_} || () } qw{given_name additional_name family_name full_name};
         my $clean_name = $r->{name};
-        my $n = new string_with_components::
+        new string_with_components::
             $clean_name,
             full_name       => $r->{name},
             additional_name => $r->{additional_name},
@@ -449,8 +450,6 @@ sub name($) {
             additional_name_yomi => $r->{additional_name_yomi},
             sort_by_surname => $sort_by_surname,
             sort_by_givenname => $sort_by_givenname;
-        $r->_make_name_sortable($n);
-        $n
     };
 }
 

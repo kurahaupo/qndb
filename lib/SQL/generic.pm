@@ -1,5 +1,13 @@
 #!/module/for/perl
 
+# NOTE:
+# This is a SQL *reader* module. It provides a structured mechanism for taking
+# CLI args and using them to establish a connection to a database, and to fetch
+# thence all the user data.
+#
+# It returns rows that are blessed into some subclass of SQL::Common; in the
+# initial version that will be SQL::Drupal7::users.
+
 use 5.010;
 use strict;
 use warnings;
@@ -8,10 +16,12 @@ use utf8;
 
 package SQL::generic;
 
+use SQL::Common;
+
 use DBI;
 use Data::Dumper;
 use Time::HiRes 'time';
-use Carp 'croak';
+use Carp qw( carp croak );
 
 use verbose;
 
@@ -45,10 +55,11 @@ sub ParseOpts {
 
         my $val = shift;
 
-#       if ($arg eq ';dsn') {
-#           ParseDSN \%$opts, $val if $val;
-#           next;
-#       }
+        if ($arg eq ';dsn') {
+            carp "DEPRECATION WARNING: avoid ';dsn='\n";
+            ParseDSN \%$opts, $val if $val;
+            next;
+        }
 
         if ($arg eq 'dbi') {
             $opts->{driver} //= $val;
@@ -150,25 +161,6 @@ sub _hashify(\@$) {
     return map { my %r; @r{@$F} = @$_; \%r } @$R;
 }
 
-{
-    package SQL::generic::Common;
-    use parent 'CSV::Common';
-    use export; # also patches up %INC so that use « parent 'SQL::generic::Common' » later works
-
-    sub uid { $_[0]->{uid}; }
-}
-
-{ package SQL::generic::users;              use parent 'SQL::generic::Common'; }
-
-{ package SQL::generic::user_addresses;     use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_email_subs;    use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_kin;           use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_mm_member;     use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_notes;         use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_phones;        use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_print_subs;    use parent 'SQL::generic::Common'; }
-{ package SQL::generic::user_wgroup;        use parent 'SQL::generic::Common'; }
-
 sub _fetch_rows($$$) {
     my ($dbh, $view, $class) = @_;
 
@@ -246,6 +238,9 @@ sub fetch_users($) {
 
     my $ru = _fetch_rows $dbh, "select * from export_full_users", "SQL::generic::users";
     my @users = @$ru;
+
+    $_->{user_name} = delete $_->{name} for @users;     # WTF?!? whyyyy, Drupal?
+
     my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
 
     for my $tk (qw(
@@ -280,9 +275,3 @@ sub fetch_users($) {
 }
 
 1;
-
-__END__
-
-y{ AEI OUY BCDFGHJLMS WPQTVKXRNZ aei ouy bcdfghjlms wpqtvkxrnz }
- { OUY AEI PQTVKXWRNZ JBCDFGHLMS ouy aei pqtvkxwrnz jbcdfghlms };
-

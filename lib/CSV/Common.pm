@@ -47,6 +47,8 @@ our $canon_address = 0;
 our $use_care_of = 1;
 our $only_explicitly_shared_email = 1;
 
+# Create an individual record, using a "headers" row to assign field names.
+
 sub new($\@\@$) {
     $#_ == 3 or croak "Wrong number of parameters to CSV::Common::new";
     my ($class, $headers, $ra, $fpos) = @_;
@@ -59,6 +61,33 @@ sub new($\@\@$) {
     my $r = bless \%rh, $class;
     $r->fix_one or return ();
     return $r;
+}
+
+# Individual post-processing.
+#   (a) filter (return 0 to exclude a record, non-0 to include)
+#   (b) patch up individual fields
+#
+# Always finish fix_one in any derived class with a call to the parent
+# implementation, like this:
+#   goto &{$_[0]->can("SUPER::fix_one")}
+# or this:
+#   return $_[0]->SUPER::fix_one;
+
+sub fix_one {
+    my ($r) = @_;
+    make_name_sortable($r->name);
+    return 1;
+}
+
+# Bulk post-processing step.
+# This can split or join rows.
+
+sub foldrows {
+    my ($records) = @_;
+    #warn sprintf "CSV::Common::foldrows; start with %u rows, keeping all\n", scalar @$records;
+    for my $r (@$records) {
+        make_name_sortable($r->name);
+    }
 }
 
 sub _titlecase($$) {
@@ -78,8 +107,8 @@ sub _titlecase($$) {
     return $fixme;
 }
 
-sub _make_name_sortable($$) {
-    my ($r, $n) = @_;
+sub make_name_sortable($) {
+    my ($n) = @_;
     s#\s*\([^()]*\)\s*# #g,
     s#\s*\([^()]*\)\s*# #g,
     s#\s*\([^()]*\)\s*# #g,  # thrice, to clean double-nested brackets

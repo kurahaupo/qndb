@@ -20,9 +20,4 @@ inserts,country,postcode,name,care-of,address1,address2,address3,address4,addres
 package CSV::adhoc1;
 use parent 'CSV::Common';
 
-sub fix_one {
-    my $r = shift;
-    1;
-}
-
 1;
