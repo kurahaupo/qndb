@@ -618,4 +618,70 @@ sub receive_local_newsletter_by_email($) {
     return uniq map { $mm_names{uc $_} } $r->gtags( qr/^send ($mm_keys_re)\s+[Nn]ews/ );
 }
 
+sub is_human($) {
+    my $r = shift;
+    return ! $r->gtags( 'meeting' );
+}
+
+sub is_adult($) {
+    my $r = shift;
+    return !$r->gtags('child');
+}
+
+sub is_child($) {
+    my $r = shift;
+    return $r->gtags('child');
+}
+
+sub hide_listing($) {
+    my $r = shift;
+    return 0;   # TODO
+}
+
+sub is_archived($) {
+    my $r = shift;
+    return 0;   # TODO
+}
+
+sub is_member($) {
+    my $r = shift;
+    return $r->gtags( 'members' );
+}
+
+sub is_attender($) {
+    my $r = shift;
+    return $r->gtags('attenders');
+}
+
+sub is_inactive($) {
+    my $r = shift;
+    return $r->gtags('inactive');
+}
+
+sub want_shown_in_book($) {
+    my $r = shift;
+    return $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' );
+}
+
+sub want_wg_listings($) {
+    my $r = shift;
+    return uniq $r->gtags( qr/^listing[- ]+((?:$mm_keys_re|YF)\b.*)/ );
+}
+
+sub want_mm_listings($) {
+    my $r = shift;
+    return uniq $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re|YF)\b/ )
+}
+
+sub postal_inclusions($@) {
+    my $r = shift;
+    my @inclusion_tags = @_;
+    return $r->gtags(@inclusion_tags);
+}
+
+sub needs_overseas_postage($) {
+    my $r = shift;
+    return $r->gtags('overseas');
+}
+
 1;

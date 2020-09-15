@@ -175,6 +175,66 @@ sub fix_one {
 #   $r;
 }
 
+sub want_shown_in_book {
+    return 1;   # TODO
+}
+
+sub is_human($) {
+    my $r = shift;
+    return 1;   # TODO
+}
+
+# TODO: this is only to substitute random values until the real values can be computed
+sub _coin_flip(;$) {
+    return rand(shift // 2);
+}
+
+sub is_adult($) {
+    my $r = shift;
+    return $r->{__is_adult} //= _coin_flip;   # TODO
+}
+
+sub is_child($) {
+    my $r = shift;
+    return not $r->{__is_adult} //= _coin_flip;   # TODO
+}
+
+sub is_member($) {
+    my $r = shift;
+    return $r->{__is_member} //= _coin_flip;   # TODO
+}
+
+sub is_attender($) {
+    my $r = shift;
+    return $r->{__is_attender} //= _coin_flip && ! $r->is_member;   # TODO
+}
+
+sub is_inactive($) {
+    my $r = shift;
+    return $r->{__is_inactive} //= ! $r->is_member && ! $r->is_attender;   # TODO
+}
+
+sub want_wg_listings($) {
+    my $r = shift;
+    return 'Tnaki'; # TODO
+}
+
+sub want_mm_listings($) {
+    my $r = shift;
+    return 'TN';    # TODO
+}
+
+sub postal_inclusions($@) {
+    my $r = shift;
+    my @inclusion_tags = @_;
+    return ();      # TODO
+}
+
+sub needs_overseas_postage($) {
+    my $r = shift;
+    return 0;       # TODO
+}
+
 }
 
 { package SQL::Drupal7::user_addresses;     use parent 'SQL::Drupal7'; use export; }

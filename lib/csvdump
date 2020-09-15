@@ -240,7 +240,6 @@ my $skip_unlisted = 1;
 my $skip_unsub = 1;
 my @inclusion_labels;
 my @inclusion_tags;
-my $postal_control_tag = 'overseas';
 my @restrict_classes;
 my @restrict_regions;
 my @selection_tags;
@@ -1517,7 +1516,7 @@ use quaker_info '$mm_keys_re';
         }
         if ( $r->can('gtags') ) {
             if ($need_region) {
-                if ( ! $r->gtags( qr/^(?:member|listing)[- ]+($mm_keys_re|YF)\b/ ) ) {
+                if ( ! $r->want_mm_listings ) {
                     warn sprintf "Skipping NOREGION %s\n", $r->debuginfo if $why_not;
                     return 1;
                 }
@@ -1904,8 +1903,7 @@ sub birthday_dump_records($$;$) {
             next RECORD;
         }
 
-        my @meetings = $r->can('gtags') ? $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ ) : ();
-        @meetings = uniq @meetings if @meetings > 1;
+        my @meetings = $r->want_mm_listings;
         my $xdate = join ".", $y ? 'xdate='.$y : 'zdate=0000', $m, $d;
         my $dpat = strftime "%d-%b", 0,0,0,$d,$m-1,$y?$y-1900:2000;
         my @areas = map { "area=" . uc $_ } sort @meetings;
@@ -1931,6 +1929,11 @@ sub generate_tag_report($$;$) {
     my @records = @$rr;
     RECORD: for my $r (@records) {
         my $errors = 0;
+        $r->can('gtags') or do {
+            print $out "* tag report only meaningful with a Google Contacts list";
+            _dump_one $out, $r, [];
+            last;
+        };
         #
         # Check #all vs #admin #attender etc
         #
@@ -2181,8 +2184,13 @@ sub generate_labels($$;$) {
         @hh = grep { $_->gtags(@selection_tags) } @hh if @selection_tags;
         @hh or next HOUSEHOLD;
         # Which inclusions for this household?
+        my %incl;
+        for my $h (@hh) {
+            my @i = $h->postal_inclusions(@inclusion_tags);
+            @incl{@i} = @i;
+        }
         my @inclusions = map { $inclusion_label{$_} }
-                            grep { my $t = $_; grep { $_->gtags($t) } @hh; }
+                            grep { $incl{$_} }
                                 @inclusion_tags
             or next HOUSEHOLD;
         $hh[0]->{inclusions} = \@inclusions;
@@ -2194,7 +2202,7 @@ sub generate_labels($$;$) {
         $hh[0]->{inclusion_group} =
         my $igroup = $inclusion_groups{join ',', @inclusions} ||= ++$next_inclusion_group;
         ++$group_counts{$igroup};
-        if ( $postal_control_tag && grep { $_->gtags($postal_control_tag) } @hh ) {
+        if ( grep { $_->needs_overseas_postage } @hh ) {
             # are they overseas?
             push @inclusions, "\x{fe01}(Special Postage)";
         }
@@ -2260,14 +2268,14 @@ sub generate_labels($$;$) {
                 my @parents;
                 my @children;
                 if ($hh[0]->can('gtags')) {
-                    @parents = grep { !$_->gtags('child') } @hh;
-                    @children = grep { $_->gtags('child') } @hh;
+                    @parents = grep { !$_->is_child } @hh;
+                    @children = grep { $_->is_child } @hh;
                     @parents = sort {
-                            -$a->label_priority     <=> -$b->label_priority     ||
-                            !$a->gtags('members')   <=> !$b->gtags('members')   ||
-                            !$a->gtags('attenders') <=> !$b->gtags('attenders') ||
-                            !!$a->gtags('inactive') <=> !!$b->gtags('inactive')
-                        } @parents;
+                                    $b->label_priority  <=> $a->label_priority  ||
+                                    !$a->is_member      <=> !$b->is_member      ||
+                                    !$a->is_attender    <=> !$b->is_attender    ||
+                                    !$b->is_inactive    <=> !$a->is_inactive
+                                } @parents;
                 } else {
                     @parents = grep { $_->uid_of_children_under_16 } @hh;
                     @children = grep { !$_->uid_of_children_under_16 } @hh;
@@ -2605,27 +2613,25 @@ sub generate_book($$;$) {
 
     my $copyright = sprintf "Compilation copyright ©%u The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised %s", $rev_year, $rev_dmmy;
 
-    my $rr = [ grep { $_->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' ) } skip_unwanted_records @$rr0 ];
+    my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
 
     my %by_mm;
     my %by_wg;
     for my $r (@$rr) {
-        if ( my @meetings = $r->gtags( qr/^listing[- ]+((?:$mm_keys_re|YF)\b.*)/ ) ) {
-            @meetings = uniq @meetings if @meetings > 1;
+        if ( my @meetings = $r->want_wg_listings ) {
             for my $m (@meetings) {
                 push @{$by_wg{$m}}, $r;
             }
         }
-        elsif ( ! $r->gtags( 'meeting' ) ) {
+        elsif ( $r->is_human ) {
             push @{$by_wg{'NO - not in any worship group'}}, $r;
         }
-        if ( my @meetings = $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re)/ ) ) {
-            @meetings = uniq @meetings if @meetings > 1;
+        if ( my @meetings = $r->want_mm_listings ) {
             for my $m (@meetings) {
                 push @{$by_mm{$m}}, $r;
             }
         }
-        elsif ( ! $r->gtags( 'meeting' ) ) {
+        elsif ( $r->is_human ) {
             push @{$by_mm{'NO - not in any meeting'}}, $r;
         }
     }
