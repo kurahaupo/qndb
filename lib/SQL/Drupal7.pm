@@ -22,6 +22,9 @@ use parent 'SQL::Drupal7';
 use Carp 'cluck', 'confess';
 use POSIX 'strftime', 'floor';
 
+use list_functions qw( uniq randomly_choose flip_coin );
+use quaker_info qw( @wg_order );
+
 sub uid { $_[0]->{uid}; }
 
 sub hide_listing() {
@@ -184,33 +187,24 @@ sub is_human($) {
     return 1;   # TODO
 }
 
-# TODO: this is only to substitute random values until the real values can be computed
-#
-sub _flip_coin(;$) {
-    return rand(1) < pop || 0.5;
-}
-sub _randomly_choose(@) {
-    return $_[int rand(scalar @_)];
-}
-
 sub is_adult($) {
     my $r = shift;
-    return $r->{__is_adult} //= _flip_coin 0.75;   # TODO
+    return $r->{__is_adult} //= flip_coin 0.75;     # TODO
 }
 
 sub is_child($) {
     my $r = shift;
-    return not $r->{__is_adult} //= _flip_coin 0.75;   # TODO
+    return not $r->{__is_adult} //= flip_coin 0.75; # TODO
 }
 
 sub is_member($) {
     my $r = shift;
-    return $r->{__is_member} //= $r->is_adult && _flip_coin 5/8;   # TODO
+    return $r->{__is_member} //= $r->is_adult && flip_coin 0.625;   # TODO
 }
 
 sub is_attender($) {
     my $r = shift;
-    return $r->{__is_attender} //= ! $r->is_member && $r->is_adult && _flip_coin 7/8;   # TODO
+    return $r->{__is_attender} //= ! $r->is_member && $r->is_adult && flip_coin 0.875;    # TODO
 }
 
 sub is_inactive($) {
@@ -220,56 +214,26 @@ sub is_inactive($) {
 
 sub want_wg_listings($) {
     my $r = shift;
-    return _randomly_choose (
-            'NT-Wgrei',
-            'NT-Wkwth',
-            'NT-NthSh',
-            'NT-MtEdn',
-            'NT-Howik',
-            'MNI-Hamtn',
-            'MNI-ThmCo',
-            'MNI-Trnga',
-            'MNI-Rotru',
-            'TN-Tnaki',
-            'PN-PlNth',
-            'WG-Wgnui',
-            'KP-Kapti',
-            'WN-Levin',
-            'WN-Wlgtn',
-            'CH-Nelsn',
-            'CH-Tkaka',
-            'CH-Wport',
-            'CH-Chrch',
-            'DN-Otago',
-            'DN-Invgl',
-        );  # TODO
+    state $wgx = [ grep { !/^NO/ } @wg_order ];
+    return @{ $r->{__wg_listings} ||= [ randomly_choose flip_coin 0.125 ? 2 : 1, @$wgx ] }; # TODO
 }
 
 sub want_mm_listings($) {
     my $r = shift;
-    return _randomly_choose qw(
-            'NT',
-            'MNI',
-            'TN',
-            'PN',
-            'WG',
-            'KP',
-            'WN',
-            'CH',
-            'DN',
-            'YF',
-        );  # TODO
+    my @wg = want_wg_listings $r;
+    s/\S.*// for @wg;
+    return uniq @wg;
 }
 
 sub postal_inclusions($@) {
     my $r = shift;
     my @inclusion_tags = @_;
-    return grep { _flip_coin } @_;  # TODO
+    return randomly_choose 2, @_;   # TODO
 }
 
 sub needs_overseas_postage($) {
     my $r = shift;
-    return _flip_coin 0.0625;       # TODO
+    return flip_coin 0.0625;        # TODO
 }
 
 }
