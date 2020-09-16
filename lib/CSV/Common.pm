@@ -75,8 +75,8 @@ sub new($\@\@$) {
 # or simply:
 #   $_[0]->make_name_sortable; 1;
 
-BEGIN { cluck 'Defining '.__PACKAGE__.'::fix_one = '.\&fix_one; }
-      { cluck 'Defined  '.__PACKAGE__.'::fix_one = '.\&fix_one; }
+#BEGIN { cluck 'Defining '.__PACKAGE__.'::fix_one = '.\&fix_one; }
+#      { cluck 'Defined  '.__PACKAGE__.'::fix_one = '.\&fix_one; }
 
 sub fix_one {
     my ($r) = @_;
