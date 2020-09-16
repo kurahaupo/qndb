@@ -219,7 +219,7 @@ sub _fetch_rows($$$) {
 sub fetch_mms($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, <<'EoQ', SQL::Drupal7::mm_member::
+    return _fetch_rows $dbh, <<'EoQ', SQL::Drupal7::user_mm_member::
         select field_short_name_value as tag, entity_id as id
           from field_data_field_short_name
          where bundle = 'meeting_group'
