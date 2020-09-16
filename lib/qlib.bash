@@ -6,6 +6,7 @@
 # shellcheck disable=SC2034
 die() {
     STATUS=$?       EX_STATUS=STATUS
+    set +x
     OK=0            EX_OK=OK
     FAIL=1          EX_FAIL=FAIL
     USAGE=64        EX_USAGE=USAGE
@@ -34,7 +35,7 @@ die() {
     SIGBUS=7+128    SIGTERM=15+128  SIGURG=23+128    SIGSYS=31+128
     (( _e = $1 ))
     shift
-    (($#)) && echo >&2 "$@"
+    (($#)) && printf >&2 '%s\n' "$*"
     exit $_e
 }
 
