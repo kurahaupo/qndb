@@ -18,8 +18,6 @@ askyn() {
     [[ $yn = Y ]]
 }
 
-postlabels=${current_gmail%.csv}-labels.pdf
-
 opts=(
         --preset=avery-l7160
         --skip-suppressed-post
@@ -27,10 +25,15 @@ opts=(
 
 (( true = 0==0,
    false = !true,
-   ask = true ))
+   ask = true,
+   use_sql = false ))
+
+sql_dsn=dbi:
 
 for x do
     case $x in
+    (dbi:*)             use_sql=true sql_dsn=$x ;;
+    (--sql*)            opts+=( "$1" ) ; use_sql=true ;;
     (-*)                opts+=( "$1" ) ;;
     (ask)               (( ask = true  )) ;;
     (no-ask)            (( ask = false )) ;;
@@ -57,6 +60,15 @@ for x do
     (*)                 printf >&2 "Unknown option '%s'\n" "$x" ; exit 64 ;;
     esac
 done
+
+if ((use_sql))
+then
+    input_file=$sql_dsn
+    postlabels=/tmp/qdb-$today-labels.pdf
+else
+    input_file=$current_gmail
+    postlabels=${current_gmail%.csv}-labels.pdf
+fi
 
 if (( ask ))
 then
@@ -97,7 +109,7 @@ fi
 
 file_downloads
 
-"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$current_gmail" &&
+"${libdir}"csvdump --labels "${inc[@]}" "${opts[@]}" "$input_file" &&
 { sleep 1 ; evince "$postlabels" <> /dev/null >&0 & }
 
 exit $?

@@ -9,6 +9,7 @@ true=1 false=0
 
 diff_ignore_dir="${dbdir}DIFF/"
 dumpopts=( --hide-send --skip-suppressed-listing )
+dlist=()
 glist=()
 ignore=false
 ignore_patch_failure=true
@@ -83,7 +84,7 @@ EOF
 while (($#)) ; do
     case $1 in
     (--verbose=*|--patch=*|--offset-time=*) set -- "${1%%=*}" "${1#*=}" "${@:2}" ; continue ;;
-    (--*=*)                     die EX_USAGE "Option '${1%%=*}' does not take a value" ;;
+    (--!(sql?*)=*)              die EX_USAGE "Option '${1%%=*}' does not take a value" ;;&
 
     (--bl|--baseline)           plist+=("$baseline_snapshot") ;;
     (--book|--book2014)         plist+=("$greenbook_snapshot") ;;
@@ -110,6 +111,8 @@ while (($#)) ; do
     (--profile-today)           add_plist_min_age 0 ;;
     (--profile-yesterday)       add_plist_min_age 1 ;;
 
+    (--sql)                     dlist+=( dbi: ) ;;  # get everything else from QDB_* env vars
+
     (--once)                    once=true ;;
     (--patch)                   patch_files+=( "$2" ) ; shift ;;
     (--qp|--quiet-patch)        patch_opts+=(--quiet) ;;
@@ -120,6 +123,8 @@ while (($#)) ; do
     (--verbose)                 dump_opts+=("$1=$2") ; shift ;;
     (--vp|--verbose-patch)      patch_opts+=(--verbose) ;;
     (-*)                        dumpopts+=( "$1" ) ;;
+
+    (dbi:*)                     dlist+=( "$1" ) ;;
     (*/contacts*|contacts*|*/google*|google*)
                                 glist+=( "$1" ) ;;
     (*/*\
@@ -155,6 +160,11 @@ oneshot() {
 
         ff=()
 
+    if (( ${#dlist[@]} ))
+    then
+        ff+=( "${dlist[@]}" )
+    fi
+
     for t in "${!gmail_day_offset_map[@]}"
     do
         printf -v gx "$gT" $((now-t*86400))
@@ -162,8 +172,6 @@ oneshot() {
         ff+=( "$gx" )
     done
 
-#   ((use_google)) &&
-#       ff+=( "$current_gmail" )
         ff+=( "${glist[@]}" )
 
     for t in "${!profile_day_offset_map[@]}"

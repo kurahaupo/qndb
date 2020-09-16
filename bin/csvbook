@@ -8,8 +8,14 @@ bookfile=
 
 book_opts=()
 
+use_sql=false
+sql_dsn=dbi:mysql:quakers
+
 for o do
     case $o in
+    (-S|--sql)                  use_sql=true sql_dsn=dbi: ;;
+    (--sql*)                    use_sql=true sql_dsn=${o#*=} book_opts+=("$o");;
+    (dbi:*)                     use_sql=true sql_dsn=$o ;;
     (-1|--once)                 once=true ;;
     (--loop)                    once=false ;;
     (-*)                        book_opts+=("$o") ;;
@@ -17,15 +23,22 @@ for o do
     (x)                         set -x ;;
     (*?)
         [[ $o = *[!ilamw]* && yes != "$o"* ]] && die EX_USAGE "Invalid option '$o'"
-        [[ $o != *[!i]* && $o != *[!mw]* ]] && book_opts+=( --book-listing-all   )
-        [[ $o != *[!i]* && $o != *[!aw]* ]] && book_opts+=( --book-listing-by-mm )
-        [[ $o != *[!i]* && $o != *[!am]* ]] && book_opts+=( --book-listing-by-wg )
-        [[ $o != *[!l]* && $o != *[!mw]* ]] && book_opts+=( --book-index-all     )
-        [[ $o != *[!l]* && $o != *[!aw]* ]] && book_opts+=( --book-index-by-mm   )
-        [[ $o != *[!l]* && $o != *[!am]* ]] && book_opts+=( --book-index-by-wg   )
+        [[ $o != *[i]* && $o != *[mw]* ]] && book_opts+=( --book-listing-all   )
+        [[ $o != *[i]* && $o != *[aw]* ]] && book_opts+=( --book-listing-by-mm )
+        [[ $o != *[i]* && $o != *[am]* ]] && book_opts+=( --book-listing-by-wg )
+        [[ $o != *[l]* && $o != *[mw]* ]] && book_opts+=( --book-index-all     )
+        [[ $o != *[l]* && $o != *[aw]* ]] && book_opts+=( --book-index-by-mm   )
+        [[ $o != *[l]* && $o != *[am]* ]] && book_opts+=( --book-index-by-wg   )
         ;;
     esac
 done
+
+if (( use_sql ))
+then
+    for v in QDB_USER QDB_PASSFILE QDB_HOST QDB_PORT; do
+        [[ ${!v} ]] || die EX_UNAVAILABLE "Environment is missing $v"
+    done
+fi
 
 while
     desc=( "${book_opts[@]#--book-}" )
@@ -50,11 +63,20 @@ eg:
  a - unified index & unified listing
 EndOfHelp
 
-    # make sure any new downloads are filed in proper locations
-    file_downloads
-
-    bookfile="${current_gmail%.csv}-book.pdf"
     cur_book_opts=( "${book_opts[@]}" )
+
+    if (( use_sql ))
+    then
+        set_current_vars
+        input_file=$sql_dsn
+        bookfile=/tmp/qdb-$today-book.pdf
+    else
+        # make sure any new downloads are filed in proper locations
+        file_downloads
+        bookfile="${current_gmail%.csv}-book.pdf"
+        input_file=$current_gmail
+    fi
+
     for o in $oo
     do
         [[ $o != *[!ilamwy]* || yes = "$o"* ]] || continue 2
@@ -71,7 +93,7 @@ EndOfHelp
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
     printf >&2 'Book [%s] ...\n' "${desc[*]}"
 
-    time ${libdir}csvdump --preset=book --skip-suppressed-listing "$current_gmail" "${cur_book_opts[@]}" -o - >| "$bookfile" &&
+    time ${libdir}csvdump --preset=book --skip-suppressed-listing "$input_file" "${cur_book_opts[@]}" -o - >| "$bookfile" &&
     { evince "$bookfile" <>/dev/null >&0 2>&0 3>&- 4>&- 5>&- 6>&- & }
 
     ((once)) && break

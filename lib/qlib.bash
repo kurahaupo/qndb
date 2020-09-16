@@ -80,8 +80,10 @@ sprintf greenbook_snapshot "$pT" 1402216718   # snapshot on which the Green Book
 set_current_vars() {
     # update time-related vars to reflect "now" or "today"
     sprintf now '%(%s)T' -1
-    sprintf current_gmail "$gT" "$now"    # today's gmail.com distrodude download
-    sprintf current_profile "$pT" "$now"  # today's quaker.org.nz profile download
+    sprintf today '%(%Y%m%d)T'    "$now"
+    sprintf timestamp '%(%F_%T)T' "$now"
+    sprintf current_gmail "$gT"   "$now"    # today's gmail.com distrodude download
+    sprintf current_profile "$pT" "$now"    # today's quaker.org.nz profile download
 }
 set_current_vars
 
