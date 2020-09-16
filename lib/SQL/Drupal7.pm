@@ -19,7 +19,7 @@ use parent 'CSV::Common';
 package SQL::Drupal7::users;
 use parent 'SQL::Drupal7';
 
-use Carp 'cluck', 'confess';
+use Carp 'confess';
 use POSIX 'strftime', 'floor';
 
 use list_functions qw( uniq randomly_choose flip_coin );
@@ -124,39 +124,8 @@ sub birthdate {
     return $t;
 }
 
-sub parent_fix_one  {
-    my ($r) = @_;
-    cluck 'Creating parent_fix_one\n';
-    my $f = UNIVERSAL::can($r, 'SUPER::fix_one') // do {
-        our @ISA;
-        warn "UNIVERSAL::can(".__PACKAGE__.", 'SUPER::fix_one') couldn't find fix_one";
-        for ( SQL::Drupal7::users::,
-              SQL::Drupal7::,
-              SQL::Common::,
-              CSV::Common:: ) {
-            my $pkg = $_.'::';
-            no strict 'refs';
-            $pkg = \%$pkg || die;
-            if ( my $fix = $pkg->{fix_one} ) {
-                warn '&'.$_.'::fix_one='.\&$fix."\n";
-            } else {
-                warn '&'.$_.'::fix_one=(undef)'."\n";
-            }
-            if ( my $isa = $pkg->{ISA} ) {
-                warn '@'.$_.'::ISA=( '.join('; ',@{ $pkg->{ISA} })." )\n\n";
-            } else {
-                warn '@'.$_."::ISA=(empty)\n\n";
-            }
-        }
-        confess;
-    };
-    *parent_fix_one = $f;
-    goto &$f;
-}
-
 sub fix_one {
     my ($r) = @_;
-    cluck "Running ".__PACKAGE__."::fix_one\n";
 
     $r->{monthly_meeting_area} = do { delete $r->{mmm_xmtag} } // '';
     $r->{formal_membership} = do { my $mmm = delete $r->{__mm_member}; $mmm ? join "\n", map { $_->{mmm_xmtag} } @$mmm : undef; } // '';
@@ -172,10 +141,8 @@ sub fix_one {
     $r->{nz_friends_by_email} = 'TODO';
     $r->{last_updated} = 'TODO';
 
-    goto &parent_fix_one;
-
-#   $r->make_name_sortable;
-#   $r;
+    CSV::Common::make_name_sortable($r);    # copied from CSV::Common::fix_one
+    return $r;
 }
 
 sub want_shown_in_book {
