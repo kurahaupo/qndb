@@ -54,7 +54,7 @@ while
     read n
 do
     case $n in
-    '') echo SKIP ;;
+    '') printf 'SKIP\n' ;;
     [0+]*) iphone "$n" ;;
     *) titlecase "$n" ;;
     esac
