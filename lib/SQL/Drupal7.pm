@@ -185,28 +185,32 @@ sub is_human($) {
 }
 
 # TODO: this is only to substitute random values until the real values can be computed
-sub _coin_flip(;$) {
-    return rand(shift // 2);
+#
+sub _flip_coin(;$) {
+    return rand(1) < pop || 0.5;
+}
+sub _randomly_choose(@) {
+    return $_[int rand(scalar @_)];
 }
 
 sub is_adult($) {
     my $r = shift;
-    return $r->{__is_adult} //= _coin_flip;   # TODO
+    return $r->{__is_adult} //= _flip_coin 0.75;   # TODO
 }
 
 sub is_child($) {
     my $r = shift;
-    return not $r->{__is_adult} //= _coin_flip;   # TODO
+    return not $r->{__is_adult} //= _flip_coin 0.75;   # TODO
 }
 
 sub is_member($) {
     my $r = shift;
-    return $r->{__is_member} //= _coin_flip;   # TODO
+    return $r->{__is_member} //= $r->is_adult && _flip_coin 5/8;   # TODO
 }
 
 sub is_attender($) {
     my $r = shift;
-    return $r->{__is_attender} //= _coin_flip && ! $r->is_member;   # TODO
+    return $r->{__is_attender} //= ! $r->is_member && $r->is_adult && _flip_coin 7/8;   # TODO
 }
 
 sub is_inactive($) {
@@ -216,23 +220,56 @@ sub is_inactive($) {
 
 sub want_wg_listings($) {
     my $r = shift;
-    return 'Tnaki'; # TODO
+    return _randomly_choose (
+            'NT-Wgrei',
+            'NT-Wkwth',
+            'NT-NthSh',
+            'NT-MtEdn',
+            'NT-Howik',
+            'MNI-Hamtn',
+            'MNI-ThmCo',
+            'MNI-Trnga',
+            'MNI-Rotru',
+            'TN-Tnaki',
+            'PN-PlNth',
+            'WG-Wgnui',
+            'KP-Kapti',
+            'WN-Levin',
+            'WN-Wlgtn',
+            'CH-Nelsn',
+            'CH-Tkaka',
+            'CH-Wport',
+            'CH-Chrch',
+            'DN-Otago',
+            'DN-Invgl',
+        );  # TODO
 }
 
 sub want_mm_listings($) {
     my $r = shift;
-    return 'TN';    # TODO
+    return _randomly_choose qw(
+            'NT',
+            'MNI',
+            'TN',
+            'PN',
+            'WG',
+            'KP',
+            'WN',
+            'CH',
+            'DN',
+            'YF',
+        );  # TODO
 }
 
 sub postal_inclusions($@) {
     my $r = shift;
     my @inclusion_tags = @_;
-    return ();      # TODO
+    return grep { _flip_coin } @_;  # TODO
 }
 
 sub needs_overseas_postage($) {
     my $r = shift;
-    return 0;       # TODO
+    return _flip_coin 0.0625;       # TODO
 }
 
 }
