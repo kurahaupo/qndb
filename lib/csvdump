@@ -38,19 +38,19 @@ use verbose;
 use list_functions;
 
 sub group_by_type(@) {
-    return @_ if not @_ && $_[0]->can('gtags');
+    return @_ if not @_ && $_[0]->can('is_human');
     my @rr_roles;
     my @rr_meetings;
     my @rr_people;
     my @rr_others;
     for my $r ( @_ ) {
-        if ($r->gtags('meeting')) {
+        if ($r->is_meeting) {
             push @rr_meetings, $r;
         }
-        elsif ($r->gtags('role', 'admin')) {
+        elsif ($r->is_role_or_admin) {
             push @rr_roles, $r;
         }
-        elsif ($r->gtags('members', 'attenders', 'child', 'inactive')) {
+        elsif ( $r->is_maci) {
             push @rr_people, $r;
         }
         else {
@@ -1206,9 +1206,9 @@ sub read_source($) {
     }
 
     if (my $fold = UNIVERSAL::can($filetype, 'foldrows')) {
-        cluck sprintf "Trying foldrows for %s, using %s; starting with %d records", $filetype, $fold, scalar @$records if $debug;
+        warn sprintf "Trying foldrows for %s, using %s; starting with %d records", $filetype, $fold, scalar @$records if $debug;
         $fold->($records);
-        cluck sprintf "Completed foldrows; finished with %d records", scalar @$records if $debug;
+        warn sprintf "Completed foldrows; finished with %d records", scalar @$records if $debug;
     }
     else {
         cluck sprintf "Can't foldrows, not defined for %s", $filetype;
@@ -2556,7 +2556,7 @@ sub generate_labels($$;$) {
             is_pq $pq               or croak "arg 1 is not a PDF::paginator";
             is_code $render_one     or croak "arg 2 is not a sub";
             is_hash $render_context or croak "arg 3 is not a hashref";
-            is_array_of $rr, CSV::gmail:: or croak "arg 4 is not an array (of GMail records)";
+            is_array_of $rr, CSV::Common:: or croak "arg 4 is not an array (of GMail records)";
             is_number $items_across or croak "arg 5 is not a number";
             is_bool $visible        or croak "arg 6 is not a flag (visible)";
             is_number $col          or croak "arg 7 is not a number (column number)" if $visible;
@@ -2800,7 +2800,7 @@ sub generate_book($$;$) {
         if (CHECK_ARGS) {
             argc_check @_, 7, $visible;
             is_pq $pq               or croak "arg 1 is not a PDF::paginator ref";
-            isa $r, CSV::gmail::    or croak "arg 2 is not a gmail record";
+            isa $r, CSV::Common::   or croak "arg 2 is not a gmail record";
             is_hash $render_context or croak "arg 3 is not a hashref";
             is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ >= 4;
             is_bool $visible        or croak "arg 5 is not a flag (visible)" if @_ >= 5;
@@ -2808,9 +2808,9 @@ sub generate_book($$;$) {
             is_number $left         or croak "arg 7 is not a number (left-position)" if $visible;
         }
 
-        my $inactive = $r->gtags('inactive','child');
-        my $ismeeting = $r->gtags('meeting');
-        my $ismember = $r->gtags('members');
+        my $inactive = $r->is_child_or_inactive;
+        my $ismeeting = $r->is_meeting;
+        my $ismember = $r->is_member;
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
@@ -2899,7 +2899,7 @@ sub generate_book($$;$) {
         if (CHECK_ARGS) {
             argc_check @_, 7, $visible;
             is_pq $pq               or croak "arg 1 is not a PDF::paginator ref";
-            isa $r, CSV::gmail::    or croak "arg 2 is not a gmail record";
+            isa $r, CSV::Common::   or croak "arg 2 is not a gmail record";
             is_hash $render_context or croak "arg 3 is not a hashref";
             is_number $column_width or croak "arg 4 is not a number (item-width)" if @_ >= 4;
             is_bool $visible        or croak "arg 5 is not a flag (visible)" if @_ >= 5;
@@ -2933,9 +2933,9 @@ sub generate_book($$;$) {
         my $text = $pq->text;
         my $width = 0;
 
-        my $inactive = $r->gtags('inactive','child');
-        my $ismeeting = $r->gtags('meeting');
-        my $ismember = $r->gtags('members');
+        my $inactive = $r->is_child_or_inactive;
+        my $ismeeting = $r->is_meeting;
+        my $ismember = $r->is_member;
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
@@ -2974,7 +2974,7 @@ sub generate_book($$;$) {
         }
 
         my @listings = map { $wg_abbrev{$_} && $wg_abbrev{$_}[$mtg_abbrev_len] || $_ }
-                           $r->gtags(qr/^listing[- ]+(\w\w\w?\b.*)/) if ! $ismeeting;
+                           $r->want_wg_listings if ! $ismeeting;
 
         my @phones = map { localize_phone $_ } $r->listed_phone;
 

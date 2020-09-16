@@ -241,8 +241,6 @@ sub fetch_users($) {
     my $ru = _fetch_rows $dbh, 'select * from export_full_users', SQL::Drupal7::users::;
     my @users = @$ru;
 
-    splice @users, 30 if @users > 30;
-
     $_->{user_name} //= delete $_->{name} for @users;   # WTF?!? whyyyy, Drupal?
 
     my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
@@ -276,8 +274,9 @@ sub fetch_users($) {
     }
 
     if ( my $fix = UNIVERSAL::can(SQL::Drupal7::users::, 'fix_one') ) {
-        cluck "Trying fix_one on users $fix" if $debug;
+        warn sprintf "Trying fix_one using %s; starting with %d records", $fix, scalar @users if $debug;
         for my $u ( @users ) { $fix->($u) }
+        warn "Completed fix_one" if $debug;
     }
     else {
         cluck "Can't fix_one for SQL::Drupal7::users";

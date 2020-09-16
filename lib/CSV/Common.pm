@@ -9,7 +9,7 @@ use utf8;
 
 package CSV::Common;
 
-use Carp 'cluck', 'croak';
+use Carp 'carp', 'cluck', 'croak';
 use string_with_components;
 use verbose;
 
@@ -89,11 +89,11 @@ sub fix_one {
 
 sub foldrows {
     my ($records) = @_;
-    cluck sprintf "CSV::Common::foldrows; start with %u rows\n", scalar @$records if $debug;
+    carp sprintf "CSV::Common::foldrows; start with %u rows\n", scalar @$records if $debug;
     for my $r (@$records) {
         make_name_sortable($r);
     }
-    cluck sprintf "CSV::Common::foldrows; finish with %u rows\n", scalar @$records if $debug;
+    carp sprintf "CSV::Common::foldrows; finish with %u rows\n", scalar @$records if $debug;
 }
 
 sub _titlecase($$) {

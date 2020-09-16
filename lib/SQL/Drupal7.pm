@@ -22,7 +22,7 @@ use parent 'SQL::Drupal7';
 use Carp 'confess';
 use POSIX 'strftime', 'floor';
 
-use list_functions qw( uniq randomly_choose flip_coin );
+use list_functions qw( flatten uniq randomly_choose flip_coin );
 use quaker_info qw( @wg_order );
 
 sub uid { $_[0]->{uid}; }
@@ -57,14 +57,14 @@ sub name($) {
 
 sub listed_email {
     my $r = shift;
-    return $r->{visible_email};
+    return $r->{visible_email} // ();
 }
 
     my %phone_slot_map = (
         M => 'personal_phone',
         H => 'household_phone',
     );
-    sub _mash_phones {
+    sub _mash_phones($) {
         my $r = shift;
         my $pp = delete $r->{__phones} or return;
         for my $p (@$pp) {
@@ -74,30 +74,27 @@ sub listed_email {
         }
     }
 
-    sub flatten {
-        my $s = shift;
-        ref $s or return $s;
-        join "\n", @$s;
-    }
+sub listed_phone {
+    my $r = shift;
+    _mash_phones $r;
+    return join "\n", flatten $r->{personal_phone}, $r->{household_phone};
+}
+
+sub listed_address {
+    my $r = shift;
+    return 'TODO';  # TODO
+}
 
 sub mobile_number {
     my $r = shift;
     _mash_phones $r;
-    return flatten $r->{personal_phone};
+    return join "\n", flatten $r->{personal_phone};
 }
 
 sub phone_number {
     my $r = shift;
     _mash_phones $r;
-    return flatten $r->{household_phone};
-}
-
-sub _mod($$) {
-    use integer;
-    my ($x, $y) = @_;
-    $x %= $y;
-    if ( $x && sign($x) != sign($y) ) { $x += $y }
-    return $x;
+    return join "\n", flatten $r->{household_phone};
 }
 
 sub birthdate {
@@ -117,7 +114,13 @@ sub birthdate {
 
     $t += 46800;        # ≈13h
 
-    BEGIN { -5 % 3 == 1 or die "This version of Perl has a broken implementation of modulus"; }
+    BEGIN {
+           +8 % +3 == +2 && -17 % -8 == -1
+        && -8 % +3 == +1 && -17 % +8 == +7
+        && +8 % -3 == -1 && +17 % -8 == -7
+        && -8 % -3 == -2 && +17 % +8 == +1
+            or die "This version of Perl has a broken implementation of modulus";
+    }
     $t -= $t % 86400;   # ≈24h  NOTE: modulus must be positive
 
     $t = strftime '%Y-%m-%d', gmtime $t;
@@ -154,6 +157,26 @@ sub is_human($) {
     return 1;   # TODO
 }
 
+sub is_meeting($) {
+    my $r = shift;
+    return 0;   # Never
+}
+
+sub is_role($) {
+    my $r = shift;
+    return 0;   # Never
+}
+
+sub is_admin($) {
+    my $r = shift;
+    return 0;   # Never
+}
+
+sub is_role_or_admin($) {
+    my $r = shift;
+    return is_role($r) || is_admin($r);
+}
+
 sub is_adult($) {
     my $r = shift;
     return $r->{__is_adult} //= flip_coin 0.75;     # TODO
@@ -177,6 +200,21 @@ sub is_attender($) {
 sub is_inactive($) {
     my $r = shift;
     return $r->{__is_inactive} //= ! $r->is_member && ! $r->is_attender;   # TODO
+}
+
+sub is_child_or_inactive($) {
+    my $r = shift;
+    return is_child($r) || is_inactive($r);
+}
+
+sub is_member_or_attender($) {
+    my $r = shift;
+    return is_member($r) || is_attender($r);
+}
+
+sub is_maci($) {
+    my $r = shift;
+    return is_member_or_attender($r) || is_child_or_inactive($r);
 }
 
 sub want_wg_listings($) {

@@ -620,12 +620,12 @@ sub receive_local_newsletter_by_email($) {
 
 sub is_human($) {
     my $r = shift;
-    return ! $r->gtags( 'meeting' );
+    return ! $r->gtags('meeting');
 }
 
 sub is_adult($) {
     my $r = shift;
-    return !$r->gtags('child');
+    return ! $r->gtags('child', 'meeting');
 }
 
 sub is_child($) {
@@ -656,6 +656,44 @@ sub is_attender($) {
 sub is_inactive($) {
     my $r = shift;
     return $r->gtags('inactive');
+}
+
+sub is_meeting($) {
+    my $r = shift;
+    return $r->gtags('meeting');
+}
+
+sub is_role($) {
+    my $r = shift;
+    return $r->gtags('role');
+}
+
+sub is_admin($) {
+    my $r = shift;
+    return $r->gtags('admin');
+}
+
+sub is_role_or_admin($) {
+    my $r = shift;
+    return $r->gtags('role', 'admin');
+}
+
+sub is_child_or_inactive($) {
+    my $r = shift;
+    return $r->gtags('child', 'inactive');
+  # return is_child($r) || is_inactive($r);
+}
+
+sub is_member_or_attender($) {
+    my $r = shift;
+    return $r->gtags('members', 'attenders');
+  # return is_member($r) || is_attender($r);
+}
+
+sub is_maci($) {
+    my $r = shift;
+    return $r->gtags('members', 'attenders', 'child', 'inactive');
+   #return is_member_or_attender($r) || is_child_or_inactive($r);
 }
 
 sub want_shown_in_book($) {
