@@ -11,6 +11,23 @@ book_opts=()
 use_sql=false
 sql_dsn=dbi:mysql:quakers
 
+set_opt() {
+    declare -n a=$1
+    declare o=$2
+    [[ $o = *[!ilamw]* ]] && return 1
+    [[ $o = *[il]*  ]] || o+=il
+    [[ $o = *[amw]* ]] || o+=amw
+    [[ $o = *l* && $o = *a* ]] && a+=( --book-listing-all   )
+    [[ $o = *l* && $o = *m* ]] && a+=( --book-listing-by-mm )
+    [[ $o = *l* && $o = *w* ]] && a+=( --book-listing-by-wg )
+    [[ $o = *i* && $o = *a* ]] && a+=( --book-index-all     )
+    [[ $o = *i* && $o = *m* ]] && a+=( --book-index-by-mm   )
+    [[ $o = *i* && $o = *w* ]] && a+=( --book-index-by-wg   )
+    return 0
+}
+
+one_input=
+
 for o do
     case $o in
     (-S|--sql)                  use_sql=true sql_dsn=dbi: ;;
@@ -18,18 +35,13 @@ for o do
     (dbi:*)                     use_sql=true sql_dsn=$o ;;
     (-1|--once)                 once=true ;;
     (--loop)                    once=false ;;
+    (-n)                        book_opts=() ;;
+    (-x)                        set -x ;;
+    (--style=*)                 set_opt book_opts "${o#*=}" ||
+                                die EX_USAGE "Invalid style '${o#*=}'" ;;
     (-*)                        book_opts+=("$o") ;;
-    (n)                         book_opts=() ;;
-    (x)                         set -x ;;
-    (*?)
-        [[ $o = *[!ilamw]* && yes != "$o"* ]] && die EX_USAGE "Invalid option '$o'"
-        [[ $o != *[i]* && $o != *[mw]* ]] && book_opts+=( --book-listing-all   )
-        [[ $o != *[i]* && $o != *[aw]* ]] && book_opts+=( --book-listing-by-mm )
-        [[ $o != *[i]* && $o != *[am]* ]] && book_opts+=( --book-listing-by-wg )
-        [[ $o != *[l]* && $o != *[mw]* ]] && book_opts+=( --book-index-all     )
-        [[ $o != *[l]* && $o != *[aw]* ]] && book_opts+=( --book-index-by-mm   )
-        [[ $o != *[l]* && $o != *[am]* ]] && book_opts+=( --book-index-by-wg   )
-        ;;
+    (*.csv)                     once=true one_input=$o ;;
+    (*)                         die EX_USAGE "Invalid option '$o'" ;;
     esac
 done
 
@@ -43,7 +55,7 @@ fi
 while
     desc=( "${book_opts[@]#--book-}" )
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
-    $once || {
+    ((once)) || {
     printf >&2 'Book [%s]? ([il][amw]|yes|quit|help) ' "${desc[*]}"
     read oo && [[ $oo != @(q|quit|stop|exit|halt|fg) ]]
     }
@@ -69,25 +81,29 @@ EndOfHelp
     then
         set_current_vars
         input_file=$sql_dsn
-        bookfile=/tmp/qdb-$today-book.pdf
+        bookfile=${dbdir}qdb-$today-book.pdf
+    elif [[ $one_input ]]
+    then
+        input_file=$one_input
+        bookfile="${input_file%.csv}-book.pdf"
     else
         # make sure any new downloads are filed in proper locations
         file_downloads
-        bookfile="${current_gmail%.csv}-book.pdf"
         input_file=$current_gmail
+        bookfile="${input_file%.csv}-book.pdf"
     fi
 
     for o in $oo
     do
-        [[ $o != *[!ilamwy]* || yes = "$o"* ]] || continue 2
+        [[ $o = y* || yes = "$o"* ]] && o=ilamww
 
-        [[ $o != *[i]* && $o != *[mw]* ]] && cur_book_opts+=( --book-listing-all   )
-        [[ $o != *[i]* && $o != *[aw]* ]] && cur_book_opts+=( --book-listing-by-mm )
-        [[ $o != *[i]* && $o != *[am]* ]] && cur_book_opts+=( --book-listing-by-wg )
-        [[ $o != *[l]* && $o != *[mw]* ]] && cur_book_opts+=( --book-index-all     )
-        [[ $o != *[l]* && $o != *[aw]* ]] && cur_book_opts+=( --book-index-by-mm   )
-        [[ $o != *[l]* && $o != *[am]* ]] && cur_book_opts+=( --book-index-by-wg   )
+        set_opt cur_book_opts "$o" || {
+            printf >&2 'Invalid option "%s"\n' "$o"
+            continue 2
+        }
     done
+
+    declare >&2 -p book_opts cur_book_opts
 
     desc=( "${cur_book_opts[@]#--book-}" )
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
