@@ -77,7 +77,7 @@ sub listed_email {
 sub listed_phone {
     my $r = shift;
     _mash_phones $r;
-    return join "\n", flatten $r->{personal_phone}, $r->{household_phone};
+    return flatten $r->{personal_phone}, $r->{household_phone}, $r->{other_phone};
 }
 
 sub listed_address {
@@ -88,13 +88,13 @@ sub listed_address {
 sub mobile_number {
     my $r = shift;
     _mash_phones $r;
-    return join "\n", flatten $r->{personal_phone};
+    return flatten $r->{personal_phone};
 }
 
 sub phone_number {
     my $r = shift;
     _mash_phones $r;
-    return join "\n", flatten $r->{household_phone};
+    return flatten $r->{household_phone};
 }
 
 sub birthdate {
