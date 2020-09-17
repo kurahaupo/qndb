@@ -199,7 +199,8 @@ sub font($$$$;$) {
 #
 #** on hijacking the Unicode Variant Selectors **
 #
-#   To achieve some basic text flow, we
+#   To achieve some basic text flow, we use codepoints \ufe00..\ufe07 to
+#   control bold, italic, and underline attributes.
 #
 #   According to the Unicode Consortium, the 16 codepoints \ufe00..\ufe0f
 #   should act as suffixes to amend the glyph of the preceeding codepoint.
