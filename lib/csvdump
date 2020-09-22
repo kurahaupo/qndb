@@ -1191,7 +1191,7 @@ sub fetch_dbi($) {
             ;
 
     my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
-    return SQL::Drupal7::, $pseudo_filename, $dbx->fetch_users;
+    return SQL::Drupal7::, $pseudo_filename.strftime("-%Y%m%d.", localtime), $dbx->fetch_users;
 }
 
 sub read_source($) {
@@ -2601,17 +2601,27 @@ sub generate_book($$;$) {
 
 #   use_preset 'book';
 
-    my $rev_ymd;
+    my @when;
     if ($in_name =~ /-((20\d\d)([01]\d)([0-3]\d))\./) {
-        $rev_ymd = $1
+        @when = ((0) x 3, $4, $3-1, $2-1900, -1);
     } else {
-        $rev_ymd = strftime '%Y%m%d', localtime $^T;
-        $rev_ymd =~ /^((20\d\d)([01]\d)([0-3]\d))$/;
+        @when = localtime $^T;
     }
-    my ($rev_year, $rev_month, $rev_day) = ($2,$3,$4);
-    my $rev_dmmy = strftime "%d%b%Y", (0)x3, $rev_day, $rev_month-1, $rev_year-1900;
+    my $rev_year = strftime '%Y',           @when;
+  # my $rev_date = strftime "%d-%b-%Y",     @when;
+    my $rev_ts   = strftime "%H:%M %d%b%Y", @when;
+    my $return_info_page = 'XX';
 
-    my $copyright = sprintf "Compilation copyright ©%u The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised %s", $rev_year, $rev_dmmy;
+    my @copyright;
+  # $copyright[0] .= "Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised $rev_date";
+    $copyright[0] .= "Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. Revised $rev_ts";
+  # $copyright[0] .= "©$rev_year. ";
+  # $copyright[1] .= "©$rev_year Quakers RSoFANZ. ";
+  # $copyright[0] .= "Personal use only - do not copy or forward without authorisation from The Religious Society of Friends Aotearoa New Zealand List Holder. ";
+    $copyright[1] .= "Personal use only - do not copy or forward without authorisation from the YM List Holder. If found please shred or burn.";
+  # $copyright[0] .= "Revised $rev_date. ";
+  # $copyright[0] .= "Revised $rev_ts. ";
+    $copyright[2] .= "For uptodate information see https://quakers.nz/find-a-friend";
 
     my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
 
@@ -2723,7 +2733,10 @@ sub generate_book($$;$) {
     push @{$pq->{upon_end_page}}, sub {
             my ($pq, $pagenum) = @_;
             my $right_page = $pagenum % 2;
-            $pq->text_at($copyright, { fn => $book_fontname, fs => $book_pagenumber_fontsize, y => $page_height-$page_top_margin/2, x => $page_width/2, halign => 1, valign => 1, italic => 1, });
+            for my $ci (0 .. $#copyright) {
+            my $c = $copyright[$ci];
+            $pq->text_at($c, { fn => $book_fontname, fs => $book_pagenumber_fontsize, y => $page_height-$page_top_margin/2-($ci - $#copyright/2)*$book_pagenumber_fontsize, , x => $page_width/2, halign => 1, valign => 1, italic => 1, });
+            }
         };
 
     # Page numbering
