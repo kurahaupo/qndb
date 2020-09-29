@@ -281,7 +281,6 @@ sub fetch_users($) {
     else {
         cluck "Can't fix_one for SQL::Drupal7::users";
     }
-    print Dumper(\@users) if $debug;
     return \@users;
 }
 

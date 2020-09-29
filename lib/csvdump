@@ -12,7 +12,7 @@ use utf8_stdio;
 
 use Errno qw( ENOENT );
 use Fcntl qw( SEEK_CUR SEEK_SET );
-use POSIX qw(strftime);
+use POSIX qw( floor strftime );
 use Data::Dumper;
 
 use PDF::API2;
@@ -225,6 +225,14 @@ my $sql_pass_file;
 ########################################
 # How are records selected (these affect various modes in DWIM ways...)
 
+use constant {
+    SAMPLE_METHOD_RANDOM => 0,
+    SAMPLE_METHOD_HEAD => 1,
+    SAMPLE_METHOD_TAIL => 2,
+};
+
+my $sample_size = undef;                # take a sample of the input records
+my $sample_method = SAMPLE_METHOD_HEAD;
 my $skip_archived = 1;
 my $skip_deceased = 1;
 my $skip_children = undef;              # default to "yes" for do_labels
@@ -404,6 +412,7 @@ my $labels_ordered_in = 'columns';
         }};
     }
 
+
 my @ORIG_ARGV = @ARGV;
 
 sub M($) { my $r = \$_[0]; sub { $$r = as_points $_[-1] } }
@@ -505,6 +514,10 @@ GetOptions
     'quote-char=s'                => \$csv_quote_char,
     'raw-addresses!'              => N$CSV::Common::canon_address,
     'region|only-region=s'        => sub { push @restrict_regions, split /[, ]+/, pop },
+    'sample-size=s'               => \$sample_size,
+    'sample-head'                 => sub { $sample_method = SAMPLE_METHOD_HEAD; },
+    'sample-random'               => sub { $sample_method = SAMPLE_METHOD_RANDOM; },
+    'sample-tail'                 => sub { $sample_method = SAMPLE_METHOD_TAIL; },
     'select-and-include=s'        => II { push @selection_tags, $_[1]; push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
     'select=s'                    => II { push @selection_tags, $_[0]; },
     'show-adult-birthdays!'       => N$hide_adult_birthdays,
@@ -1205,6 +1218,8 @@ sub read_source($) {
         ($filetype, $in_name, $records) = parse_file($s);
     }
 
+    print STDERR "FETCH completed\n". Dumper($records) if $debug && $verbose > 4;
+
     if (my $fold = UNIVERSAL::can($filetype, 'foldrows')) {
         warn sprintf "Trying foldrows for %s, using %s; starting with %d records", $filetype, $fold, scalar @$records if $debug;
         $fold->($records);
@@ -1243,6 +1258,31 @@ sub read_source($) {
     }
 
     warn sprintf "READ: cross-referenced %u records from %s\n", scalar @$records, $in_name if $verbose;
+
+    print STDERR "CROSS-REF completed\n". Dumper($records) if $debug && $verbose > 4;
+
+    return $records unless defined $sample_size;
+
+    my $num_records = scalar @$records;
+    my $num_needed = $num_records;
+    if ($sample_size =~ s/\%$//) {
+        $num_needed *= $sample_size / 100;
+    } elsif ($sample_size =~ m{^(\d+)/(\d+)$}) {
+        $num_needed = $sample_size * $1 / $2;
+    } elsif (0 < $sample_size && $sample_size < 1) {
+        $num_needed *= $sample_size;
+    } else {
+        $num_needed = $sample_size;
+    }
+    $num_needed = floor(0.5+$num_needed);
+    return [] if $num_needed <= 0;
+
+    splice @$records, $num_needed       if $sample_method == SAMPLE_METHOD_HEAD;
+    splice @$records, 0, -$num_needed   if $sample_method == SAMPLE_METHOD_TAIL;
+
+    $records = [ grep { $num_needed > rand $num_records-- && $num_needed-- } @$records ] if $num_needed >= $num_records;   # method 'rand' for any unknown methods
+
+    print STDERR "SAMPLE completed\n". Dumper($records) if $debug && $verbose > 2;
 
     return $records;
 }
