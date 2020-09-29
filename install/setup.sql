@@ -728,7 +728,6 @@ create or replace view exp_normalise_user_addresses as
              1                                              as address_slot,
              a.revision_id                                  as address_rev,
              a.language                                     as address_language,
-             a.delta                                        as address_delta,
              a.field_user_address_1_first_name              as address_first_name,
              a.field_user_address_1_last_name               as address_last_name,
              a.field_user_address_1_name_line               as address_name_line,
@@ -764,7 +763,6 @@ create or replace view exp_normalise_user_addresses as
              2                                              as address_slot,
              a.revision_id                                  as address_rev,
              a.language                                     as address_language,
-             a.delta                                        as address_delta,
              a.field_user_address_2_first_name              as address_first_name,
              a.field_user_address_2_last_name               as address_last_name,
              a.field_user_address_2_name_line               as address_name_line,
@@ -800,7 +798,6 @@ create or replace view exp_normalise_user_addresses as
              3                                              as address_slot,
              a.revision_id                                  as address_rev,
              a.language                                     as address_language,
-             a.delta                                        as address_delta,
              a.field_user_address_3_first_name              as address_first_name,
              a.field_user_address_3_last_name               as address_last_name,
              a.field_user_address_3_name_line               as address_name_line,
@@ -835,7 +832,6 @@ create or replace view exp_normalise_user_addresses as
              4                                              as address_slot,
              a.revision_id                                  as address_rev,
              a.language                                     as address_language,
-             a.delta                                        as address_delta,
              a.field_user_address_4_first_name              as address_first_name,
              a.field_user_address_4_last_name               as address_last_name,
              a.field_user_address_4_name_line               as address_name_line,
@@ -866,6 +862,167 @@ create or replace view exp_normalise_user_addresses as
        where a.entity_type = 'user'
          and a.bundle      = 'user'
          and not a.deleted;
+
+create or replace view export_user_addresses2 as
+      select address_uid,
+             address_slot,
+             address_rev,
+             address_language,
+             concat(
+                    ifnull( concat('FIRST_AND_LAST_NAMES:',     address_first_name, ' ',  address_last_name, '\n'),
+                     ifnull( concat('FIRST_NAME:',              address_first_name, '\n'),
+                      ifnull( concat('LAST_NAME:',              address_last_name, '\n'),
+                       ''))),
+                    ifnull(concat('NAME_LINE:',                 address_name_line, '\n'), ''),
+                    ifnull(concat('ORGANISATION_NAME:',         address_organisation_name, '\n'), ''),
+                    ifnull(concat('SUB_PREMISE:',               address_sub_premise, '\n'), ''),
+                    ifnull(concat('PREMISE:',                   address_premise, '\n'), ''),
+                    ifnull(concat('THOROUGHFARE:',              address_thoroughfare, '\n'), ''),
+                    ifnull(concat('DEPENDENT_LOCALITY:',        address_dependent_locality, '\n'), ''),
+                    ifnull(concat('LOCALITY:',                  address_locality, '\n'), ''),
+                    ifnull(concat('SUB_ADMINISTRATIVE_AREA:',   address_sub_administrative_area, '\n'), ''),
+                    ifnull(concat('ADMINISTRATIVE_AREA:',       address_administrative_area, '\n'), ''),
+                    ifnull(concat('POSTCODE:',                  address_postal_code, '\n'), ''),
+                    ifnull(concat('CC:',                        address_country), 'NZ*')
+                    ) as address,
+             address_data,
+             address_use_as_physical,
+             address_use_as_postal
+        from exp_normalise_user_addresses;
+
+
+select 'export_user_addresses' as `creating`;
+
+create or replace view export_user_addresses as
+      select a.entity_id                                        as address_uid,
+             ifnull(a.delta+1, 0)                               as address_slot,
+             ai.revision_id                                     as address_rev,
+             ai.language                                        as address_language,
+             ai.delta                                           as address_delta,
+             ai.field_user_address_value                        as address,
+             al.field_label_value                               as address_label,
+             ifnull(ap.field_use_as_postal_address_value, 0)!=0 as address_postal,
+             ifnull(ab.field_print_in_book_value, 0)!=0         as address_in_book
+        from field_data_field_addresses             as a
+   left join field_data_field_label                 as al   on a.field_addresses_value=al.entity_id
+                                                           and al.entity_type = 'field_collection_item'
+                                                           and al.bundle      = 'field_addresses'
+                                                           and not al.deleted
+   left join field_data_field_user_address          as ai   on a.field_addresses_value=ai.entity_id
+                                                           and ai.entity_type = 'field_collection_item'
+                                                           and ai.bundle      = 'field_addresses'
+                                                           and not ai.deleted
+   left join field_data_field_use_as_postal_address as ap   on a.field_addresses_value=ap.entity_id
+                                                           and ap.entity_type = 'field_collection_item'
+                                                           and ap.bundle      = 'field_addresses'
+                                                           and not ap.deleted
+   left join field_data_field_print_in_book         as ab   on a.field_addresses_value=ab.entity_id
+                                                           and ab.entity_type = 'field_collection_item'
+                                                           and ab.bundle      = 'field_addresses'
+                                                           and not ab.deleted
+       where a.entity_type = 'user'
+         and a.bundle      = 'user'
+         and not a.deleted
+;
+
+/*
+
+mysql> desc field_data_field_addresses;
++-----------------------------+------------------+------+-----+---------+-------+
+| Field                       | Type             | Null | Key | Default | Extra |
++-----------------------------+------------------+------+-----+---------+-------+
+| entity_type                 | varchar(128)     | NO   | PRI |         |       |
+| bundle                      | varchar(128)     | NO   | MUL |         |       |
+| deleted                     | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                   | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                 | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                    | varchar(32)      | NO   | PRI |         |       |
+| delta                       | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_addresses_value       | int(11)          | YES  | MUL | NULL    |       |
+| field_addresses_revision_id | int(11)          | YES  | MUL | NULL    |       |
++-----------------------------+------------------+------+-----+---------+-------+
+9 rows in set (0.22 sec)
+
+mysql>  show tables like '%field_user_addr%';
++---------------------------------------+
+| Tables_in_quakers (%field_user_addr%) |
++---------------------------------------+
+| field_data_field_user_address         |
+| field_data_field_user_address_1       |
+| field_data_field_user_address_2       |
+| field_data_field_user_address_3       |
+| field_data_field_user_address_4       |
+| field_revision_field_user_address     |
+| field_revision_field_user_address_1   |
+| field_revision_field_user_address_2   |
+| field_revision_field_user_address_3   |
+| field_revision_field_user_address_4   |
++---------------------------------------+
+10 rows in set (0.04 sec)
+
+mysql> desc field_data_field_user_address;
++---------------------------+------------------+------+-----+---------+-------+
+| Field                     | Type             | Null | Key | Default | Extra |
++---------------------------+------------------+------+-----+---------+-------+
+| entity_type               | varchar(128)     | NO   | PRI |         |       |
+| bundle                    | varchar(128)     | NO   | MUL |         |       |
+| deleted                   | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                 | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id               | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                  | varchar(32)      | NO   | PRI |         |       |
+| delta                     | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_user_address_value  | longtext         | YES  |     | NULL    |       |
+| field_user_address_format | varchar(255)     | YES  | MUL | NULL    |       |
++---------------------------+------------------+------+-----+---------+-------+
+9 rows in set (0.05 sec)
+
+mysql> desc field_data_field_print_in_book;
++---------------------------+------------------+------+-----+---------+-------+
+| Field                     | Type             | Null | Key | Default | Extra |
++---------------------------+------------------+------+-----+---------+-------+
+| entity_type               | varchar(128)     | NO   | PRI |         |       |
+| bundle                    | varchar(128)     | NO   | MUL |         |       |
+| deleted                   | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                 | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id               | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                  | varchar(32)      | NO   | PRI |         |       |
+| delta                     | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_print_in_book_value | int(11)          | YES  | MUL | NULL    |       |
++---------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.05 sec)
+
+mysql> desc field_data_field_use_as_postal_address;
++-----------------------------------+------------------+------+-----+---------+-------+
+| Field                             | Type             | Null | Key | Default | Extra |
++-----------------------------------+------------------+------+-----+---------+-------+
+| entity_type                       | varchar(128)     | NO   | PRI |         |       |
+| bundle                            | varchar(128)     | NO   | MUL |         |       |
+| deleted                           | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                         | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                       | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                          | varchar(32)      | NO   | PRI |         |       |
+| delta                             | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_use_as_postal_address_value | int(11)          | YES  | MUL | NULL    |       |
++-----------------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.05 sec)
+
+mysql> desc field_data_field_label;
++--------------------+------------------+------+-----+---------+-------+
+| Field              | Type             | Null | Key | Default | Extra |
++--------------------+------------------+------+-----+---------+-------+
+| entity_type        | varchar(128)     | NO   | PRI |         |       |
+| bundle             | varchar(128)     | NO   | MUL |         |       |
+| deleted            | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id          | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id        | int(10) unsigned | YES  | MUL | NULL    |       |
+| language           | varchar(32)      | NO   | PRI |         |       |
+| delta              | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_label_value  | varchar(20)      | YES  |     | NULL    |       |
+| field_label_format | varchar(255)     | YES  | MUL | NULL    |       |
++--------------------+------------------+------+-----+---------+-------+
+9 rows in set (0.05 sec)
+
+*/
 
 /*
 
