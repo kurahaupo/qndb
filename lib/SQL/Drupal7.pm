@@ -219,8 +219,15 @@ sub is_maci($) {
 
 sub want_wg_listings($) {
     my $r = shift;
-    state $wgx = [ grep { !/^NO/ } @wg_order ];
-    return @{ $r->{__wg_listings} ||= [ randomly_choose flip_coin 0.125 ? 2 : 1, @$wgx ] }; # TODO
+    #state $wgx = [ grep { !/^NO/ } @wg_order ];
+    #return @{ $r->{__wg_listings} ||= [ randomly_choose flip_coin 0.125 ? 2 : 1, @$wgx ] }; # TODO
+    return @{ $r->{__wg_listings} ||= do {
+        my $w = delete $r->{__wgroup} || [];
+        my @w = @$w;
+        @w = grep { $_ } map { $_->{wgroup_name} } @w;
+        @w or @w = 'NONE';
+        \@w
+    } }; # TODO
 }
 
 sub want_mm_listings($) {

@@ -1337,15 +1337,18 @@ mysql> desc field_data_field_user_worship_group;
 select 'export_user_wgroup' as `creating`;
 
 create or replace view export_user_wgroup as
-      select entity_id                          as wgroup_uid,
-             revision_id                        as wgroup_rev,
-             language                           as wgroup_language,
-             delta                              as wgroup_delta,
-             field_user_worship_group_target_id as wgroup_nid
-        from field_data_field_user_worship_group
-       where entity_type = 'user'
-         and bundle      = 'user'
-         and not deleted;
+      select w.entity_id                          as wgroup_uid,
+             w.revision_id                        as wgroup_rev,
+             w.language                           as wgroup_language,
+             w.delta                              as wgroup_delta,
+             w.field_user_worship_group_target_id as wgroup_nid,
+             n.title                              as wgroup_name
+        from field_data_field_user_worship_group as w
+   left join node as n                            on w.field_user_worship_group_target_id = n.nid
+                                                 and n.type = 'store_location'
+       where w.entity_type = 'user'
+         and w.bundle      = 'user'
+         and not w.deleted;
 
 /* join the (unpivoted) MM subs & MM deliveries, and union with the YM subs */
 
