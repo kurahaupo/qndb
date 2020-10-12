@@ -35,7 +35,7 @@ sub ParseDSN;
 sub ParseOpts {
     my $this = $_[0] && UNIVERSAL::isa($_[0], __PACKAGE__) ? shift : __PACKAGE__;
 
-    v && printf "BEGIN: ParseOpts with %u args %s\n", scalar(@_), Dumper(\@_);
+    v && warn sprintf "BEGIN: ParseOpts with %u args %s\n", scalar(@_), Dumper(\@_);
 
     my $opts = shift;
     UNIVERSAL::isa($opts, 'HASH') or croak "First arg must be opts hash";
@@ -43,7 +43,7 @@ sub ParseOpts {
     while (@_) {
         my $arg = shift;
 
-        v && printf "ParseOpts checking arg '%s'\n", $arg // '(undef)';
+        v && warn sprintf "ParseOpts checking arg '%s'\n", $arg // '(undef)';
 
         if (ref $arg) {
             UNIVERSAL::isa($arg, 'HASH') or croak "Invalid reference parameter";
@@ -74,7 +74,7 @@ sub ParseOpts {
         next;
     }
 
-    v && printf "FINISH: ParseOpts\n";
+    v && warn sprintf "FINISH: ParseOpts\n";
     return ();
 }
 
@@ -83,7 +83,7 @@ sub ParseOpts {
 # rules work properly.
 sub ParseDSN {
 
-    v && printf "BEGIN: ParseDSN with %u args %s\n", scalar(@_), Dumper(\@_);
+    v && warn sprintf "BEGIN: ParseDSN with %u args %s\n", scalar(@_), Dumper(\@_);
 
     my ($opts, $dsn) = @_;
     if ( $dsn ) {
@@ -101,7 +101,7 @@ sub ParseDSN {
             }
         }
     }
-    v && printf "FINISH: ParseDSN\n";
+    v && warn sprintf "FINISH: ParseDSN\n";
 }
 
 # Connect
@@ -206,9 +206,10 @@ sub _fetch_rows($$$) {
 
     my $t4 = time;
 
-    warn sprintf "Fetched %u rows from %s, took %.0fms (prep=%.1fms retr=%.2fms finn=%.2fµs trim=%.2fµs)\n",
+    warn sprintf "Fetched %u rows from «%s», as class «%s» took %.0fms (prep=%.1fms retr=%.2fms finn=%.2fµs trim=%.2fµs)\n",
                 scalar @rows,
                 $view,
+                $class,
                 ($t4-$t0)*1000,
                                 ($t1-$t0)*1000, ($t2-$t1)*1000,
                                 ($t3-$t2)*1e6, ($t4-$t3)*1e6
@@ -237,13 +238,11 @@ sub fetch_distrib($$) {
 sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-
     my $ru = _fetch_rows $dbh, 'select * from export_full_users', SQL::Drupal7::users::;
-    my @users = @$ru;
-
-    $_->{user_name} //= delete $_->{name} for @users;   # WTF?!? whyyyy, Drupal?
+    $_->{user_name} //= delete $_->{name} for @$ru;   # WTF?!? whyyyy, Drupal?
 
     my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
+    warn sprintf "Mapped %s rows to %s keys\n", scalar @$ru, scalar keys %mu;
 
     for my $tk (qw(
                     exp_normalise_user_addresses.address_uid
@@ -261,27 +260,30 @@ sub fetch_users($) {
         my %rz;
         for my $r (@$rr) {
             my $uid = $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
-            my $u = $mu{$uid} // do { warn sprintf "No user with UID value %s in %s\n", $uid, Dumper($r); next };
-            push @{$u->{'__'.$t}}, $r;
+            my $u = $mu{$uid}  // do { warn sprintf "No user with UID value %s in %s\n", $uid, Dumper($r); next };
+            push @{$u->{"__$t"}}, $r;
             $rz{$uid}++;
         }
-
-        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s\n",
+        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s (user field «%s»)\n",
                     $tt,
-                    scalar @$rr, scalar keys %rz,
+                    scalar @$rr,
+                    scalar keys %rz,
                     $k,
+                    "__$t",
                 if $debug;
     }
 
     if ( my $fix = UNIVERSAL::can(SQL::Drupal7::users::, 'fix_one') ) {
-        warn sprintf "Trying fix_one using %s; starting with %d records", $fix, scalar @users if $debug;
-        for my $u ( @users ) { $fix->($u) }
+        warn sprintf "Trying fix_one using %s; starting with %d records", $fix, scalar @$ru if $debug;
+        for my $u ( @$ru ) { $fix->($u) }
         warn "Completed fix_one" if $debug;
     }
     else {
         cluck "Can't fix_one for SQL::Drupal7::users";
     }
-    return \@users;
+
+    v && warn sprintf "fetch_users returning %s", Dumper($ru);
+    return $ru;
 }
 
 1;
