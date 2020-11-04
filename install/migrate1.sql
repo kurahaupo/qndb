@@ -15,21 +15,17 @@ create or replace procedure add_collection_item( out o_iid integer unsigned,
         modifies sql data
         sql security invoker
 begin
-    /* why is this so messy? */
+    /* why oh why is this so messy? */
     select uuid() into o_uuid ;
     insert into field_collection_item
             (item_id, revision_id, field_name,        archived, uuid)
      values (null,    0,           'field_addresses', false,    o_uuid) ;
     select last_insert_id() into o_iid ;
-    /* select o_iid as `new IID` ; /**/
-    /* select 'FIRST' as `Seq`, field_collection_item.* from field_collection_item where item_id = o_iid ; /**/
     insert into field_collection_item_revision
             (revision_id, item_id)
      values (null,        o_iid) ;
     select last_insert_id() into o_rid ;
-    /* select o_rid as `new RID` ; /**/
-    update field_collection_item set revision_id = o_rid where item_id = o_iid ; /**/
-    /* select 'SECOND' as `Seq`, field_collection_item.* from field_collection_item where item_id = o_iid ; /**/
+    update field_collection_item set revision_id = o_rid where item_id = o_iid ;
 end
 ;;
 
@@ -71,8 +67,8 @@ begin
                    'field_revision_field_label' as `Table`, count(*) as `Rows`
                from field_revision_field_label where bundle = 'field_addresses' ;
     if dry_run then
-        select 'DELETE' as `Action`, field_data_field_label.*     from field_data_field_label     where bundle = 'field_addresses' limit 9 ;
-        select 'DELETE' as `Action`, field_revision_field_label.* from field_revision_field_label where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_data_field_label.*     from field_data_field_label     where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_revision_field_label.* from field_revision_field_label where bundle = 'field_addresses' limit 9 ;
     else
         delete from field_data_field_label     where bundle = 'field_addresses' ;
         delete from field_revision_field_label where bundle = 'field_addresses' ;
@@ -86,8 +82,8 @@ begin
                    'field_revision_field_user_address' as `Table`, count(*) as `Rows`
                from field_revision_field_user_address where bundle = 'field_addresses' ;
     if dry_run then
-        select 'DELETE' as `Action`, field_data_field_user_address.*     from field_data_field_user_address     where bundle = 'field_addresses' limit 9 ;
-        select 'DELETE' as `Action`, field_revision_field_user_address.* from field_revision_field_user_address where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_data_field_user_address.*     from field_data_field_user_address     where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_revision_field_user_address.* from field_revision_field_user_address where bundle = 'field_addresses' limit 9 ;
     else
         delete from field_data_field_user_address     where bundle = 'field_addresses' ;
         delete from field_revision_field_user_address where bundle = 'field_addresses' ;
@@ -101,8 +97,8 @@ begin
                    'field_revision_field_use_as_postal_address' as `Table`, count(*) as `Rows`
                from field_revision_field_use_as_postal_address where bundle = 'field_addresses' ;
     if dry_run then
-        select 'DELETE' as `Action`, field_data_field_use_as_postal_address.*     from field_data_field_use_as_postal_address     where bundle = 'field_addresses' limit 9 ;
-        select 'DELETE' as `Action`, field_revision_field_use_as_postal_address.* from field_revision_field_use_as_postal_address where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_data_field_use_as_postal_address.*     from field_data_field_use_as_postal_address     where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_revision_field_use_as_postal_address.* from field_revision_field_use_as_postal_address where bundle = 'field_addresses' limit 9 ;
     else
         delete from field_data_field_use_as_postal_address     where bundle = 'field_addresses' ;
         delete from field_revision_field_use_as_postal_address where bundle = 'field_addresses' ;
@@ -116,8 +112,8 @@ begin
                    'field_revision_field_addresses' as `Table`, count(*) as `Rows`
                from field_revision_field_addresses where bundle = 'field_addresses' ;
     if dry_run then
-        select 'DELETE' as `Action`, field_data_field_addresses.*     from field_data_field_addresses     where bundle = 'field_addresses' limit 9 ;
-        select 'DELETE' as `Action`, field_revision_field_addresses.* from field_revision_field_addresses where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_data_field_addresses.*     from field_data_field_addresses     where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_revision_field_addresses.* from field_revision_field_addresses where bundle = 'field_addresses' limit 9 ;
     else
         delete from field_data_field_addresses     where bundle = 'field_addresses' ;
         delete from field_revision_field_addresses where bundle = 'field_addresses' ;
@@ -131,8 +127,8 @@ begin
                    'field_revision_field_print_in_book' as `Table`, count(*) as `Rows`
                from field_revision_field_print_in_book where bundle = 'field_addresses' ;
     if dry_run then
-        select 'DELETE' as `Action`, field_data_field_print_in_book.*     from field_data_field_print_in_book     where bundle = 'field_addresses' limit 9 ;
-        select 'DELETE' as `Action`, field_revision_field_print_in_book.* from field_revision_field_print_in_book where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_data_field_print_in_book.*     from field_data_field_print_in_book     where bundle = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_revision_field_print_in_book.* from field_revision_field_print_in_book where bundle = 'field_addresses' limit 9 ;
     else
         delete from field_data_field_print_in_book     where bundle = 'field_addresses' ;
         delete from field_revision_field_print_in_book where bundle = 'field_addresses' ;
@@ -146,9 +142,9 @@ begin
                    'field_collection_item_revision' as `Table`, count(*) as `Rows` from field_collection_item_revision where item_id in ( select item_id
                from field_collection_item where field_name = 'field_addresses' ) ;
     if dry_run then
-        select 'DELETE' as `Action`, field_collection_item_revision.* from field_collection_item_revision where item_id in ( select item_id
-                                                                      from field_collection_item where field_name = 'field_addresses' ) limit 9 ;
-        select 'DELETE' as `Action`, field_collection_item.*          from field_collection_item where field_name = 'field_addresses' limit 9 ;
+        select would_delete as `Action`, field_collection_item_revision.* from field_collection_item_revision where item_id in ( select item_id
+                                                                 from field_collection_item where field_name = 'field_addresses' ) limit 9 ;
+        select would_delete as `Action`, field_collection_item.* from field_collection_item where field_name = 'field_addresses' limit 9 ;
     else
         delete from field_collection_item_revision where item_id in ( select item_id
                from field_collection_item where field_name = 'field_addresses' ) ;
@@ -213,7 +209,7 @@ begin
 
     if dry_run then
 
-        select 'DELETE' as `Action`,
+        select would_delete as `Action`,
                field_revision_field_user_address.*
           from field_revision_field_user_address
          where entity_type = 'field_collection_item'
@@ -228,7 +224,7 @@ begin
          limit 9 ;
             /* or entity_id > 0x20000000 */
 
-        select 'DELETE' as `Action`,
+        select would_delete as `Action`,
                field_data_field_user_address.*
           from field_data_field_user_address
          where entity_type = 'field_collection_item'
@@ -303,7 +299,7 @@ begin
 
     if dry_run then
 
-        select 'DELETE',
+        select would_delete as `Action`,
                field_data_field_use_as_postal_address.*
           from field_data_field_use_as_postal_address
          where entity_type = 'field_collection_item'
@@ -318,7 +314,7 @@ begin
          limit 9 ;
              /* or entity_id > 0x20000000 */
 
-        select 'DELETE',
+        select would_delete as `Action`,
                field_revision_field_use_as_postal_address.*
           from field_revision_field_use_as_postal_address
          where entity_type = 'field_collection_item'
@@ -378,7 +374,7 @@ begin
 
     if dry_run then
 
-        select 'DELETE',
+        select would_delete as `Action`,
                field_collection_item_revision.*
           from field_collection_item_revision
          where item_id in (
@@ -420,7 +416,7 @@ begin
 
     if dry_run then
 
-        select 'DELETE',
+        select would_delete as `Action`,
                field_collection_item.*
           from field_collection_item
          where field_name = 'field_addresses'
@@ -463,12 +459,11 @@ begin
           from field_data_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = muid
-    ;
+           and entity_id   = muid ;
 
     if dry_run then
 
-        select 'DELETE',
+        select would_delete as `Action`,
                field_revision_field_addresses.*
           from field_revision_field_addresses
          where entity_type = 'user'
@@ -476,7 +471,7 @@ begin
            and entity_id   = muid
          limit 9 ;
 
-        select 'DELETE' as `Action`,
+        select would_delete as `Action`,
                field_data_field_addresses.*
           from field_data_field_addresses
          where entity_type = 'user'
@@ -566,11 +561,11 @@ begin
              'field_collection_item' as `entity_type`, 'field_addresses' as
              `bundle`, false as `deleted`,    xiid as `entity_id`,      xrid as
              `revision_id`,        @deflang as `language`, 0 as `delta`,
-             concat('test-address-migration:\nuid=',xuid,', vid=',xvid,', iid=',xiid,', rid=',xrid,'\nuuid=',xuuid,'\n',now()) as `field_user_address_value`, NULL as
-             `field_user_address_format` ;
+             concat('test-address-migration:\nuid=',xuid,', vid=',xvid,', iid=',xiid,', rid=',xrid,'\nuuid=',xuuid,'\n',now()) as `field_user_address_value`,
+             null as `field_user_address_format` ;
     insert into field_data_field_user_address
            ( entity_type,             bundle,            deleted,  entity_id, revision_id, language, delta, field_user_address_value, field_user_address_format )
-    values ( 'field_collection_item', 'field_addresses', false,    xiid,      xrid,        @deflang, 0,     'test-address-migration', NULL ) ;
+    values ( 'field_collection_item', 'field_addresses', false,    xiid,      xrid,        @deflang, 0,     'test-address-migration', null ) ;
     insert into field_revision_field_user_address select * from field_data_field_user_address where entity_id = xiid and revision_id = xrid ;
 
     select 'Step 4' as `Action`, 'field_data_field_use_as_postal_address' as `Table`,
@@ -640,7 +635,7 @@ begin
 
     select 'field_collection_item' as `Inserting` ;
 
-    select 'INSERT',
+    select would_INSERT as `Action`,
            vid*4+address_slot+0x20000000 as item_id,                   /* == field_addresses_value       */
            vid*4+address_slot+0x21000000 as revision_id,               /* == field_addresses_revision_id */
            'field_addresses'             as field_name,
