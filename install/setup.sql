@@ -23,7 +23,7 @@ mysql 2>/dev/null --db=quakers <<< "show tables like 'exp%';" |
          '
 */
 
-select 'CREATING NEW VIEWS' as ``;
+select 'NEW VIEWS' as `CREATING `;
 
 /*
 
@@ -725,8 +725,8 @@ select 'exp_normalise_user_addresses' as `creating`;
 
 create or replace view exp_normalise_user_addresses as
       select a.entity_id                                    as address_uid,
+             a.revision_id                                  as address_vid,
              1                                              as address_slot,
-             a.revision_id                                  as address_rev,
              a.language                                     as address_language,
              a.field_user_address_1_first_name              as address_first_name,
              a.field_user_address_1_last_name               as address_last_name,
@@ -760,8 +760,8 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
+             a.revision_id                                  as address_vid,
              2                                              as address_slot,
-             a.revision_id                                  as address_rev,
              a.language                                     as address_language,
              a.field_user_address_2_first_name              as address_first_name,
              a.field_user_address_2_last_name               as address_last_name,
@@ -795,8 +795,8 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
+             a.revision_id                                  as address_vid,
              3                                              as address_slot,
-             a.revision_id                                  as address_rev,
              a.language                                     as address_language,
              a.field_user_address_3_first_name              as address_first_name,
              a.field_user_address_3_last_name               as address_last_name,
@@ -829,8 +829,8 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
+             a.revision_id                                  as address_vid,
              4                                              as address_slot,
-             a.revision_id                                  as address_rev,
              a.language                                     as address_language,
              a.field_user_address_4_first_name              as address_first_name,
              a.field_user_address_4_last_name               as address_last_name,
@@ -865,8 +865,8 @@ create or replace view exp_normalise_user_addresses as
 
 create or replace view export_user_addresses2 as
       select address_uid,
+             address_vid,
              address_slot,
-             address_rev,
              address_language,
              concat(
                     ifnull( concat('FIRST_AND_LAST_NAMES:',     address_first_name, ' ',  address_last_name, '\n'),
@@ -895,8 +895,8 @@ select 'export_user_addresses' as `creating`;
 
 create or replace view export_user_addresses as
       select a.entity_id                                        as address_uid,
+             ai.revision_id                                     as address_vid,
              ifnull(a.delta+1, 0)                               as address_slot,
-             ai.revision_id                                     as address_rev,
              ai.language                                        as address_language,
              ai.delta                                           as address_delta,
              ai.field_user_address_value                        as address,
@@ -1468,6 +1468,29 @@ create or replace view export_full_users as
    left join exp_user_med_needs     on uid = med_needs_uid
     group by u.uid;
 
+select 'NEW TABLES' as `CREATING`;
+
+select 'expmap_reverse_relations' as `Table`;
+
+create or replace table expmap_reverse_relations (
+    fwd_rel     varchar(32) primary key,
+    rev_rel     varchar(32) unique key,
+    symmetric   boolean,
+    many_to     boolean,
+    to_many     boolean
+);
+insert into expmap_reverse_relations ( fwd_rel, rev_rel, many_to, to_many )
+values ( 'child',      'parent',      true,  true  ),
+       ( 'grandchild', 'grandparent', true,  true  ),
+       ( 'spouse',     'spouse',      false, false ),
+       ( 'ex-spouse',  'ex-spouse',   true,  true  );
+update expmap_reverse_relations set symmetric = fwd_rel = rev_rel;
+insert into expmap_reverse_relations
+    ( fwd_rel, rev_rel, many_to, to_many, symmetric )
+select
+      rev_rel, fwd_rel, to_many, many_to, symmetric
+where not symmetric;
+
 select '$summary' as `creating`;
 
 /*
@@ -1476,7 +1499,7 @@ select '$summary' as `creating`;
 t='$summary'
 echo "create or replace view \`$t\` as"
 {
-mysql 2>/dev/null --db=quakers <<< 'show tables;' |
+mysql 2>/dev/null quakers <<< 'show tables;' |
 tee >( n=$( wc -l ) ; sleep 5 ; printf "       select %-50sas table_name, %8u as num_rows\n" "'$t'" "$n" >&3 ) |
  sed -e "/^Tables_in_/d;
          /${t//'$'}/d;
@@ -1564,10 +1587,13 @@ create or replace view `$summary` as
  union select 'exp_user_sname'                                  as table_name, count(*) as num_rows from exp_user_sname
  union select 'exp_user_website'                                as table_name, count(*) as num_rows from exp_user_website
  union select 'expmap_email_sub'                                as table_name, count(*) as num_rows from expmap_email_sub
+ union select 'expmap_reverse_relations'                        as table_name, count(*) as num_rows from expmap_reverse_relations
  union select 'expmap_xm_domain'                                as table_name, count(*) as num_rows from expmap_xm_domain
  union select 'export_email_subs'                               as table_name, count(*) as num_rows from export_email_subs
  union select 'export_full_users'                               as table_name, count(*) as num_rows from export_full_users
  union select 'export_print_subs'                               as table_name, count(*) as num_rows from export_print_subs
+ union select 'export_user_addresses'                           as table_name, count(*) as num_rows from export_user_addresses
+ union select 'export_user_addresses2'                          as table_name, count(*) as num_rows from export_user_addresses2
  union select 'export_user_kin'                                 as table_name, count(*) as num_rows from export_user_kin
  union select 'export_user_notes'                               as table_name, count(*) as num_rows from export_user_notes
  union select 'export_user_phones'                              as table_name, count(*) as num_rows from export_user_phones
@@ -1583,6 +1609,7 @@ create or replace view `$summary` as
  union select 'field_data_field_address'                        as table_name, count(*) as num_rows from field_data_field_address
  union select 'field_data_field_address_geo'                    as table_name, count(*) as num_rows from field_data_field_address_geo
  union select 'field_data_field_address_visibility'             as table_name, count(*) as num_rows from field_data_field_address_visibility
+ union select 'field_data_field_addresses'                      as table_name, count(*) as num_rows from field_data_field_addresses
  union select 'field_data_field_allergies'                      as table_name, count(*) as num_rows from field_data_field_allergies
  union select 'field_data_field_appointment_vacancy'            as table_name, count(*) as num_rows from field_data_field_appointment_vacancy
  union select 'field_data_field_appt_date'                      as table_name, count(*) as num_rows from field_data_field_appt_date
@@ -1648,6 +1675,7 @@ create or replace view `$summary` as
  union select 'field_data_field_image'                          as table_name, count(*) as num_rows from field_data_field_image
  union select 'field_data_field_image_gallery'                  as table_name, count(*) as num_rows from field_data_field_image_gallery
  union select 'field_data_field_is_private_content'             as table_name, count(*) as num_rows from field_data_field_is_private_content
+ union select 'field_data_field_label'                          as table_name, count(*) as num_rows from field_data_field_label
  union select 'field_data_field_last_name'                      as table_name, count(*) as num_rows from field_data_field_last_name
  union select 'field_data_field_link'                           as table_name, count(*) as num_rows from field_data_field_link
  union select 'field_data_field_links'                          as table_name, count(*) as num_rows from field_data_field_links
@@ -1728,6 +1756,7 @@ create or replace view `$summary` as
  union select 'field_data_field_phone'                          as table_name, count(*) as num_rows from field_data_field_phone
  union select 'field_data_field_postal_address'                 as table_name, count(*) as num_rows from field_data_field_postal_address
  union select 'field_data_field_price'                          as table_name, count(*) as num_rows from field_data_field_price
+ union select 'field_data_field_print_in_book'                  as table_name, count(*) as num_rows from field_data_field_print_in_book
  union select 'field_data_field_publish_date'                   as table_name, count(*) as num_rows from field_data_field_publish_date
  union select 'field_data_field_publisher'                      as table_name, count(*) as num_rows from field_data_field_publisher
  union select 'field_data_field_ref_book'                       as table_name, count(*) as num_rows from field_data_field_ref_book
@@ -1739,7 +1768,9 @@ create or replace view `$summary` as
  union select 'field_data_field_short_name'                     as table_name, count(*) as num_rows from field_data_field_short_name
  union select 'field_data_field_shown_to_young_friends'         as table_name, count(*) as num_rows from field_data_field_shown_to_young_friends
  union select 'field_data_field_tags'                           as table_name, count(*) as num_rows from field_data_field_tags
+ union select 'field_data_field_use_as_postal_address'          as table_name, count(*) as num_rows from field_data_field_use_as_postal_address
  union select 'field_data_field_user_access_needs'              as table_name, count(*) as num_rows from field_data_field_user_access_needs
+ union select 'field_data_field_user_address'                   as table_name, count(*) as num_rows from field_data_field_user_address
  union select 'field_data_field_user_address_1'                 as table_name, count(*) as num_rows from field_data_field_user_address_1
  union select 'field_data_field_user_address_2'                 as table_name, count(*) as num_rows from field_data_field_user_address_2
  union select 'field_data_field_user_address_3'                 as table_name, count(*) as num_rows from field_data_field_user_address_3
@@ -1809,6 +1840,7 @@ create or replace view `$summary` as
  union select 'field_revision_field_address'                    as table_name, count(*) as num_rows from field_revision_field_address
  union select 'field_revision_field_address_geo'                as table_name, count(*) as num_rows from field_revision_field_address_geo
  union select 'field_revision_field_address_visibility'         as table_name, count(*) as num_rows from field_revision_field_address_visibility
+ union select 'field_revision_field_addresses'                  as table_name, count(*) as num_rows from field_revision_field_addresses
  union select 'field_revision_field_allergies'                  as table_name, count(*) as num_rows from field_revision_field_allergies
  union select 'field_revision_field_appointment_vacancy'        as table_name, count(*) as num_rows from field_revision_field_appointment_vacancy
  union select 'field_revision_field_appt_date'                  as table_name, count(*) as num_rows from field_revision_field_appt_date
@@ -1874,6 +1906,7 @@ create or replace view `$summary` as
  union select 'field_revision_field_image'                      as table_name, count(*) as num_rows from field_revision_field_image
  union select 'field_revision_field_image_gallery'              as table_name, count(*) as num_rows from field_revision_field_image_gallery
  union select 'field_revision_field_is_private_content'         as table_name, count(*) as num_rows from field_revision_field_is_private_content
+ union select 'field_revision_field_label'                      as table_name, count(*) as num_rows from field_revision_field_label
  union select 'field_revision_field_last_name'                  as table_name, count(*) as num_rows from field_revision_field_last_name
  union select 'field_revision_field_link'                       as table_name, count(*) as num_rows from field_revision_field_link
  union select 'field_revision_field_links'                      as table_name, count(*) as num_rows from field_revision_field_links
@@ -1954,6 +1987,7 @@ create or replace view `$summary` as
  union select 'field_revision_field_phone'                      as table_name, count(*) as num_rows from field_revision_field_phone
  union select 'field_revision_field_postal_address'             as table_name, count(*) as num_rows from field_revision_field_postal_address
  union select 'field_revision_field_price'                      as table_name, count(*) as num_rows from field_revision_field_price
+ union select 'field_revision_field_print_in_book'              as table_name, count(*) as num_rows from field_revision_field_print_in_book
  union select 'field_revision_field_publish_date'               as table_name, count(*) as num_rows from field_revision_field_publish_date
  union select 'field_revision_field_publisher'                  as table_name, count(*) as num_rows from field_revision_field_publisher
  union select 'field_revision_field_ref_book'                   as table_name, count(*) as num_rows from field_revision_field_ref_book
@@ -1965,7 +1999,9 @@ create or replace view `$summary` as
  union select 'field_revision_field_short_name'                 as table_name, count(*) as num_rows from field_revision_field_short_name
  union select 'field_revision_field_shown_to_young_friends'     as table_name, count(*) as num_rows from field_revision_field_shown_to_young_friends
  union select 'field_revision_field_tags'                       as table_name, count(*) as num_rows from field_revision_field_tags
+ union select 'field_revision_field_use_as_postal_address'      as table_name, count(*) as num_rows from field_revision_field_use_as_postal_address
  union select 'field_revision_field_user_access_needs'          as table_name, count(*) as num_rows from field_revision_field_user_access_needs
+ union select 'field_revision_field_user_address'               as table_name, count(*) as num_rows from field_revision_field_user_address
  union select 'field_revision_field_user_address_1'             as table_name, count(*) as num_rows from field_revision_field_user_address_1
  union select 'field_revision_field_user_address_2'             as table_name, count(*) as num_rows from field_revision_field_user_address_2
  union select 'field_revision_field_user_address_3'             as table_name, count(*) as num_rows from field_revision_field_user_address_3
