@@ -25,7 +25,7 @@ begin   /* {{ */
     insert into field_collection_item
                        (item_id, revision_id, field_name, archived, uuid)
                 values (null,    0,           i_fname,    false,    o_uuid);
-    set o_iid = last_insert_id;
+    set o_iid = last_insert_id();
     insert into field_collection_item_revision
                        (revision_id, item_id)
                 values (null,        o_iid);
@@ -655,16 +655,16 @@ begin   /* {{ */
     declare xiid integer unsigned default 0;
     declare xrid integer unsigned default 0;
     declare xuuid varchar(36) default 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
-    declare xseq integer unsigned default 0;
+    declare xseq integer unsigned default 0xffffffffffffffff;
 
-    declare auid             integer unsigned;
-    declare avid             integer unsigned;
-    declare aslot            bigint(20);
-    declare alanguage        varchar(32);
-    declare address          text;
-    declare adata            longtext;
-    declare ause_as_physical boolean;
-    declare ause_as_postal   boolean;
+    declare auid        integer unsigned;
+    declare avid        integer unsigned;
+    declare aslot       bigint(20);
+    declare alanguage   varchar(32);
+    declare address     text;
+    declare adata       longtext;
+    declare as_visible  boolean;
+    declare as_postal   boolean;
 
     declare get_address_finished boolean default false;
 
@@ -690,10 +690,25 @@ begin   /* {{ */
 
     select 'Migrate addresses from fixed blocks to flexi block' as `Run Stored Procedure`,
            xuid                                                 as `Target UID`,
-           dry_run                                              as `Dry run?`,
-           wrap_transaction                                     as `Use transaction?`,
-           do_commit                                            as `Commit transaction?`,
-           inner_action_mode                                    as `Inner transaction mode`;
+           case action_mode
+                when @ACTION_DRY_RUN  then 'Dry Run'
+                when @ACTION_ROLLBACK then 'Rollback'
+                when @ACTION_NO_TRANS then 'No Trans'
+                when @ACTION_COMMIT   then 'Commit'
+                                      else action_mode
+           end                                                  as `Mode`,
+           case when dry_run          then 'Yes' else 'No' end  as `Dry run?`,
+           case when wrap_transaction then
+               case when do_commit    then 'Commit'
+                                      else 'Rollback' end
+                                      else 'None' end           as `Transaction?`,
+           case inner_action_mode
+                when @ACTION_DRY_RUN  then 'Dry Run'
+                when @ACTION_ROLLBACK then 'Rollback'
+                when @ACTION_NO_TRANS then 'No Trans'
+                when @ACTION_COMMIT   then 'Commit'
+                                      else inner_action_mode
+           end                                                  as `Inner Mode`;
 
     if wrap_transaction then    /* {{ */
         start transaction;  /* [[ */
@@ -707,7 +722,7 @@ begin   /* {{ */
 
     open user_address_slots;
     set get_address_finished = false;
-    get_address: loop
+    get_address: loop   /* [[ */
 
         fetch user_address_slots
               into auid,
@@ -716,198 +731,242 @@ begin   /* {{ */
                    alanguage,
                    address,
                    adata,
-                   ause_as_physical,
-                   ause_as_postal;
-
-        set xseq = (
-            select ifnull(max(delta)+1,0)
-              from field_data_field_addresses
-             where entity_id = xuid );
+                   as_visible,
+                   as_postal;
 
         if get_address_finished then    /* {{ */
-    leave get_address;
+    leave get_address;  /* ][ */
         end if;                         /* }} */
 
-        call add_collection_item('field_addresses', xiid, xrid, xuuid);
+        if not dry_run then
+            set xseq = (
+                select ifnull(max(delta)+1,0)
+                  from field_data_field_addresses
+                 where entity_id = xuid );
+        end if ;
 
-        select 'field_collection_item'  as `Inserted`,
+        select 'Selected'               as `Action`,
+                'user_address_slots'    as `Cursor`,
+                auid                    as `address_uid`,
+                avid                    as `address_vid`,
+                aslot                   as `address_slot`,
+                alanguage               as `address_language`,
+                address                 as `address`,
+                adata                   as `address_data`,
+                as_visible              as `address_use_as_physical`,
+                as_postal               as `address_use_as_postal`;
+
+        if dry_run then
+            set xiid = 'dry_run_xiid' ;
+            set xrid = 'dry_run_xrid' ;
+            set xuuid = 'dry_run_xuuid' ;
+        else
+            call add_collection_item('field_addresses', xiid, xrid, xuuid);
+        end if ;
+
+        select  'field_collection_item' as `Inserted`,
+                'field_addresses'       as `Collection Field`,
                 xiid                    as `Collection Item ID`,
                 xrid                    as `Collection Item Revision`,
+                xuuid                   as `Collection Item UUID`,
                 xseq                    as `Collection Item Delta`;
 
         select would_insert as `Action`,
-               xiid                          as item_id,                   /* == field_addresses_value       */
-               xrid                          as revision_id,               /* == field_addresses_revision_id */
-               'field_addresses'             as field_name,
-               false                         as archived,
-               'as-yet-unknown random UUID'  as uuid
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-         where uid = xuid;
-
-        select 'field_data_field_addresses' as `Inserting`;
-
-        select would_insert as `Action`,
+               'field_data_field_addresses'  as `Table`,
                'user'                        as entity_type,
                'user'                        as bundle,
                false                         as deleted,
-               uid                           as entity_id,      /* == users.uid */
-               vid                           as revision_id,    /* == users.vid */
+               auid                          as entity_id,      /* == users.uid */
+               avid                          as revision_id,    /* == users.vid */
                'und'                         as language,
                xseq                          as delta,
                xiid                          as field_addresses_value,
-               xrid                          as field_addresses_revision_id
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-         where address_uid = xuid
-         limit 9;
+               xrid                          as field_addresses_revision_id ;
 
-        insert into field_data_field_addresses
-                    ( entity_type,
-                      bundle,
-                      deleted,
-                      entity_id,
-                      revision_id,
-                      language,
-                      delta,
-                      field_addresses_value,
-                      field_addresses_revision_id )
-             values ( 'user',   /* entity_type */
-                      'user',   /* bundle */
-                      false,    /* deleted */
-                      auid,     /* entity_id   == users.uid */
-                      avid,     /* revision_id == users.vid */
-                      'und',    /* language */
-                      xseq,     /* delta */
-                      xiid,     /* field_addresses_value */
-                      xrid );   /* field_addresses_revision_id */
+        if dry_run then
+            select 'Skipping copy to revision table';
+        else
+            insert into field_data_field_addresses
+                        ( entity_type,
+                          bundle,
+                          deleted,
+                          entity_id,
+                          revision_id,
+                          language,
+                          delta,
+                          field_addresses_value,
+                          field_addresses_revision_id )
+                 values ( 'user',   /* entity_type */
+                          'user',   /* bundle */
+                          false,    /* deleted */
+                          auid,     /* entity_id   == users.uid */
+                          avid,     /* revision_id == users.vid */
+                          'und',    /* language */
+                          xseq,     /* delta */
+                          xiid,     /* field_addresses_value */
+                          xrid );   /* field_addresses_revision_id */
 
+            select 'Copying'                        as `Action`,
+                   'field_data_field_addresses'     as `from Table`,
+                   'field_revision_field_addresses' as `to Table`,
+                   field_data_field_addresses.*
+              from field_data_field_addresses
+             where field_addresses_value = xiid
+             limit 9;
+
+            insert into field_revision_field_addresses
+                 select *
+                   from field_data_field_addresses
+                  where field_addresses_value = xiid;
+
+        end if ;
+
+        select would_insert as `Action`,
+               'field_data_field_user_address' as `Table`,
+               'field_collection_item'         as entity_type,
+               'field_addresses'               as bundle,
+               false                           as deleted,
+               xiid                            as entity_id,                  /* == field_addresses_value       */
+               xrid                            as revision_id,                /* == field_addresses_revision_id */
+               'und'                           as language,
+               0                               as delta,                      /* == 0 (single-valued) */
+               address                         as field_user_address_value,   /* field_user_address_value (the preformatted address) */
+               null                            as field_user_address_format;  /* field_user_address_format */
+
+        if dry_run then
+            select 'Skipping copy to revision table';
+        else
+            insert into field_data_field_user_address
+                        ( entity_type,
+                          bundle,
+                          deleted,
+                          entity_id,
+                          revision_id,
+                          language,
+                          delta,
+                          field_user_address_value,
+                          field_user_address_format )
+                 values ( 'field_collection_item',  /* entity_type */
+                          'field_addresses',        /* bundle */
+                          false,                    /* deleted */
+                          xiid,                     /* entity_id == field_addresses_value */
+                          xrid,                     /* revision_id == field_addresses_revision_id */
+                          'und',                    /* language */
+                          0,                        /* delta == 0 (single-valued) */
+                          address,                  /* field_user_address_value (the preformatted address) */
+                          null );                   /* field_user_address_format */
+
+
+            select 'Copying'                            as `Action`,
+                   'field_data_field_user_address'      as `from Table`,
+                   'field_revision_field_user_address'  as `to Table`,
+                   field_data_field_user_address.*
+              from field_data_field_user_address
+             where ENTITY_ID = xiid
+             limit 9;
+
+            insert into field_revision_field_user_address
+                 select *
+                   from field_data_field_user_address
+                  where entity_id = xiid;
+        end if ;
+
+        select would_insert                             as `Action`,
+               'field_data_field_use_as_postal_address' as `Table`,
+               'field_collection_item'                  as entity_type,
+               'field_addresses'                        as bundle,
+               false                                    as deleted,
+               xiid                                     as entity_id,              /* == field_addresses_value */
+               xrid                                     as revision_id,            /* == field_addresses_revision_id */
+               'und'                                    as language,
+               0                                        as delta,                  /* == 0 (single-valued) */
+               as_postal                                as field_use_as_postal_address_value;
+
+        if dry_run then
+            select 'Skipping copy to revision table';
+        else
+            insert into field_data_field_use_as_postal_address
+                        ( entity_type,
+                          bundle,
+                          deleted,
+                          entity_id,
+                          revision_id,
+                          language,
+                          delta,
+                          field_use_as_postal_address_value )
+                 values ( 'field_collection_item',  /* entity_type */
+                          'field_addresses',        /* bundle */
+                          false,                    /* deleted */
+                          xiid,                     /* entity_id == field_addresses_value */
+                          xrid,                     /* revision_id == field_addresses_revision_id */
+                          'und',                    /* language */
+                          0,                        /* delta == 0 (single-valued) */
+                          as_postal );              /* field_use_as_postal_address_value */
+
+            select 'Copying'                                    as `Action`,
+                   'field_revision_field_use_as_postal_address' as `from Table`,
+                   'field_data_field_use_as_postal_address'     as `to Table`,
+                   field_data_field_use_as_postal_address.*
+              from field_data_field_use_as_postal_address
+             where entity_id = xiid
+             limit 9;
+
+            insert into field_revision_field_print_in_book
+            select *
+              from field_data_field_print_in_book
+             where entity_id = xiid;
+        end if ;
+
+        select would_insert                             as `Action`,
+               'field_data_field_print_in_book' as `Table`,
+               'field_collection_item'                  as entity_type,
+               'field_addresses'                        as bundle,
+               false                                    as deleted,
+               xiid                                     as entity_id,              /* == field_addresses_value */
+               xrid                                     as revision_id,            /* == field_addresses_revision_id */
+               'und'                                    as language,
+               0                                        as delta,                  /* == 0 (single-valued) */
+               as_postal                                as field_print_in_book_value;
+
+        if dry_run then
+            select 'Skipping copy to revision table';
+        else
+            insert into field_data_field_print_in_book
+                        ( entity_type,
+                          bundle,
+                          deleted,
+                          entity_id,
+                          revision_id,
+                          language,
+                          delta,
+                          field_print_in_book_value )
+                 values ( 'field_collection_item',  /* entity_type */
+                          'field_addresses',        /* bundle */
+                          false,                    /* deleted */
+                          xiid,                     /* entity_id == field_addresses_value */
+                          xrid,                     /* revision_id == field_addresses_revision_id */
+                          'und',                    /* language */
+                          0,                        /* delta == 0 (single-valued) */
+                          as_visible );             /* field_print_in_book_value */
+
+            select 'Copying'                                    as `Action`,
+                   'field_revision_field_print_in_book' as `from Table`,
+                   'field_data_field_print_in_book'     as `to Table`,
+                   field_data_field_print_in_book.*
+              from field_data_field_print_in_book
+             where entity_id = xiid
+             limit 9;
+
+            insert into field_revision_field_print_in_book
+            select *
+              from field_data_field_print_in_book
+             where entity_id = xiid;
+        end if ;
+
+        select 'Increment xseq to', xseq+1;
         set xseq = xseq+1;
 
-        select 'field_revision_field_addresses' as `Inserting`;
-
-        select 'COPY',
-               field_data_field_addresses.*
-          from field_data_field_addresses
-         where field_addresses_value = xiid
-         limit 9;
-
-        insert into field_revision_field_addresses
-        select *
-          from field_data_field_addresses
-         where field_addresses_value = xiid;
-
-        select 'field_data_field_user_address' as `Inserting`;
-
-        select would_insert as `Action`,
-               'field_collection_item'       as entity_type,
-               'field_addresses'             as bundle,
-               false                         as deleted,
-               xiid                          as entity_id,                /* == field_addresses_value       */
-               xrid                          as revision_id,              /* == field_addresses_revision_id */
-               'und'                         as language,
-               0                             as delta,                    /* == 0 (single-valued) */
-               address                       as field_user_address_value, /* field_user_address_value (the preformatted address) */
-               null                          as field_user_address_format /* field_user_address_format */
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-         where uid = xuid;
-
-        insert into field_data_field_user_address (
-                                                entity_type,
-                                                bundle,
-                                                deleted,
-                                                entity_id,
-                                                revision_id,
-                                                language,
-                                                delta,
-                                                field_user_address_value,
-                                                field_user_address_format )
-        select 'field_collection_item'       as entity_type,
-               'field_addresses'             as bundle,
-               false                         as deleted,
-               xiid                          as entity_id,                /* == field_addresses_value       */
-               xrid                          as revision_id,              /* == field_addresses_revision_id */
-               'und'                         as language,
-               0                             as delta,                    /* == 0 (single-valued) */
-               address                       as field_user_address_value, /* field_user_address_value (the preformatted address) */
-               null                          as field_user_address_format /* field_user_address_format */
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-         where uid = xuid;
-
-        select 'field_revision_field_user_address' as `Inserting`;
-
-        select 'COPY',
-               field_data_field_user_address.*
-          from field_data_field_user_address
-         where ENTITY_ID = xiid
-         limit 9;
-
-        insert into field_revision_field_user_address
-        select *
-          from field_data_field_user_address
-         where entity_id = xiid;
-
-        select 'field_data_field_use_as_postal_address' as `Inserting`;
-
-        select would_insert as `Action`,
-               'field_collection_item'       as entity_type,
-               'field_addresses'             as bundle,
-               false                         as deleted,
-               xiid                          as entity_id,              /* == field_addresses_value */
-               xrid                          as revision_id,            /* == field_addresses_revision_id */
-               'und'                         as language,
-               0                             as delta,                  /* == 0 (single-valued) */
-               address_use_as_postal         as field_use_as_postal_address_value /* (always true) */
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-           and address_use_as_postal
-         where uid = xuid
-         limit 9;
-
-        insert into field_data_field_use_as_postal_address (
-                                                entity_type,
-                                                bundle,
-                                                deleted,
-                                                entity_id,
-                                                revision_id,
-                                                language,
-                                                delta,
-                                                field_use_as_postal_address_value )
-        select 'field_collection_item'       as entity_type,
-               'field_addresses'             as bundle,
-               false                         as deleted,
-               xiid                          as entity_id,              /* == field_addresses_value */
-               xrid                          as revision_id,            /* == field_addresses_revision_id */
-               'und'                         as language,
-               0                             as delta,                  /* == 0 (single-valued) */
-               address_use_as_postal         as field_use_as_postal_address_value /* (always true) */
-          from export_user_addresses2
-          join users on address_uid = uid
-                    and address_vid = vid
-           and address_use_as_postal
-         where uid = xuid;
-
-        select 'field_revision_field_use_as_postal_address' as `Inserting`;
-
-        select 'COPY',
-               field_data_field_use_as_postal_address.*
-          from field_data_field_use_as_postal_address
-         where entity_id = xiid
-         limit 9;
-
-        insert into field_revision_field_use_as_postal_address
-        select *
-          from field_data_field_use_as_postal_address
-         where entity_id = xiid;
-
-    end loop get_address;
+    end loop get_address;   /* ]] */
     close user_address_slots;
 
     select 'Migrate addresses from fixed blocks to flexi block' as `Completed`;
