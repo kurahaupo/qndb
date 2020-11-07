@@ -517,11 +517,11 @@ begin   /* {{ */
     declare wrap_transaction boolean default action_mode in( @ACTION_ROLLBACK, @ACTION_COMMIT );
     declare do_commit boolean default action_mode >= @ACTION_COMMIT;
 
-    declare xvid integer unsigned default null;
-    declare xiid integer unsigned default 0;
-    declare xrid integer unsigned default 0;
-    declare xseq integer unsigned default 0;
-    declare xuuid varchar(36) default 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
+    declare xvid   integer unsigned default null;
+    declare xiid   integer unsigned default 0;
+    declare xrid   integer unsigned default 0;
+    declare xdelta integer unsigned default 0;
+    declare xuuid  varchar(36) default 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
 
     if wrap_transaction then    /* {{ */
         select 'Begin Transaction' as `Action`;
@@ -530,12 +530,12 @@ begin   /* {{ */
 
     set xvid = ( select vid from users where uid = xuid );
 
-    set xseq = ( select ifnull(max(delta)+1,0) from field_data_field_addresses where entity_id = xuid );
+    set xdelta = ( select ifnull(max(delta)+1,0) from field_data_field_addresses where entity_id = xuid );
 
     select 'Test address migration' as `Action`,
             xuid                    as `UID`,
             xvid                    as `VID`,
-            xseq                    as `Delta`,
+            xdelta                  as `Delta`,
             dry_run                 as `Dry Run?`,
             wrap_transaction        as `Use Transaction?`,
             do_commit               as `Commit Transaction?`;
@@ -547,18 +547,18 @@ begin   /* {{ */
     select 'Step 1' as `Action`, 'field_data_field_addresses' as `Table`,
            'user' as `entity_type`, 'user' as `bundle`,
            false as `deleted`, xuid as `entity_id`, xvid as `revision_id`,
-           @deflang as `language`, xseq as `delta`, xiid as `field_addresses_value`,
+           @deflang as `language`, xdelta as `delta`, xiid as `field_addresses_value`,
            xrid as `field_addresses_revision_id`;
 
     insert into field_data_field_addresses
-                ( entity_type, bundle, deleted, entity_id, revision_id, language, delta, field_addresses_value, field_addresses_revision_id )
-         values ( 'user',      'user', false,   xuid,      xvid,        @deflang, xseq,  xiid,                  xrid );
+                ( entity_type, bundle, deleted, entity_id, revision_id, language, delta,   field_addresses_value, field_addresses_revision_id )
+         values ( 'user',      'user', false,   xuid,      xvid,        @deflang, xdelta,  xiid,                  xrid );
     insert into field_revision_field_addresses
          select *
            from field_data_field_addresses
           where entity_id = xuid
             and revision_id = xvid
-            and delta = xseq;
+            and delta = xdelta;
 
     select 'Step 2' as `Action`, 'field_data_field_label' as `Table`,
            'field_collection_item' as `entity_type`, 'field_addresses' as `bundle`,
@@ -639,6 +639,85 @@ begin   /* {{ */
 end     /* }} */
 ;;
 
+create or replace procedure test_cursor_walk( in xuid integer unsigned )
+begin   /* {{ */
+
+    declare ac_uid        integer unsigned;
+    declare ac_vid        integer unsigned;
+    declare ac_slot       bigint(20);
+    declare ac_language   varchar(32);
+    declare ac_address     text;
+    declare ac_data       longtext;
+    declare ac_visible  boolean;
+    declare ac_postal   boolean;
+
+    declare get_address_finished boolean default false;
+
+    declare user_address_slots cursor for
+        select address_uid,             /* int(11) unsigned not null default 0     */
+               address_vid,             /* int(11) unsigned          default NULL  */
+               address_slot,            /* bigint(20)       not null default 0     */
+               address_language,        /* varchar(32)      not null               */
+               address, /* text             not null               */
+               address_data,            /* longtext                  default NULL  */
+               address_use_as_physical, /* bigint(20)       not null default 0     */
+               address_use_as_postal    /* bigint(20)       not null default 0     */
+          from export_user_addresses2
+          join users on address_uid = uid
+                    and address_vid = vid
+         where address_uid = xuid;
+
+    declare continue handler for not found set get_address_finished = true;
+
+        select address_uid,             /* int(11) unsigned not null default 0     */
+               address_vid,             /* int(11) unsigned          default NULL  */
+               address_slot,            /* bigint(20)       not null default 0     */
+               address_language,        /* varchar(32)      not null               */
+               address, /* text             not null               */
+               address_data,            /* longtext                  default NULL  */
+               address_use_as_physical, /* bigint(20)       not null default 0     */
+               address_use_as_postal,   /* bigint(20)       not null default 0     */
+               uid,
+               vid
+          from export_user_addresses2
+          join users on address_uid = uid
+                    /*and address_vid = vid*/
+         where address_uid = xuid;
+
+
+    open user_address_slots ;
+    get_address: loop   /* [[ */
+
+        fetch user_address_slots
+              into ac_uid,          /* address_uid */
+                   ac_vid,          /* address_vid */
+                   ac_slot,         /* address_slot */
+                   ac_language,     /* address_language */
+                   ac_address,      /* address */
+                   ac_data,         /* address_data */
+                   ac_visible,      /* address_use_as_physical */
+                   ac_postal;       /* address_use_as_postal */
+
+        if get_address_finished then    /* {{ */
+    leave get_address;  /* ][ */
+        end if;                         /* }} */
+
+        select 'user_address_slots' as `Cursor`,
+               ac_uid,            /* address_uid */
+               ac_vid,            /* address_vid */
+               ac_slot,           /* address_slot */
+               ac_language,       /* address_language */
+               ac_address,         /* address */
+               ac_data,           /* address_data */
+               ac_visible,      /* address_use_as_physical */
+               ac_postal;       /* address_use_as_postal */
+
+    end loop get_address;   /* ]] */
+
+    close user_address_slots ;
+
+end ;   /* }} */
+
 create or replace procedure migrate_user_addresses( in xuid integer unsigned,
                                                     in action_mode integer unsigned,
                                                     in purge_first boolean )
@@ -652,19 +731,19 @@ begin   /* {{ */
     declare do_commit boolean default action_mode >= @ACTION_COMMIT;
     declare inner_action_mode integer unsigned default case when dry_run then @ACTION_DRY_RUN else @ACTION_NO_TRANS end;
 
-    declare xiid integer unsigned default 0;
-    declare xrid integer unsigned default 0;
-    declare xuuid varchar(36) default 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
-    declare xseq integer unsigned default 0xffffffffffffffff;
+    declare xiid   integer unsigned default 0;
+    declare xrid   integer unsigned default 0;
+    declare xuuid  varchar(36) default 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
+    declare xdelta integer unsigned default 123456700;
 
-    declare auid        integer unsigned;
-    declare avid        integer unsigned;
-    declare aslot       bigint(20);
-    declare alanguage   varchar(32);
-    declare address     text;
-    declare adata       longtext;
-    declare as_visible  boolean;
-    declare as_postal   boolean;
+    declare ac_uid        integer unsigned;
+    declare ac_vid        integer unsigned;
+    declare ac_slot       bigint(20);
+    declare ac_language   varchar(32);
+    declare ac_address     text;
+    declare ac_data       longtext;
+    declare ac_visible  boolean;
+    declare ac_postal   boolean;
 
     declare get_address_finished boolean default false;
 
@@ -725,36 +804,29 @@ begin   /* {{ */
     get_address: loop   /* [[ */
 
         fetch user_address_slots
-              into auid,
-                   avid,
-                   aslot,
-                   alanguage,
-                   address,
-                   adata,
-                   as_visible,
-                   as_postal;
+              into ac_uid,      /* address_uid */
+                   ac_vid,      /* address_vid */
+                   ac_slot,     /* address_slot */
+                   ac_language, /* address_language */
+                   ac_address,  /* address */
+                   ac_data,     /* address_data */
+                   ac_visible,  /* address_use_as_physical */
+                   ac_postal;   /* address_use_as_postal */
 
         if get_address_finished then    /* {{ */
     leave get_address;  /* ][ */
         end if;                         /* }} */
 
-        if not dry_run then
-            set xseq = (
-                select ifnull(max(delta)+1,0)
-                  from field_data_field_addresses
-                 where entity_id = xuid );
-        end if ;
-
-        select 'Selected'               as `Action`,
-                'user_address_slots'    as `Cursor`,
-                auid                    as `address_uid`,
-                avid                    as `address_vid`,
-                aslot                   as `address_slot`,
-                alanguage               as `address_language`,
-                address                 as `address`,
-                adata                   as `address_data`,
-                as_visible              as `address_use_as_physical`,
-                as_postal               as `address_use_as_postal`;
+        select 'Selected'                       as `Action`,
+                'user_address_slots'            as `Cursor`,
+                ac_uid                          as `address_uid`,
+                ac_vid                          as `address_vid`,
+                ac_slot                         as `address_slot`,
+                ac_language                     as `address_language`,
+                replace(ac_address,'\n','\\n')  as `address`,
+                ac_data                         as `address_data`,
+                ac_visible                      as `address_use_as_physical`,
+                ac_postal                       as `address_use_as_postal`;
 
         if dry_run then
             set xiid = 'dry_run_xiid' ;
@@ -762,6 +834,10 @@ begin   /* {{ */
             set xuuid = 'dry_run_xuuid' ;
         else
             call add_collection_item('field_addresses', xiid, xrid, xuuid);
+            set xdelta = (
+                select ifnull(max(delta)+1,0)
+                  from field_data_field_addresses
+                 where entity_id = xuid );
         end if ;
 
         select  'field_collection_item' as `Inserted`,
@@ -769,17 +845,17 @@ begin   /* {{ */
                 xiid                    as `Collection Item ID`,
                 xrid                    as `Collection Item Revision`,
                 xuuid                   as `Collection Item UUID`,
-                xseq                    as `Collection Item Delta`;
+                xdelta                  as `Collection Item Delta`;
 
         select would_insert as `Action`,
                'field_data_field_addresses'  as `Table`,
                'user'                        as entity_type,
                'user'                        as bundle,
                false                         as deleted,
-               auid                          as entity_id,      /* == users.uid */
-               avid                          as revision_id,    /* == users.vid */
+               ac_uid                        as entity_id,      /* == users.uid */
+               ac_vid                        as revision_id,    /* == users.vid */
                'und'                         as language,
-               xseq                          as delta,
+               xdelta                        as delta,
                xiid                          as field_addresses_value,
                xrid                          as field_addresses_revision_id ;
 
@@ -799,10 +875,10 @@ begin   /* {{ */
                  values ( 'user',   /* entity_type */
                           'user',   /* bundle */
                           false,    /* deleted */
-                          auid,     /* entity_id   == users.uid */
-                          avid,     /* revision_id == users.vid */
+                          ac_uid,   /* entity_id   == users.uid */
+                          ac_vid,   /* revision_id == users.vid */
                           'und',    /* language */
-                          xseq,     /* delta */
+                          xdelta,   /* delta */
                           xiid,     /* field_addresses_value */
                           xrid );   /* field_addresses_revision_id */
 
@@ -830,7 +906,7 @@ begin   /* {{ */
                xrid                            as revision_id,                /* == field_addresses_revision_id */
                'und'                           as language,
                0                               as delta,                      /* == 0 (single-valued) */
-               address                         as field_user_address_value,   /* field_user_address_value (the preformatted address) */
+               ac_address                      as field_user_address_value,   /* field_user_address_value (the preformatted address) */
                null                            as field_user_address_format;  /* field_user_address_format */
 
         if dry_run then
@@ -853,7 +929,7 @@ begin   /* {{ */
                           xrid,                     /* revision_id == field_addresses_revision_id */
                           'und',                    /* language */
                           0,                        /* delta == 0 (single-valued) */
-                          address,                  /* field_user_address_value (the preformatted address) */
+                          ac_address,               /* field_user_address_value (the preformatted address) */
                           null );                   /* field_user_address_format */
 
 
@@ -880,7 +956,7 @@ begin   /* {{ */
                xrid                                     as revision_id,            /* == field_addresses_revision_id */
                'und'                                    as language,
                0                                        as delta,                  /* == 0 (single-valued) */
-               as_postal                                as field_use_as_postal_address_value;
+               ac_postal                                as field_use_as_postal_address_value;
 
         if dry_run then
             select 'Skipping copy to revision table';
@@ -901,7 +977,7 @@ begin   /* {{ */
                           xrid,                     /* revision_id == field_addresses_revision_id */
                           'und',                    /* language */
                           0,                        /* delta == 0 (single-valued) */
-                          as_postal );              /* field_use_as_postal_address_value */
+                          ac_postal );              /* field_use_as_postal_address_value */
 
             select 'Copying'                                    as `Action`,
                    'field_revision_field_use_as_postal_address' as `from Table`,
@@ -917,16 +993,16 @@ begin   /* {{ */
              where entity_id = xiid;
         end if ;
 
-        select would_insert                             as `Action`,
+        select would_insert                     as `Action`,
                'field_data_field_print_in_book' as `Table`,
-               'field_collection_item'                  as entity_type,
-               'field_addresses'                        as bundle,
-               false                                    as deleted,
-               xiid                                     as entity_id,              /* == field_addresses_value */
-               xrid                                     as revision_id,            /* == field_addresses_revision_id */
-               'und'                                    as language,
-               0                                        as delta,                  /* == 0 (single-valued) */
-               as_postal                                as field_print_in_book_value;
+               'field_collection_item'          as entity_type,
+               'field_addresses'                as bundle,
+               false                            as deleted,
+               xiid                             as entity_id,              /* == field_addresses_value */
+               xrid                             as revision_id,            /* == field_addresses_revision_id */
+               'und'                            as language,
+               0                                as delta,                  /* == 0 (single-valued) */
+               ac_postal                        as field_print_in_book_value;
 
         if dry_run then
             select 'Skipping copy to revision table';
@@ -947,7 +1023,7 @@ begin   /* {{ */
                           xrid,                     /* revision_id == field_addresses_revision_id */
                           'und',                    /* language */
                           0,                        /* delta == 0 (single-valued) */
-                          as_visible );             /* field_print_in_book_value */
+                          ac_visible );             /* field_print_in_book_value */
 
             select 'Copying'                                    as `Action`,
                    'field_revision_field_print_in_book' as `from Table`,
@@ -963,8 +1039,8 @@ begin   /* {{ */
              where entity_id = xiid;
         end if ;
 
-        select 'Increment xseq to', xseq+1;
-        set xseq = xseq+1;
+        select 'xdelta' as `Increment`, xdelta as `from`, xdelta+1 as `to`;
+        set xdelta = xdelta+1;
 
     end loop get_address;   /* ]] */
     close user_address_slots;
