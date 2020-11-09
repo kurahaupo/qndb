@@ -199,7 +199,8 @@ begin   /* {{ */
                                  from field_revision_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
     union
     select would_delete as `Action`,
@@ -212,7 +213,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              );
 
     if dry_run then /* {{ */
@@ -227,7 +229,8 @@ begin   /* {{ */
                                  from field_revision_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
          limit 9;
 
@@ -241,7 +244,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
          limit 9;
 
@@ -256,7 +260,8 @@ begin   /* {{ */
                                       from field_revision_field_addresses
                                      where entity_type = 'user'
                                        and bundle      = 'user'
-                                       and entity_id   = xuid
+                                       and (entity_id  = xuid
+                                         or xuid      is null)
                                   );
 
         delete
@@ -268,7 +273,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              );
 
     end if;         /* }} */
@@ -285,7 +291,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
     union
     select would_delete as `Action`,
@@ -298,7 +305,8 @@ begin   /* {{ */
                                  from field_revision_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              );
 
     if dry_run then /* {{ */
@@ -313,7 +321,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
          limit 9;
 
@@ -327,7 +336,8 @@ begin   /* {{ */
                                  from field_revision_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              )
          limit 9;
 
@@ -342,7 +352,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              );
 
         delete
@@ -354,7 +365,8 @@ begin   /* {{ */
                                  from field_revision_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                              );
 
     end if;         /* }} */
@@ -369,7 +381,8 @@ begin   /* {{ */
                              from field_data_field_addresses
                             where entity_type = 'user'
                               and bundle      = 'user'
-                              and entity_id   = xuid
+                              and (entity_id  = xuid
+                                or xuid      is null)
                           );
 
     if dry_run then /* {{ */
@@ -382,7 +395,8 @@ begin   /* {{ */
                              from field_data_field_addresses
                             where entity_type = 'user'
                               and bundle      = 'user'
-                              and entity_id   = xuid
+                              and (entity_id  = xuid
+                                or xuid      is null)
                           )
          limit 9;
 
@@ -395,7 +409,8 @@ begin   /* {{ */
                              from field_data_field_addresses
                             where entity_type = 'user'
                               and bundle      = 'user'
-                              and entity_id   = xuid
+                              and (entity_id  = xuid
+                                or xuid      is null)
                           );
 
     end if;         /* }} */
@@ -411,7 +426,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                             );
 
     if dry_run then /* {{ */
@@ -425,7 +441,8 @@ begin   /* {{ */
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
-                                  and entity_id   = xuid
+                                  and (entity_id  = xuid
+                                    or xuid      is null)
                             )
          limit 9;
 
@@ -439,7 +456,8 @@ begin   /* {{ */
                              from field_data_field_addresses
                             where entity_type = 'user'
                               and bundle      = 'user'
-                              and entity_id   = xuid
+                              and (entity_id  = xuid
+                                or xuid      is null)
                           );
 
     end if;         /* }} */
@@ -451,14 +469,16 @@ begin   /* {{ */
           from field_revision_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid
+           and (entity_id  = xuid
+             or xuid      is null)
     union
     select would_delete as `Action`,
               'field_data_field_addresses' as `Table`, count(*) as `Rows`
           from field_data_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid;
+           and (entity_id  = xuid
+             or xuid      is null);
 
     if dry_run then /* {{ */
 
@@ -467,7 +487,8 @@ begin   /* {{ */
           from field_revision_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid
+           and (entity_id  = xuid
+             or xuid      is null)
          limit 9;
 
         select would_delete as `Action`,
@@ -475,7 +496,8 @@ begin   /* {{ */
           from field_data_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid
+           and (entity_id  = xuid
+             or xuid      is null)
           limit 9;
 
     else            /* }{ */
@@ -484,13 +506,15 @@ begin   /* {{ */
           from field_revision_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid;
+           and (entity_id  = xuid
+             or xuid      is null);
 
         delete
           from field_data_field_addresses
          where entity_type = 'user'
            and bundle      = 'user'
-           and entity_id   = xuid;
+           and (entity_id  = xuid
+             or xuid      is null);
 
     end if;         /* }} */
 
@@ -911,6 +935,7 @@ begin   /* {{ */
                                                   and entity_id = uid
                                                   and revision_id = vid
          where address_uid = xuid
+            or xuid       is null
          order by address_uid,
                   address_slot;
 
@@ -922,8 +947,8 @@ begin   /* {{ */
         set would_insert  = 'Propose insertion';
     end if;         /* }} */
 
-    select 'Migrate addresses from fixed blocks to flexi block' as `Run Stored Procedure`,
-           xuid                                                 as `Target UID`,
+    select 'migrate_user_addresses'                             as `Run Stored Procedure`,
+           ifnull(xuid, 'All')                                  as `Target UID`,
            case action_mode
                 when @ACTION_DRY_RUN  then 'Dry Run'
                 when @ACTION_ROLLBACK then 'Rollback'
@@ -1070,7 +1095,7 @@ begin   /* {{ */
                 set xdelta = (
                     select ifnull(max(delta)+1,0)
                       from field_data_field_addresses
-                     where entity_id = xuid );
+                     where entity_id = address_uid );
             end if ;        /* }} */
 
             select  'field_collection_item' as `Inserted`,
