@@ -537,7 +537,7 @@ select 'exp_all_users' as `creating`;
 create or replace view exp_all_users as
       select u.*,
              ifnull(o.field_user_old_id_value, u.uid + 4096)    as old_uid,
-             u.status = 0                                       as blocked,
+             u.status                                       = 0 as blocked,
              ifnull(r.field_user_resigned_value, false)         as resigned,
              ifnull(d.field_user_deceased_value, false)         as deceased,
              ifnull(i.field_user_inactive_value, false)         as inactive
@@ -726,7 +726,7 @@ select 'exp_normalise_user_addresses' as `creating`;
 create or replace view exp_normalise_user_addresses as
       select a.entity_id                                    as address_uid,
              a.revision_id                                  as address_vid,
-             1                                              as address_slot,
+             convert(1, unsigned)                           as address_slot,
              a.language                                     as address_language,
              a.field_user_address_1_first_name              as address_first_name,
              a.field_user_address_1_last_name               as address_last_name,
@@ -761,7 +761,7 @@ create or replace view exp_normalise_user_addresses as
  union
       select a.entity_id                                    as address_uid,
              a.revision_id                                  as address_vid,
-             2                                              as address_slot,
+             convert(2, unsigned)                           as address_slot,
              a.language                                     as address_language,
              a.field_user_address_2_first_name              as address_first_name,
              a.field_user_address_2_last_name               as address_last_name,
@@ -796,7 +796,7 @@ create or replace view exp_normalise_user_addresses as
  union
       select a.entity_id                                    as address_uid,
              a.revision_id                                  as address_vid,
-             3                                              as address_slot,
+             convert(3, unsigned)                           as address_slot,
              a.language                                     as address_language,
              a.field_user_address_3_first_name              as address_first_name,
              a.field_user_address_3_last_name               as address_last_name,
@@ -830,7 +830,7 @@ create or replace view exp_normalise_user_addresses as
  union
       select a.entity_id                                    as address_uid,
              a.revision_id                                  as address_vid,
-             4                                              as address_slot,
+             convert(4, unsigned)                           as address_slot,
              a.language                                     as address_language,
              a.field_user_address_4_first_name              as address_first_name,
              a.field_user_address_4_last_name               as address_last_name,
@@ -894,15 +894,15 @@ create or replace view export_user_addresses2 as
 select 'export_user_addresses' as `creating`;
 
 create or replace view export_user_addresses as
-      select a.entity_id                                        as address_uid,
-             ai.revision_id                                     as address_vid,
-             ifnull(a.delta+1, 0)                               as address_slot,
-             ai.language                                        as address_language,
-             ai.delta                                           as address_delta,
-             ai.field_user_address_value                        as address,
-             al.field_label_value                               as address_label,
-             ifnull(ap.field_use_as_postal_address_value, 0)!=0 as address_postal,
-             ifnull(ab.field_print_in_book_value, 0)!=0         as address_in_book
+      select a.entity_id                                            as address_uid,
+             ai.revision_id                                         as address_vid,
+             ifnull(a.delta+1, 0)                                   as address_slot,
+             ai.language                                            as address_language,
+             ai.delta                                               as address_delta,
+             ai.field_user_address_value                            as address,
+             al.field_label_value                                   as address_label,
+             ifnull(ap.field_use_as_postal_address_value, 0)   != 0 as address_postal,
+             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_in_book
         from field_data_field_addresses             as a
    left join field_data_field_label                 as al   on a.field_addresses_value=al.entity_id
                                                            and al.entity_type = 'field_collection_item'
@@ -1480,16 +1480,16 @@ create or replace table expmap_reverse_relations (
     to_many     boolean
 );
 insert into expmap_reverse_relations ( fwd_rel, rev_rel, many_to, to_many )
-values ( 'child',      'parent',      true,  true  ),
-       ( 'grandchild', 'grandparent', true,  true  ),
-       ( 'spouse',     'spouse',      false, false ),
-       ( 'ex-spouse',  'ex-spouse',   true,  true  );
+     values ( 'child',      'parent',      true,  true  ),
+            ( 'grandchild', 'grandparent', true,  true  ),
+            ( 'spouse',     'spouse',      false, false ),
+            ( 'ex-spouse',  'ex-spouse',   true,  true  );
 update expmap_reverse_relations set symmetric = fwd_rel = rev_rel;
 insert into expmap_reverse_relations
-    ( fwd_rel, rev_rel, many_to, to_many, symmetric )
-select
-      rev_rel, fwd_rel, to_many, many_to, symmetric
-where not symmetric;
+            ( fwd_rel, rev_rel, many_to, to_many, symmetric )
+       select rev_rel, fwd_rel, to_many, many_to, symmetric
+         from expmap_reverse_relations
+        where not symmetric;
 
 select '$summary' as `creating`;
 
