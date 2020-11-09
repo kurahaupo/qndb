@@ -840,11 +840,11 @@ create or replace procedure migrate_user_addresses( in xuid integer unsigned,
         sql security invoker
 begin   /* {{ */
 
-    declare dry_run           boolean          default action_mode = @ACTION_DRY_RUN;
-    declare would_insert      varchar(17)      default case action_mode when @ACTION_DRY_RUN then 'Propose insertion' else 'Insert' end;
-    declare wrap_transaction  boolean          default action_mode in ( @ACTION_ROLLBACK, @ACTION_COMMIT );
-    declare do_commit         boolean          default action_mode >= @ACTION_COMMIT;
-    declare inner_action_mode integer unsigned default case when dry_run then @ACTION_DRY_RUN else @ACTION_NO_TRANS end;
+    declare dry_run             boolean             default action_mode = @ACTION_DRY_RUN;
+    declare would_insert        varchar(17)         default case action_mode when @ACTION_DRY_RUN then 'Propose insertion' else 'Insert' end;
+    declare wrap_transaction    boolean             default action_mode in ( @ACTION_ROLLBACK, @ACTION_COMMIT );
+    declare do_commit           boolean             default action_mode >= @ACTION_COMMIT;
+    declare inner_action_mode   integer unsigned    default case when dry_run then @ACTION_DRY_RUN else @ACTION_NO_TRANS end;
 
     declare xiid   integer unsigned default 0;
     declare xrid   integer unsigned default 0;
@@ -1302,11 +1302,14 @@ create or replace procedure migrate_all_user_addresses( in action_mode integer u
         sql security invoker
 begin   /* {{ */
 
-    declare inner_action_mode   integer unsigned default case when dry_run then @ACTION_DRY_RUN else @ACTION_NO_TRANS end;
+    declare dry_run             boolean             default action_mode = @ACTION_DRY_RUN;
+    declare wrap_transaction    boolean             default action_mode in ( @ACTION_ROLLBACK, @ACTION_COMMIT );
+    declare do_commit           boolean             default action_mode >= @ACTION_COMMIT;
+    declare inner_action_mode   integer unsigned    default case when dry_run then @ACTION_DRY_RUN else @ACTION_NO_TRANS end;
 
     declare uc_uid              integer unsigned ;
 
-    declare get_users_finished boolean default false;
+    declare get_users_finished  boolean default false;
 
     declare get_users cursor for
         select uid
@@ -1317,7 +1320,11 @@ begin   /* {{ */
         for not found
         set get_users_finished = true;
 
-    open users_cursor ;
+    if wrap_transaction then    /* {{ */
+        start transaction;  /* [[ */
+    end if;                     /* }} */
+
+    open get_users ;
 
     get_user: loop      /* [[ */
 
@@ -1330,11 +1337,19 @@ begin   /* {{ */
 
         call migrate_user_addresses( uc_uid,
                                      inner_action_mode,
-                                     purge_first )
+                                     purge_first ) ;
 
     end loop get_user;  /* ]] */
 
-    close users_cursor ;
+    close get_users ;
+
+    if wrap_transaction then    /* {{ */
+        if do_commit then   /* {{ */
+            commit;     /* ][ */
+        else                /* }{ */
+            rollback;   /* ]] */
+        end if;             /* }} */
+    end if;                     /* }} */
 
 end     /* }} */
 ;;
