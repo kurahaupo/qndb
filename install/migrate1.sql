@@ -682,11 +682,12 @@ begin   /* {{ */
     declare ac_dependent_locality       varchar(255);
     declare ac_locality                 varchar(255);
     declare ac_postal_code              varchar(255);
-    declare ac_country                  varchar(2);
+    declare ac_cc                       varchar(2);
     declare ac_data                     longtext;
     declare ac_physical                 boolean;
     declare ac_postal                   boolean;
 
+    declare ac_country  text;
     declare ac_address  text;
     declare ac_visible  boolean;
     declare empty_address boolean default true;
@@ -769,7 +770,7 @@ begin   /* {{ */
                    ac_dependent_locality,       /* address_dependent_locality */
                    ac_locality,                 /* address_locality */
                    ac_postal_code,              /* address_postal_code */
-                   ac_country,                  /* address_country */
+                   ac_cc     ,                  /* address_country */
                    ac_data,                     /* address_data */
                    ac_physical,                 /* address_use_as_physical */
                    ac_postal,                   /* address_use_as_postal */
@@ -791,7 +792,7 @@ begin   /* {{ */
         if ac_dependent_locality      = '' then set ac_dependent_locality      = null ; end if ;
         if ac_locality                = '' then set ac_locality                = null ; end if ;
         if ac_postal_code             = '' then set ac_postal_code             = null ; end if ;
-        if ac_country                 = '' then set ac_country                 = null ; end if ;
+        if ac_cc                      = '' then set ac_cc                      = null ; end if ;
         if ac_data                    = '' then set ac_data                    = null ; end if ;
 
         set empty_address = ac_first_name              is null
@@ -807,23 +808,25 @@ begin   /* {{ */
                         and ac_locality                is null
                         and ac_data                    is null;
 
-        set ac_address = concat(
-                    ifnull( concat('FIRST_AND_LAST_NAMES:',     ac_first_name, ' ',  ac_last_name, '\n'),
-                     ifnull( concat('FIRST_NAME:',              ac_first_name, '\n'),
-                      ifnull( concat('LAST_NAME:',              ac_last_name, '\n'),
-                       ''))),
-                    ifnull(concat('NAME_LINE:',                 ac_name_line, '\n'), ''),
-                    ifnull(concat('ORGANISATION_NAME:',         ac_organisation_name, '\n'), ''),
-                    ifnull(concat('SUB_PREMISE:',               ac_sub_premise, '\n'), ''),
-                    ifnull(concat('PREMISE:',                   ac_premise, '\n'), ''),
-                    ifnull(concat('THOROUGHFARE:',              ac_thoroughfare, '\n'), ''),
-                    ifnull(concat('DEPENDENT_LOCALITY:',        ac_dependent_locality, '\n'), ''),
-                    ifnull(concat('LOCALITY:',                  ac_locality, '\n'), ''),
-                    ifnull(concat('SUB_ADMINISTRATIVE_AREA:',   ac_sub_administrative_area, '\n'), ''),
-                    ifnull(concat('ADMINISTRATIVE_AREA:',       ac_administrative_area, '\n'), ''),
-                    ifnull(concat('POSTCODE:',                  ac_postal_code, '\n'), ''),
-                    ifnull(concat('CC:',                        ac_country), 'NZ*')
-                );
+        if ac_cc is null then set ac_cc = 'NZ' ; end if ;
+
+        set ac_country = ( select new_name from quaker_countries where new_id = ac_cc ) ;
+
+        if ac_country is null then set ac_country = concat('{?',ac_cc,'?}') ; end if ;
+
+        set ac_address = trim(both '\n' from replace( concat(
+                    ifnull(concat(     ac_name_line, '\n'), ''),
+                    ifnull(concat(     ac_organisation_name, '\n'), ''),
+                    ifnull(concat(     ac_sub_premise, '\n'), ''),
+                    ifnull(concat(     ac_premise, '\n'), ''),
+                    ifnull(concat(     ac_thoroughfare, '\n'), ''),
+                    ifnull(concat(     ac_dependent_locality, '\n'), ''),
+                    ifnull(concat(     ac_locality, '\n'), ''),
+                    ifnull(concat(     ac_sub_administrative_area, '\n'), ''),
+                    ifnull(concat('>', ac_administrative_area, '\n'), ''),
+                    ifnull(concat('>', ac_postal_code, '\n'), ''),
+                    ifnull(concat(     ac_country), 'NZ*')
+                ), '\n>', '  '));
 
         select 'Selected'                       as `Action`,
                'user_address_slots_cursor'      as `Cursor`,
@@ -843,6 +846,7 @@ begin   /* {{ */
                ac_dependent_locality            as address_dependent_locality,
                ac_locality                      as address_locality,
                ac_postal_code                   as address_postal_code,
+               ac_cc                            as address_cc,
                ac_country                       as address_country,
                empty_address,
                replace(ac_address,'\n','\\n')   as address,
@@ -891,11 +895,12 @@ begin   /* {{ */
     declare ac_dependent_locality       varchar(255);
     declare ac_locality                 varchar(255);
     declare ac_postal_code              varchar(255);
-    declare ac_country                  varchar(2);
+    declare ac_cc                       varchar(2);
     declare ac_data                     longtext;
     declare ac_physical                 boolean;
     declare ac_postal                   boolean;
 
+    declare ac_country  text;
     declare ac_address  text;
     declare ac_visible  boolean;
     declare empty_address boolean default true;
@@ -1000,7 +1005,7 @@ begin   /* {{ */
                    ac_dependent_locality,       /* address_dependent_locality */
                    ac_locality,                 /* address_locality */
                    ac_postal_code,              /* address_postal_code */
-                   ac_country,                  /* address_country */
+                   ac_cc,                       /* address_country */
                    ac_data,                     /* address_data */
                    ac_physical,                 /* address_use_as_physical */
                    ac_postal,                   /* address_use_as_postal */
@@ -1022,7 +1027,7 @@ begin   /* {{ */
         if ac_dependent_locality      = '' then set ac_dependent_locality      = null ; end if ;
         if ac_locality                = '' then set ac_locality                = null ; end if ;
         if ac_postal_code             = '' then set ac_postal_code             = null ; end if ;
-        if ac_country                 = '' then set ac_country                 = null ; end if ;
+        if ac_cc                      = '' then set ac_cc                      = null ; end if ;
         if ac_data                    = '' then set ac_data                    = null ; end if ;
 
         set empty_address = ac_first_name              is null
@@ -1038,23 +1043,25 @@ begin   /* {{ */
                         and ac_locality                is null
                         and ac_data                    is null;
 
-        set ac_address = concat(
-                    ifnull( concat('FIRST_AND_LAST_NAMES:',     ac_first_name, ' ',  ac_last_name, '\n'),
-                     ifnull( concat('FIRST_NAME:',              ac_first_name, '\n'),
-                      ifnull( concat('LAST_NAME:',              ac_last_name, '\n'),
-                       ''))),
-                    ifnull(concat('NAME_LINE:',                 ac_name_line, '\n'), ''),
-                    ifnull(concat('ORGANISATION_NAME:',         ac_organisation_name, '\n'), ''),
-                    ifnull(concat('SUB_PREMISE:',               ac_sub_premise, '\n'), ''),
-                    ifnull(concat('PREMISE:',                   ac_premise, '\n'), ''),
-                    ifnull(concat('THOROUGHFARE:',              ac_thoroughfare, '\n'), ''),
-                    ifnull(concat('DEPENDENT_LOCALITY:',        ac_dependent_locality, '\n'), ''),
-                    ifnull(concat('LOCALITY:',                  ac_locality, '\n'), ''),
-                    ifnull(concat('SUB_ADMINISTRATIVE_AREA:',   ac_sub_administrative_area, '\n'), ''),
-                    ifnull(concat('ADMINISTRATIVE_AREA:',       ac_administrative_area, '\n'), ''),
-                    ifnull(concat('POSTCODE:',                  ac_postal_code, '\n'), ''),
-                    ifnull(concat('CC:',                        ac_country), 'NZ*')
-                );
+        if ac_cc is null then set ac_cc = 'NZ' ; end if ;
+
+        set ac_country = ( select new_name from quaker_countries where new_id = ac_cc ) ;
+
+        if ac_country is null then set ac_country = concat('{?',ac_cc,'?}') ; end if ;
+
+        set ac_address = trim(both '\n' from replace( concat(
+                    ifnull(concat(     ac_name_line, '\n'), ''),
+                    ifnull(concat(     ac_organisation_name, '\n'), ''),
+                    ifnull(concat(     ac_sub_premise, '\n'), ''),
+                    ifnull(concat(     ac_premise, '\n'), ''),
+                    ifnull(concat(     ac_thoroughfare, '\n'), ''),
+                    ifnull(concat(     ac_dependent_locality, '\n'), ''),
+                    ifnull(concat(     ac_locality, '\n'), ''),
+                    ifnull(concat(     ac_sub_administrative_area, '\n'), ''),
+                    ifnull(concat('>', ac_administrative_area, '\n'), ''),
+                    ifnull(concat('>', ac_postal_code, '\n'), ''),
+                    ifnull(concat(     ac_country), 'NZ*')
+                ), '\n>', '  '));
 
         select 'Selected'                       as `Action`,
                'user_address_slots_cursor'      as `Cursor`,
@@ -1074,6 +1081,7 @@ begin   /* {{ */
                ac_dependent_locality            as address_dependent_locality,
                ac_locality                      as address_locality,
                ac_postal_code                   as address_postal_code,
+               ac_cc                            as address_cc,
                ac_country                       as address_country,
                empty_address,
                replace(ac_address,'\n','\\n')   as address,
