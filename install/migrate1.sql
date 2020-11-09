@@ -422,7 +422,7 @@ begin   /* {{ */
           from field_collection_item
          where field_name = 'field_addresses'
            and item_id   in (
-                               select field_address_value
+                               select field_addresses_value
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
@@ -437,7 +437,7 @@ begin   /* {{ */
           from field_collection_item
          where field_name = 'field_addresses'
            and item_id   in (
-                               select field_address_value
+                               select field_addresses_value
                                  from field_data_field_addresses
                                 where entity_type = 'user'
                                   and bundle      = 'user'
