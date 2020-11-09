@@ -707,6 +707,7 @@ begin   /* {{ */
     declare ac_visible  boolean;
     declare empty_address boolean default true;
     declare get_address_finished boolean default false;
+    declare row_counter integer default 0;
 
     declare user_address_slots_cursor cursor for
         select address_uid,                     /* integer unsigned not null default 0     */
@@ -817,6 +818,8 @@ begin   /* {{ */
     leave get_address;  /* ][ */
         end if;                         /* }} */
 
+        set row_counter = row_counter+1;
+
         if ac_first_name              = '' then set ac_first_name              = null ; end if ;
         if ac_last_name               = '' then set ac_last_name               = null ; end if ;
         if ac_name_line               = '' then set ac_name_line               = null ; end if ;
@@ -905,7 +908,7 @@ begin   /* {{ */
                 set xdelta = (
                     select ifnull(max(delta)+1,0)
                       from field_data_field_addresses
-                     where entity_id = address_uid );
+                     where entity_id = ac_uid );
             end if ;        /* }} */
 
             select  'field_collection_item' as `Inserted`,
@@ -1118,14 +1121,34 @@ begin   /* {{ */
     end loop get_address;   /* ]] */
     close user_address_slots_cursor;
 
-    select 'Migrate addresses from fixed blocks to flexi block' as `Completed`;
-
     if wrap_transaction then    /* {{ */
         if do_commit then       /* {{ */
             commit;     /* ][ */
+
+            select 'migrate_user_addresses' as `Completed Procedure`,
+                   'Committed'              as `Action`,
+                   ifnull(xuid, 'All')      as `Target UID`,
+                   row_counter              as 'Added rows';
         else                    /* }{ */
             rollback;   /* ]] */
+
+            select 'migrate_user_addresses' as `Completed Procedure`,
+                   'Rolled back'            as `Action`,
+                   ifnull(xuid, 'All')      as `Target UID`,
+                   row_counter              as 'Would add rows';
         end if;                 /* }} */
+    else
+        if dry_run then /* {{ */
+            select 'migrate_user_addresses' as `Completed Procedure`,
+                   'Dry run'                as `Action`,
+                   ifnull(xuid, 'All')      as `Target UID`,
+                   row_counter              as 'Would add rows';
+        else            /* }{ */
+            select 'migrate_user_addresses' as `Completed Procedure`,
+                   'No transaction'         as `Action`,
+                   ifnull(xuid, 'All')      as `Target UID`,
+                   row_counter              as 'Added rows';
+        end if;         /* }} */
     end if;                     /* }} */
 
 end     /* }} */
