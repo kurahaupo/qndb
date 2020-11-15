@@ -733,7 +733,7 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_1_name_line               as address_name_line,
              a.field_user_address_1_organisation_name       as address_organisation_name,
              a.field_user_address_1_sub_premise             as address_sub_premise,
-             a.field_user_address_1_premise                 as address_premise,
+             a.field_user_address_1_premise                 as address_line_two,
              a.field_user_address_1_sub_administrative_area as address_sub_administrative_area,
              a.field_user_address_1_administrative_area     as address_administrative_area,
              a.field_user_address_1_thoroughfare            as address_thoroughfare,
@@ -768,7 +768,7 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_2_name_line               as address_name_line,
              a.field_user_address_2_organisation_name       as address_organisation_name,
              a.field_user_address_2_sub_premise             as address_sub_premise,
-             a.field_user_address_2_premise                 as address_premise,
+             a.field_user_address_2_premise                 as address_line_two,
              a.field_user_address_2_sub_administrative_area as address_sub_administrative_area,
              a.field_user_address_2_administrative_area     as address_administrative_area,
              a.field_user_address_2_thoroughfare            as address_thoroughfare,
@@ -803,7 +803,7 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_3_name_line               as address_name_line,
              a.field_user_address_3_organisation_name       as address_organisation_name,
              a.field_user_address_3_sub_premise             as address_sub_premise,
-             a.field_user_address_3_premise                 as address_premise,
+             a.field_user_address_3_premise                 as address_line_two,
              a.field_user_address_3_sub_administrative_area as address_sub_administrative_area,
              a.field_user_address_3_administrative_area     as address_administrative_area,
              a.field_user_address_3_thoroughfare            as address_thoroughfare,
@@ -837,7 +837,7 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_4_name_line               as address_name_line,
              a.field_user_address_4_organisation_name       as address_organisation_name,
              a.field_user_address_4_sub_premise             as address_sub_premise,
-             a.field_user_address_4_premise                 as address_premise,
+             a.field_user_address_4_premise                 as address_line_two,
              a.field_user_address_4_sub_administrative_area as address_sub_administrative_area,
              a.field_user_address_4_administrative_area     as address_administrative_area,
              a.field_user_address_4_thoroughfare            as address_thoroughfare,
@@ -863,6 +863,8 @@ create or replace view exp_normalise_user_addresses as
          and a.bundle      = 'user'
          and not a.deleted;
 
+select 'export_user_addresses2' as `creating`;
+
 create or replace view export_user_addresses2 as
       select address_uid,
              address_vid,
@@ -876,7 +878,7 @@ create or replace view export_user_addresses2 as
                     ifnull(concat('NAME_LINE:',                 address_name_line, '\n'), ''),
                     ifnull(concat('ORGANISATION_NAME:',         address_organisation_name, '\n'), ''),
                     ifnull(concat('SUB_PREMISE:',               address_sub_premise, '\n'), ''),
-                    ifnull(concat('PREMISE:',                   address_premise, '\n'), ''),
+                    ifnull(concat('PREMISE:',                   address_line_two, '\n'), ''),
                     ifnull(concat('THOROUGHFARE:',              address_thoroughfare, '\n'), ''),
                     ifnull(concat('DEPENDENT_LOCALITY:',        address_dependent_locality, '\n'), ''),
                     ifnull(concat('LOCALITY:',                  address_locality, '\n'), ''),

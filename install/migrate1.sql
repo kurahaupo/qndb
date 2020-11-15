@@ -690,7 +690,7 @@ begin   /* {{ */
     declare ac_name_line                varchar(255);
     declare ac_organisation_name        varchar(255);
     declare ac_sub_premise              varchar(255);
-    declare ac_premise                  varchar(255);
+    declare ac_line_two                 varchar(255);
     declare ac_sub_administrative_area  varchar(255);
     declare ac_administrative_area      varchar(255);
     declare ac_thoroughfare             varchar(255);
@@ -720,7 +720,7 @@ begin   /* {{ */
                address_name_line,
                address_organisation_name,
                address_sub_premise,
-               address_premise,
+               address_line_two,                /* used as second address line */
                address_sub_administrative_area,
                address_administrative_area,
                address_thoroughfare,
@@ -801,7 +801,7 @@ begin   /* {{ */
                    ac_name_line,                /* address_name_line */
                    ac_organisation_name,        /* address_organisation_name */
                    ac_sub_premise,              /* address_sub_premise */
-                   ac_premise,                  /* address_premise */
+                   ac_line_two,                 /* address_line_two */
                    ac_sub_administrative_area,  /* address_sub_administrative_area */
                    ac_administrative_area,      /* address_administrative_area */
                    ac_thoroughfare,             /* address_thoroughfare */
@@ -825,7 +825,7 @@ begin   /* {{ */
         if ac_name_line               = '' then set ac_name_line               = null ; end if ;
         if ac_organisation_name       = '' then set ac_organisation_name       = null ; end if ;
         if ac_sub_premise             = '' then set ac_sub_premise             = null ; end if ;
-        if ac_premise                 = '' then set ac_premise                 = null ; end if ;
+        if ac_line_two                = '' then set ac_line_two                = null ; end if ;
         if ac_sub_administrative_area = '' then set ac_sub_administrative_area = null ; end if ;
         if ac_administrative_area     = '' then set ac_administrative_area     = null ; end if ;
         if ac_thoroughfare            = '' then set ac_thoroughfare            = null ; end if ;
@@ -840,7 +840,7 @@ begin   /* {{ */
                         and ac_name_line               is null
                         and ac_organisation_name       is null
                         and ac_sub_premise             is null
-                        and ac_premise                 is null
+                        and ac_line_two                is null
                         and ac_sub_administrative_area is null
                         and ac_administrative_area     is null
                         and ac_thoroughfare            is null
@@ -858,8 +858,8 @@ begin   /* {{ */
                     ifnull(concat(     ac_name_line, '\n'), ''),
                     ifnull(concat(     ac_organisation_name, '\n'), ''),
                     ifnull(concat(     ac_sub_premise, '\n'), ''),
-                    ifnull(concat(     ac_premise, '\n'), ''),
                     ifnull(concat(     ac_thoroughfare, '\n'), ''),
+                    ifnull(concat(     ac_line_two, '\n'), ''),
                     ifnull(concat(     ac_dependent_locality, '\n'), ''),
                     ifnull(concat(     ac_locality, '\n'), ''),
                     ifnull(concat(     ac_sub_administrative_area, '\n'), ''),
@@ -879,7 +879,7 @@ begin   /* {{ */
                ac_name_line                     as address_name_line,
                ac_organisation_name             as address_organisation_name,
                ac_sub_premise                   as address_sub_premise,
-               ac_premise                       as address_premise,
+               ac_line_two                      as address_line_two,
                ac_sub_administrative_area       as address_sub_administrative_area,
                ac_administrative_area           as address_administrative_area,
                ac_thoroughfare                  as address_thoroughfare,
