@@ -85,18 +85,18 @@ begin   /* {{ */
     end if;         /* }} */
 
     select would_delete as `Action`,
-                   'field_data_field_user_address'     as `Table`, count(*) as `Rows`
-               from field_data_field_user_address     where bundle = 'field_addresses'
+                   'field_data_field_preformatted_address'     as `Table`, count(*) as `Rows`
+               from field_data_field_preformatted_address     where bundle = 'field_addresses'
     union
     select would_delete as `Action`,
-                   'field_revision_field_user_address' as `Table`, count(*) as `Rows`
-               from field_revision_field_user_address where bundle = 'field_addresses';
+                   'field_revision_field_preformatted_address' as `Table`, count(*) as `Rows`
+               from field_revision_field_preformatted_address where bundle = 'field_addresses';
     if dry_run then /* {{ */
-        select would_delete as `Action`, field_data_field_user_address.*     from field_data_field_user_address     where bundle = 'field_addresses' limit 9;
-        select would_delete as `Action`, field_revision_field_user_address.* from field_revision_field_user_address where bundle = 'field_addresses' limit 9;
+        select would_delete as `Action`, field_data_field_preformatted_address.*     from field_data_field_preformatted_address     where bundle = 'field_addresses' limit 9;
+        select would_delete as `Action`, field_revision_field_preformatted_address.* from field_revision_field_preformatted_address where bundle = 'field_addresses' limit 9;
     else            /* }{ */
-        delete from field_data_field_user_address     where bundle = 'field_addresses';
-        delete from field_revision_field_user_address where bundle = 'field_addresses';
+        delete from field_data_field_preformatted_address     where bundle = 'field_addresses';
+        delete from field_revision_field_preformatted_address where bundle = 'field_addresses';
     end if;         /* }} */
 
     select would_delete as `Action`,
@@ -190,8 +190,8 @@ begin   /* {{ */
     /**************/
 
     select would_delete as `Action`,
-              'field_revision_field_user_address' as `Table`, count(*) as `Rows`
-          from field_revision_field_user_address
+              'field_revision_field_preformatted_address' as `Table`, count(*) as `Rows`
+          from field_revision_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -204,8 +204,8 @@ begin   /* {{ */
                              )
     union
     select would_delete as `Action`,
-              'field_data_field_user_address' as `Table`, count(*) as `Rows`
-          from field_data_field_user_address
+              'field_data_field_preformatted_address' as `Table`, count(*) as `Rows`
+          from field_data_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -220,8 +220,8 @@ begin   /* {{ */
     if dry_run then /* {{ */
 
         select would_delete as `Action`,
-               field_revision_field_user_address.*
-          from field_revision_field_user_address
+               field_revision_field_preformatted_address.*
+          from field_revision_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -235,8 +235,8 @@ begin   /* {{ */
          limit 9;
 
         select would_delete as `Action`,
-               field_data_field_user_address.*
-          from field_data_field_user_address
+               field_data_field_preformatted_address.*
+          from field_data_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -252,7 +252,7 @@ begin   /* {{ */
     else            /* }{ */
 
         delete
-          from field_revision_field_user_address
+          from field_revision_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -265,7 +265,7 @@ begin   /* {{ */
                                   );
 
         delete
-          from field_data_field_user_address
+          from field_data_field_preformatted_address
          where entity_type = 'field_collection_item'
            and bundle      = 'field_addresses'
            and entity_id  in (
@@ -600,24 +600,24 @@ begin   /* {{ */
           where entity_id = xiid
             and revision_id = xrid;
 
-    select 'Step 3' as `Action`, 'field_data_field_user_address' as `Table`,
+    select 'Step 3' as `Action`, 'field_data_field_preformatted_address' as `Table`,
              'field_collection_item' as entity_type, 'field_addresses' as
              bundle, false as deleted,    xiid as entity_id,      xrid as
              revision_id,        @deflang as language, 0 as delta,
              concat('test-address-migration:\nuid=',xuid,', vid=',xvid,', iid=',xiid,', rid=',xrid,'\nuuid=',xuuid,'\n',now())
-                as field_user_address_value,
-             null as field_user_address_format;
+                as field_preformatted_address_value,
+             null as field_preformatted_address_format;
 
-    insert into field_data_field_user_address
+    insert into field_data_field_preformatted_address
                 ( entity_type,             bundle,            deleted,  entity_id, revision_id, language, delta,
-                  field_user_address_value,
-                  field_user_address_format )
+                  field_preformatted_address_value,
+                  field_preformatted_address_format )
          values ( 'field_collection_item', 'field_addresses', false,    xiid,      xrid,        @deflang, 0,
                   concat('test-address-migration:\nuid=',xuid,', vid=',xvid,', iid=',xiid,', rid=',xrid,'\nuuid=',xuuid,'\n',now()),
                   null );
-    insert into field_revision_field_user_address
+    insert into field_revision_field_preformatted_address
          select *
-           from field_data_field_user_address
+           from field_data_field_preformatted_address
           where entity_id = xiid
             and revision_id = xrid;
 
@@ -969,7 +969,7 @@ begin   /* {{ */
             end if ;        /* }} */
 
             select would_insert as `Action`,
-                   'field_data_field_user_address' as `Table`,
+                   'field_data_field_preformatted_address' as `Table`,
                    'field_collection_item'         as entity_type,
                    'field_addresses'               as bundle,
                    false                           as deleted,
@@ -977,13 +977,13 @@ begin   /* {{ */
                    xrid                            as revision_id,                /* == field_addresses_revision_id */
                    'und'                           as language,
                    0                               as delta,                      /* == 0 (single-valued) */
-                   replace(ac_address,'\n','\\n')  as field_user_address_value,   /* field_user_address_value (the preformatted address) */
-                   null                            as field_user_address_format;  /* field_user_address_format */
+                   replace(ac_address,'\n','\\n')  as field_preformatted_address_value,   /* (the preformatted address) */
+                   null                            as field_preformatted_address_format;
 
             if dry_run then /* {{ */
                 select 'Skipping copy to revision table';
             else            /* }{ */
-                insert into field_data_field_user_address
+                insert into field_data_field_preformatted_address
                             ( entity_type,
                               bundle,
                               deleted,
@@ -991,8 +991,8 @@ begin   /* {{ */
                               revision_id,
                               language,
                               delta,
-                              field_user_address_value,
-                              field_user_address_format )
+                              field_preformatted_address_value,
+                              field_preformatted_address_format )
                      values ( 'field_collection_item',  /* entity_type */
                               'field_addresses',        /* bundle */
                               false,                    /* deleted */
@@ -1000,20 +1000,20 @@ begin   /* {{ */
                               xrid,                     /* revision_id == field_addresses_revision_id */
                               'und',                    /* language */
                               0,                        /* delta == 0 (single-valued) */
-                              ac_address,               /* field_user_address_value (the preformatted address) */
-                              null );                   /* field_user_address_format */
+                              ac_address,               /* field_preformatted_address_value (the preformatted address) */
+                              null );                   /* field_preformatted_address_format */
 
-                select 'Copying'                            as `Action`,
-                       'field_data_field_user_address'      as `from Table`,
-                       'field_revision_field_user_address'  as `to Table`,
-                       field_data_field_user_address.*
-                  from field_data_field_user_address
+                select 'Copying'                                    as `Action`,
+                       'field_data_field_preformatted_address'      as `from Table`,
+                       'field_revision_field_preformatted_address'  as `to Table`,
+                       field_data_field_preformatted_address.*
+                  from field_data_field_preformatted_address
                  where ENTITY_ID = xiid
                  limit 9;
 
-                insert into field_revision_field_user_address
+                insert into field_revision_field_preformatted_address
                      select *
-                       from field_data_field_user_address
+                       from field_data_field_preformatted_address
                       where entity_id = xiid;
 
             end if ;    /* }} */
