@@ -1513,7 +1513,7 @@ echo ";"
 */
 
 create or replace view `$summary` as
-       select '$summary'                                        as table_name,      667 as num_rows
+       select '$summary'                                        as table_name,      680 as num_rows
  union select 'actions'                                         as table_name, count(*) as num_rows from actions
  union select 'authmap'                                         as table_name, count(*) as num_rows from authmap
  union select 'batch'                                           as table_name, count(*) as num_rows from batch
@@ -1757,6 +1757,7 @@ create or replace view `$summary` as
  union select 'field_data_field_paid_event'                     as table_name, count(*) as num_rows from field_data_field_paid_event
  union select 'field_data_field_phone'                          as table_name, count(*) as num_rows from field_data_field_phone
  union select 'field_data_field_postal_address'                 as table_name, count(*) as num_rows from field_data_field_postal_address
+ union select 'field_data_field_preformatted_address'           as table_name, count(*) as num_rows from field_data_field_preformatted_address
  union select 'field_data_field_price'                          as table_name, count(*) as num_rows from field_data_field_price
  union select 'field_data_field_print_in_book'                  as table_name, count(*) as num_rows from field_data_field_print_in_book
  union select 'field_data_field_publish_date'                   as table_name, count(*) as num_rows from field_data_field_publish_date
@@ -1772,7 +1773,6 @@ create or replace view `$summary` as
  union select 'field_data_field_tags'                           as table_name, count(*) as num_rows from field_data_field_tags
  union select 'field_data_field_use_as_postal_address'          as table_name, count(*) as num_rows from field_data_field_use_as_postal_address
  union select 'field_data_field_user_access_needs'              as table_name, count(*) as num_rows from field_data_field_user_access_needs
- union select 'field_data_field_user_address'                   as table_name, count(*) as num_rows from field_data_field_user_address
  union select 'field_data_field_user_address_1'                 as table_name, count(*) as num_rows from field_data_field_user_address_1
  union select 'field_data_field_user_address_2'                 as table_name, count(*) as num_rows from field_data_field_user_address_2
  union select 'field_data_field_user_address_3'                 as table_name, count(*) as num_rows from field_data_field_user_address_3
@@ -1988,6 +1988,7 @@ create or replace view `$summary` as
  union select 'field_revision_field_paid_event'                 as table_name, count(*) as num_rows from field_revision_field_paid_event
  union select 'field_revision_field_phone'                      as table_name, count(*) as num_rows from field_revision_field_phone
  union select 'field_revision_field_postal_address'             as table_name, count(*) as num_rows from field_revision_field_postal_address
+ union select 'field_revision_field_preformatted_address'       as table_name, count(*) as num_rows from field_revision_field_preformatted_address
  union select 'field_revision_field_price'                      as table_name, count(*) as num_rows from field_revision_field_price
  union select 'field_revision_field_print_in_book'              as table_name, count(*) as num_rows from field_revision_field_print_in_book
  union select 'field_revision_field_publish_date'               as table_name, count(*) as num_rows from field_revision_field_publish_date
@@ -2003,7 +2004,6 @@ create or replace view `$summary` as
  union select 'field_revision_field_tags'                       as table_name, count(*) as num_rows from field_revision_field_tags
  union select 'field_revision_field_use_as_postal_address'      as table_name, count(*) as num_rows from field_revision_field_use_as_postal_address
  union select 'field_revision_field_user_access_needs'          as table_name, count(*) as num_rows from field_revision_field_user_access_needs
- union select 'field_revision_field_user_address'               as table_name, count(*) as num_rows from field_revision_field_user_address
  union select 'field_revision_field_user_address_1'             as table_name, count(*) as num_rows from field_revision_field_user_address_1
  union select 'field_revision_field_user_address_2'             as table_name, count(*) as num_rows from field_revision_field_user_address_2
  union select 'field_revision_field_user_address_3'             as table_name, count(*) as num_rows from field_revision_field_user_address_3
