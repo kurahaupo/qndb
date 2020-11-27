@@ -901,16 +901,16 @@ create or replace view export_user_addresses as
              ifnull(a.delta+1, 0)                                   as address_slot,
              ai.language                                            as address_language,
              ai.delta                                               as address_delta,
-             ai.field_user_address_value                            as address,
+             ai.field_preformatted_address_value                    as address,
              al.field_label_value                                   as address_label,
-             ifnull(ap.field_use_as_postal_address_value, 0)   != 0 as address_postal,
+             ifnull(ap.field_use_as_postal_address_value, 0)   != 0 as address_use_as_postal,
              ifnull(ab.field_print_in_book_value, 0)           != 0 as address_in_book
         from field_data_field_addresses             as a
    left join field_data_field_label                 as al   on a.field_addresses_value=al.entity_id
                                                            and al.entity_type = 'field_collection_item'
                                                            and al.bundle      = 'field_addresses'
                                                            and not al.deleted
-   left join field_data_field_user_address          as ai   on a.field_addresses_value=ai.entity_id
+   left join field_data_field_preformatted_address  as ai   on a.field_addresses_value=ai.entity_id
                                                            and ai.entity_type = 'field_collection_item'
                                                            and ai.bundle      = 'field_addresses'
                                                            and not ai.deleted
@@ -1440,6 +1440,18 @@ create or replace view export_print_subs as
         from exp2_all_subs                  as s
    left join exp1_user_names                as n    on uid = names_uid
    left join exp_normalise_user_addresses   as a    on uid = address_uid
+                                                   and address_use_as_postal
+         where s.method = 'print';
+
+select 'export_print_subs2' as `creating`;
+
+create or replace view export_print_subs2 as
+      select n.*,
+             s.*,
+             a.*
+        from exp2_all_subs                  as s
+   left join exp1_user_names                as n    on uid = names_uid
+   left join export_user_addresses          as a    on uid = address_uid
                                                    and address_use_as_postal
          where s.method = 'print';
 
