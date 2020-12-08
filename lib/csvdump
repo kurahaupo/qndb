@@ -2692,10 +2692,9 @@ sub generate_book($$;$) {
         my %w2 = map { ( $_ => 1 ) } @wg_order;
         delete @w1{ @wg_order };
         delete @w2{ @wg };
-        ! %w1 or die sprintf "WG_ORDER is missing %s\n", join ',', sort keys %w1;
         ! %w2 or warn sprintf "WG_ORDER has excess %s\n", join ',', sort keys %w2;
+        ! %w1 or die sprintf "WG_ORDER is missing %s\n", join ',', sort keys %w1;
     }
-
 
     my $pq = new PDF::paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
 
