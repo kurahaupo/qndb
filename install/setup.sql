@@ -742,7 +742,8 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_1_postal_code             as address_postal_code,
              a.field_user_address_1_country                 as address_country,
              a.field_user_address_1_data                    as address_data,
-             phy.entity_id is not null                      as address_use_as_physical,
+             null /*unlabelled #1*/                         as address_label,
+             phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
         from field_data_field_user_address_1        as a
    left join field_data_field_user_physical_address as phy  on phy.entity_id                            = a.entity_id
@@ -777,7 +778,8 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_2_postal_code             as address_postal_code,
              a.field_user_address_2_country                 as address_country,
              a.field_user_address_2_data                    as address_data,
-             phy.entity_id is not null                      as address_use_as_physical,
+             null /*unlabelled #2*/                         as address_label,
+             phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
         from field_data_field_user_address_2        as a
    left join field_data_field_user_physical_address as phy  on phy.entity_id                            = a.entity_id
@@ -812,7 +814,8 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_3_postal_code             as address_postal_code,
              a.field_user_address_3_country                 as address_country,
              a.field_user_address_3_data                    as address_data,
-             phy.entity_id is not null                      as address_use_as_physical,
+             null /*unlabelled #3*/                         as address_label,
+             phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
         from field_data_field_user_address_3        as a
    left join field_data_field_user_physical_address as phy  on phy.entity_id                            = a.entity_id
@@ -846,7 +849,8 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_4_postal_code             as address_postal_code,
              a.field_user_address_4_country                 as address_country,
              a.field_user_address_4_data                    as address_data,
-             phy.entity_id is not null                      as address_use_as_physical,
+             null /*unlabelled #3*/                         as address_label,
+             phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
         from field_data_field_user_address_4        as a
    left join field_data_field_user_physical_address as phy  on phy.entity_id                            = a.entity_id
@@ -871,24 +875,25 @@ create or replace view export_user_addresses2 as
              address_slot,
              address_language,
              concat(
-                    ifnull( concat('FIRST_AND_LAST_NAMES:',     address_first_name, ' ',  address_last_name, '\n'),
-                     ifnull( concat('FIRST_NAME:',              address_first_name, '\n'),
-                      ifnull( concat('LAST_NAME:',              address_last_name, '\n'),
+                    ifnull( concat(   /*'FIRST_AND_LAST_NAMES:',    */ address_first_name, ' ',  address_last_name, '\n'),
+                     ifnull( concat(  /*'FIRST_NAME:',              */ address_first_name, '\n'),
+                      ifnull( concat( /*'LAST_NAME:',               */ address_last_name, '\n'),
                        ''))),
-                    ifnull(concat('NAME_LINE:',                 address_name_line, '\n'), ''),
-                    ifnull(concat('ORGANISATION_NAME:',         address_organisation_name, '\n'), ''),
-                    ifnull(concat('SUB_PREMISE:',               address_sub_premise, '\n'), ''),
-                    ifnull(concat('PREMISE:',                   address_line_two, '\n'), ''),
-                    ifnull(concat('THOROUGHFARE:',              address_thoroughfare, '\n'), ''),
-                    ifnull(concat('DEPENDENT_LOCALITY:',        address_dependent_locality, '\n'), ''),
-                    ifnull(concat('LOCALITY:',                  address_locality, '\n'), ''),
-                    ifnull(concat('SUB_ADMINISTRATIVE_AREA:',   address_sub_administrative_area, '\n'), ''),
-                    ifnull(concat('ADMINISTRATIVE_AREA:',       address_administrative_area, '\n'), ''),
-                    ifnull(concat('POSTCODE:',                  address_postal_code, '\n'), ''),
-                    ifnull(concat('CC:',                        address_country), 'NZ*')
+                    ifnull(concat(    /*'NAME_LINE:',               */ address_name_line, '\n'), ''),
+                    ifnull(concat(    /*'ORGANISATION_NAME:',       */ address_organisation_name, '\n'), ''),
+                    ifnull(concat(    /*'SUB_PREMISE:',             */ address_sub_premise, '\n'), ''),
+                    ifnull(concat(    /*'PREMISE:',                 */ address_line_two, '\n'), ''),
+                    ifnull(concat(    /*'THOROUGHFARE:',            */ address_thoroughfare, '\n'), ''),
+                    ifnull(concat(    /*'DEPENDENT_LOCALITY:',      */ address_dependent_locality, '\n'), ''),
+                    ifnull(concat(    /*'LOCALITY:',                */ address_locality, '\n'), ''),
+                    ifnull(concat(    /*'SUB_ADMINISTRATIVE_AREA:', */ address_sub_administrative_area, '\n'), ''),
+                    ifnull(concat(    /*'ADMINISTRATIVE_AREA:',     */ address_administrative_area, '\n'), ''),
+                    ifnull(concat(    /*'POSTCODE:',                */ address_postal_code, '\n'), ''),
+                    ifnull(concat(    /*'CC:',                      */ address_country), 'NZ*')
                     ) as address,
              address_data,
-             address_use_as_physical,
+             address_label,
+             address_show_in_book,
              address_use_as_postal
         from exp_normalise_user_addresses;
 
@@ -904,7 +909,7 @@ create or replace view export_user_addresses as
              ai.field_preformatted_address_value                    as address,
              al.field_label_value                                   as address_label,
              ifnull(ap.field_use_as_postal_address_value, 0)   != 0 as address_use_as_postal,
-             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_in_book
+             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_show_in_book
         from field_data_field_addresses             as a
    left join field_data_field_label                 as al   on a.field_addresses_value=al.entity_id
                                                            and al.entity_type = 'field_collection_item'
