@@ -23,7 +23,7 @@ use Carp 'confess';
 use POSIX 'strftime', 'floor';
 
 use list_functions qw( flatten uniq randomly_choose flip_coin );
-use quaker_info qw( @wg_order );
+use quaker_info qw( @mm_order @wg_order %wg_map );
 
 sub uid { $_[0]->{uid}; }
 
@@ -80,9 +80,46 @@ sub listed_phone {
     return flatten $r->{personal_phone}, $r->{household_phone}, $r->{other_phone};
 }
 
+    sub _mash_addresses($) {
+        my $r = shift;
+        my $pp = delete $r->{__addresses} or return;
+        for my $p (@$pp) {
+            my $slot = $p->{address_slot};
+            $r->{addresses}[$slot] = {
+                label           => $p->{address_label},
+                address         => $p->{address},
+                show_in_book    => $p->{address_show_in_book},
+                use_as_postal   => $p->{address_use_as_postal},
+            };
+        }
+    }
+
+    sub _mash_addresses2($) {
+        my $r = shift;
+        my $pp = delete $r->{__addresses2} or return;
+        for my $p (@$pp) {
+            my $slot = $p->{address_slot};
+            $r->{addresses2}[$slot] = {
+                label           => $p->{address_label},
+                address         => $p->{address},
+                show_in_book    => $p->{address_show_in_book},
+                use_as_postal   => $p->{address_use_as_postal},
+            };
+        }
+    }
+
 sub listed_address {
     my $r = shift;
-    return 'TODO';  # TODO
+    return
+    map {
+        my $A = $_->{address};
+        $A =~ s/\n*(?:New Zealand)$//;
+        my $L = $_->{address_label};
+        $A = "$L: $A" if $L;
+        $A
+    } grep {
+        $_ && $_->{address_show_in_book} && $_->{address}
+    } flatten $r->{__addresses};
 }
 
 sub mobile_number {
@@ -226,6 +263,7 @@ sub want_wg_listings($) {
         my @w = @$w;
         @w = grep { $_ } map { $_->{wgroup_name} } @w;
         @w or @w = 'NONE';
+        @w = map { $wg_map{$_} || $_ } @w;
         \@w
     } }; # TODO
 }
@@ -251,6 +289,7 @@ sub needs_overseas_postage($) {
 }
 
 { package SQL::Drupal7::user_addresses;     use parent 'SQL::Drupal7'; use export; }
+{ package SQL::Drupal7::user_addresses2;    use parent 'SQL::Drupal7'; use export; }
 { package SQL::Drupal7::user_email_subs;    use parent 'SQL::Drupal7'; use export; }
 { package SQL::Drupal7::user_kin;           use parent 'SQL::Drupal7'; use export; }
 { package SQL::Drupal7::user_mm_member;     use parent 'SQL::Drupal7'; use export; }
