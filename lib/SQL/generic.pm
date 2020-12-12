@@ -21,7 +21,7 @@ use SQL::Drupal7;
 use DBI;
 use Data::Dumper;
 use Time::HiRes 'time';
-use Carp qw( carp cluck croak );
+use Carp qw( carp cluck croak confess );
 
 use verbose;
 
@@ -124,6 +124,7 @@ sub Connect($\%) {
     }
 
     $opts{RaiseError}  = 1;
+    $opts{mysql_enable_utf8} = 1;   # doesn't seem to work
     my $user = delete $opts{user};
     my $pass = delete $opts{pass};
 
@@ -138,6 +139,12 @@ sub Connect($\%) {
             warn "Opts:".Dumper(\%opts);
             confess $@;
          };
+
+    my $t1 = time;
+
+    my $cmd = 'SET NAMES utf8';
+    my $sth = $dbh->prepare($cmd) or die "Could not prepare '$cmd':" . $dbh->errstr . "\n";
+    $sth->execute                 or die "Could not execute '$cmd':" . $sth->errstr . "\n";
 
     my $t1 = time;
 
@@ -245,7 +252,8 @@ sub fetch_users($) {
     warn sprintf "Mapped %s rows to %s keys\n", scalar @$ru, scalar keys %mu;
 
     for my $tk (qw(
-                    exp_normalise_user_addresses.address_uid
+                    export_user_addresses.address_uid
+                    export_user_addresses2.address_uid
                     exp_user_mm_member.mmm_uid
                     export_email_subs.uid
                     export_print_subs.uid
