@@ -738,6 +738,7 @@ begin   /* {{ */
           from exp_normalise_user_addresses
           join users on address_uid = uid
                     and address_vid = vid
+          left
           join field_data_field_address_visibility on entity_type = 'user'
                                                   and bundle = 'user'
                                                   and entity_id = uid
