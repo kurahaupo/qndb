@@ -44,8 +44,8 @@ insert into expmap_reverse_relations
                                            and k1.kin_uid  = u1.uid
   left join users                    as u2  on k1.kin_uid2 = u2.uid
   left join users                    as u3  on k2.kin_uid2 = u3.uid
-     having rev_uid1 is null
-         or symmetric and uid1 != rev_uid1
+      where k2.kin_uid2 is null
+         or symmetric and k1.kin_uid != k2.kin_uid2
          or u1.uid is null
          or u2.uid is null
          or u3.uid is null
