@@ -234,33 +234,39 @@ sub fetch_mms($) {
 EoQ
 }
 
-sub fetch_distrib($$) {
-    my $dbx = shift;
-    my $type = shift;
-    $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
-    my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, "select * from export_${type}_subs", 'SQL::Drupal7::{$type}_sub';
-}
+#TODO: pull apart user_all_subs into user_email_subs and user_print_subs
+#   sub fetch_distrib($$) {
+#       my $dbx = shift;
+#       my $type = shift;
+#       $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
+#       my $dbh = $dbx->{dbh};
+#       return _fetch_rows $dbh, "select * from experl_user_all_subs where method='$type'", 'SQL::Drupal7::{$type}_sub';
+#   }
 
 sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    my $ru = _fetch_rows $dbh, 'select * from export_full_users', SQL::Drupal7::users::;
+    my $ru = _fetch_rows $dbh, 'select * from experl_full_users', SQL::Drupal7::users::;
     $_->{user_name} //= delete $_->{name} for @$ru;   # WTF?!? whyyyy, Drupal?
 
     my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
     warn sprintf "Mapped %s rows to %s keys\n", scalar @$ru, scalar keys %mu;
 
     for my $tk (qw(
-                    export_user_addresses.address_uid
-                    export_user_addresses2.address_uid
-                    exp_user_mm_member.mmm_uid
-                    export_email_subs.uid
-                    export_print_subs.uid
-                    export_user_kin.kin_uid
-                    export_user_notes.notes_uid
-                    export_user_phones.phone_uid
-                    export_user_wgroup.wgroup_uid
+
+                    experl_user_access_needs.access_needs_uid
+                    experl_user_med_needs.med_needs_uid
+                    experl_user_addresses.address_uid
+                    experl_user_addresses2.address_uid
+                    experl_user_all_subs.subs_uid
+                    experl_user_kin.kin_uid
+                    experl_user_mm_member.mmm_uid
+                    experl_user_notes.notes_uid
+                    experl_user_phones.phone_uid
+                    experl_user_visible_emails.visible_email_uid
+                    experl_user_websites.website_uid
+                    experl_user_wgroup.wgroup_uid
+
                 )) {
         my ($tt, $k) = split /\./, $tk;
         my $t = $tt =~ s/^.*user_|^exp.*?_//r;

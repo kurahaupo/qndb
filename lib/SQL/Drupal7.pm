@@ -288,14 +288,21 @@ sub needs_overseas_postage($) {
 
 }
 
-{ package SQL::Drupal7::user_addresses;     use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_addresses2;    use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_email_subs;    use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_kin;           use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_mm_member;     use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_notes;         use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_phones;        use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_print_subs;    use parent 'SQL::Drupal7'; use export; }
-{ package SQL::Drupal7::user_wgroup;        use parent 'SQL::Drupal7'; use export; }
+{ package SQL::Drupal7::user_access_needs;      use parent 'SQL::Drupal7'; use export; }        # access_needs_uid
+{ package SQL::Drupal7::user_addresses2;        use parent 'SQL::Drupal7'; use export; }        # key=address_uid
+{ package SQL::Drupal7::user_addresses;         use parent 'SQL::Drupal7'; use export; }        # key=address_uid
+{ package SQL::Drupal7::user_all_subs;          use parent 'SQL::Drupal7'; use export; }        # key=subs_uid
+{ package SQL::Drupal7::user_kin;               use parent 'SQL::Drupal7'; use export; }        # key=kin_uid
+{ package SQL::Drupal7::user_med_needs;         use parent 'SQL::Drupal7'; use export; }        # key=med_needs_uid
+{ package SQL::Drupal7::user_mm_member;         use parent 'SQL::Drupal7'; use export; }        # key=mmm_uid
+{ package SQL::Drupal7::user_notes;             use parent 'SQL::Drupal7'; use export; }        # key=notes_uid
+{ package SQL::Drupal7::user_phones;            use parent 'SQL::Drupal7'; use export; }        # key=phones_uid
+{ package SQL::Drupal7::user_phones;            use parent 'SQL::Drupal7'; use export; }        # key=phone_uid
+{ package SQL::Drupal7::user_visible_emails;    use parent 'SQL::Drupal7'; use export; }        # key=visible_email_uid
+{ package SQL::Drupal7::user_websites;          use parent 'SQL::Drupal7'; use export; }        # key=website_uid
+{ package SQL::Drupal7::user_wgroup;            use parent 'SQL::Drupal7'; use export; }        # key=wgroup_uid
+
+{ package SQL::Drupal7::user_email_subs;        use parent 'SQL::Drupal7::user_all_subs'; }     # TODO: not used yet
+{ package SQL::Drupal7::user_print_subs;        use parent 'SQL::Drupal7::user_all_subs'; }     # TODO: not used yet
 
 1;

@@ -10,74 +10,6 @@ any multiple rows they will be ignored.
 
 */
 
-/*********** Visible Email ***********
-
-mysql> desc field_data_field_user_fax;
-+-----------------------+------------------+------+-----+---------+-------+
-| Field                 | Type             | Null | Key | Default | Extra |
-+-----------------------+------------------+------+-----+---------+-------+
-| entity_type           | varchar(128)     | NO   | PRI |         |       |
-| bundle                | varchar(128)     | NO   | MUL |         |       |
-| deleted               | tinyint(4)       | NO   | PRI | 0       |       |
-| entity_id             | int(10) unsigned | NO   | PRI | NULL    |       |
-| revision_id           | int(10) unsigned | YES  | MUL | NULL    |       |
-| language              | varchar(32)      | NO   | PRI |         |       |
-| delta                 | int(10) unsigned | NO   | PRI | NULL    |       |
-| field_user_fax_value  | varchar(255)     | YES  |     | NULL    |       |
-| field_user_fax_format | varchar(255)     | YES  | MUL | NULL    |       |
-+-----------------------+------------------+------+-----+---------+-------+
-
-*/
-
-select 'exp_user_visible_email' as `Creating Internal View`;
-
-create or replace view exp_user_visible_email as
-      select entity_id                  as visible_email_uid,
-             revision_id                as visible_email_rev,
-             language                   as visible_email_language,
-             delta                      as visible_email_delta,
-             field_user_fax_value       as visible_email,
-             field_user_fax_format      as visible_email_format
-        from field_data_field_user_fax
-       where entity_type          = 'user'
-         and bundle               = 'user'
-         and not deleted
-         and field_user_fax_value like '%@%';
-
-/*********** Website ***********
-
-mysql> desc field_data_field_user_website;
-+---------------------------+------------------+------+-----+---------+-------+
-| Field                     | Type             | Null | Key | Default | Extra |
-+---------------------------+------------------+------+-----+---------+-------+
-| entity_type               | varchar(128)     | NO   | PRI |         |       |
-| bundle                    | varchar(128)     | NO   | MUL |         |       |
-| deleted                   | tinyint(4)       | NO   | PRI | 0       |       |
-| entity_id                 | int(10) unsigned | NO   | PRI | NULL    |       |
-| revision_id               | int(10) unsigned | YES  | MUL | NULL    |       |
-| language                  | varchar(32)      | NO   | PRI |         |       |
-| delta                     | int(10) unsigned | NO   | PRI | NULL    |       |
-| field_user_website_value  | varchar(255)     | YES  |     | NULL    |       |
-| field_user_website_format | varchar(255)     | YES  | MUL | NULL    |       |
-+---------------------------+------------------+------+-----+---------+-------+
-
-*/
-
-select 'exp_user_website' as `Creating View`;
-
-create or replace view exp_user_website as
-      select entity_id                      as website_uid,
-             revision_id                    as website_rev,
-             language                       as website_language,
-             delta                          as website_delta,
-             field_user_website_value       as website,
-             field_user_website_format      as website_format
-        from field_data_field_user_website
-       where entity_type              = 'user'
-         and bundle                   = 'user'
-         and not deleted
-         and field_user_website_value != '';
-
 /*********** Birthdate ***********
 
 mysql> desc field_data_field_user_birthdate;
@@ -96,7 +28,7 @@ mysql> desc field_data_field_user_birthdate;
 
 */
 
-select 'exp_user_birthdate' as `Creating View`;
+select 'exp_user_birthdate' as `Creating Internal View`;
 
 create or replace view exp_user_birthdate as
        select entity_id                  as birthdate_uid,
@@ -129,7 +61,7 @@ mysql> desc field_data_field_user_joined_year;
 
 */
 
-select 'exp_user_joined_year' as `Creating View`;
+select 'exp_user_joined_year' as `Creating Internal View`;
 
 create or replace view exp_user_joined_year as
        select entity_id                         as joined_year_uid,
@@ -176,7 +108,7 @@ mysql> desc field_data_field_short_name;
 
 */
 
-select 'exp_user_mm_member' as `creating`;
+select 'exp_user_mm_member' as `Creating Internal View`;
 
 create or replace view exp_user_mm_member as
       select um.entity_id                       as mmm_uid,
@@ -192,7 +124,8 @@ create or replace view exp_user_mm_member as
                                                    and mmt.entity_id   = um.field_user_main_og_target_id
        where um.entity_type = 'user'
          and um.bundle      = 'user'
-         and not um.deleted;
+         and not um.deleted
+;
 
 /*
 
@@ -323,23 +256,6 @@ create or replace view exp_user_sname as
          and bundle                     = 'user'
          and not deleted
          and field_user_last_name_value != '';
-
-/* View `exp1_user_names` combines surname, given name, and preferred name as
- * one joined query; must FOLLOW those definitions. */
-
-select 'exp1_user_names' as `Creating Internal View`;
-
-create or replace view exp1_user_names as
-      select uid                                                as names_uid,
-             concat(ifnull(pref_name, given_name), ' ',surname) as full_name,
-             pref_name,
-             given_name,
-             surname
-        from users
-   left join exp_user_pname on uid=pname_uid
-   left join exp_user_gname on uid=gname_uid
-   left join exp_user_sname on uid=sname_uid;
-
 /* End Names */
 
 
@@ -413,14 +329,14 @@ mysql> desc field_data_field_user_inactive;
 */
 
 /*
-    `exp_active_users` links the users table with the core set of
+    `exp_all_users` links the users table with the core set of
     status control flags: inactive, deceased, and resigned, as those
     are very often required for subsequent joins.
 */
 
-select 'exp_active_users' as `Creating Internal View`;
+select 'exp_all_users' as `Creating Internal View`;
 
-create or replace view exp_active_users as
+create or replace view exp_all_users as
       select u.*,
              ifnull(o.field_user_old_id_value, u.uid + 4096)    as old_uid,
              u.status                                       = 0 as blocked,
@@ -448,6 +364,16 @@ create or replace view exp_active_users as
          and u.name != ''
     group by u.uid;
 
+/* people who aren't dead */
+
+select 'exp_active_users' as `Creating Internal View`;
+
+create or replace view exp_active_users as
+      select *
+        from exp_all_users
+       where not blocked
+         and not deceased;
+
 /*********************** USER RECORDS ***********************
  *
  * Select from `users` and left-join with all the singleton adjunct  tables.
@@ -463,8 +389,8 @@ create or replace view experl_full_users as
              pn.pref_name,
              gn.given_name,
              sn.surname,
-             ve.visible_email,
-             wb.website,
+             /*ve.visible_email,*/
+             /*wb.website,*/
              bd.birthdate,
              jy.joined_year,
              mm.mmm_xmid    as mm_id,
@@ -473,8 +399,8 @@ create or replace view experl_full_users as
    left join exp_user_pname            as pn on uid = pname_uid
    left join exp_user_gname            as gn on uid = gname_uid
    left join exp_user_sname            as sn on uid = sname_uid
-   left join exp_user_visible_email    as ve on uid = visible_email_uid
-   left join exp_user_website          as wb on uid = website_uid
+   /*left join exp_user_visible_email    as ve on uid = visible_email_uid*/
+   /*left join exp_user_website          as wb on uid = website_uid*/
    left join exp_user_birthdate        as bd on uid = birthdate_uid
    left join exp_user_joined_year      as jy on uid = joined_year_uid
    left join exp_user_mm_member        as mm on uid = mmm_uid
