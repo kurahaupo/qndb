@@ -148,7 +148,7 @@ mysql> select * from field_data_field_user_postal_address where entity_id = 849;
 
 */
 
-select 'exp_normalise_user_addresses' as `creating`;
+select 'exp_normalise_user_addresses' as `Creating Internal View`;
 
 create or replace view exp_normalise_user_addresses as
       select a.entity_id                                    as address_uid,
@@ -294,7 +294,7 @@ create or replace view exp_normalise_user_addresses as
          and a.bundle      = 'user'
          and not a.deleted;
 
-select 'experl_user_addresses2' as `creating`;
+select 'experl_user_addresses2' as `Creating View`;
 
 create or replace view experl_user_addresses2 as
       select address_uid,
@@ -325,7 +325,7 @@ create or replace view experl_user_addresses2 as
         from exp_normalise_user_addresses;
 
 
-select 'experl_user_addresses' as `creating`;
+select 'experl_user_addresses' as `Creating View`;
 
 create or replace view experl_user_addresses as
       select a.entity_id                                            as address_uid,

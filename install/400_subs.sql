@@ -7,7 +7,7 @@ select 'Subscriptions' as `CREATING `;
 
 /* unpivot the MM delivery-method table → one row per non-zero column */
 
-select 'exp_unpivot_mm_del' as `creating`;
+select 'exp_unpivot_mm_del' as `Creating Internal View`;
 
 create or replace view exp_unpivot_mm_del as
       select uid,
@@ -25,7 +25,7 @@ create or replace view exp_unpivot_mm_del as
 
 /* unpivot the YM subscription table → one row per non-zero column */
 
-select 'exp_unpivot_ym_subs' as `creating`;
+select 'exp_unpivot_ym_subs' as `Creating Internal View`;
 
 create or replace view exp_unpivot_ym_subs as
       select uid,
@@ -47,7 +47,7 @@ create or replace view exp_unpivot_ym_subs as
 /* Can't use "mid" for "meeting ID" because MID() is a MySQL string function.
  * Use xmid & xmtag, because they apply to both MM & YM
  */
-select 'exp_unpivot_mm_subs' as `creating`;
+select 'exp_unpivot_mm_subs' as `Creating Internal View`;
 
 create or replace view exp_unpivot_mm_subs as
      select uid,
@@ -83,7 +83,7 @@ create or replace view exp_unpivot_mm_subs as
 
 /* join the (unpivoted) MM subs & MM deliveries, and union with the YM subs */
 
-select 'experl_user_all_subs' as `creating`;
+select 'experl_user_all_subs' as `Creating View`;
 
 create or replace view experl_user_all_subs as
       select s.uid                      as subs_uid,

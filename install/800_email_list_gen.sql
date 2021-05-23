@@ -7,11 +7,12 @@
     Needs experl_user_all_subs
 */
 
-select 'expmap_xm_domain' as `re-creating`;
+select 'expmap_xm_domain' as `Creating Internal Table`;
 
 create or replace table expmap_xm_domain (
             xmtag       varchar(5) primary key,
-            domain      varchar(255) not null);
+            domain      varchar(255) not null)
+    default character set=utf8;
 insert into expmap_xm_domain (xmtag, domain) values
             ('YM',  'yearly-meeting.quakers.nz'),
             ('YF',  'young-friends.quakers.nz'),
@@ -25,7 +26,7 @@ insert into expmap_xm_domain (xmtag, domain) values
             ('CH',  'christchurch.quakers.nz'),
             ('DN',  'otago.quakers.nz');
 
-select 'expmap_email_sub' as `re-creating`;
+select 'expmap_email_sub' as `Creating Internal Table`;
 
 create or replace table expmap_email_sub (
             xmtag       varchar(5) not null,
@@ -33,7 +34,8 @@ create or replace table expmap_email_sub (
             primary key (xmtag, channel),
             key (xmtag),
             key (channel),
-            list_email  varchar(255) not null);
+            list_email  varchar(255) not null)
+    default character set=utf8;
 insert into expmap_email_sub values
             /* newsletters            */
             /* agenda                 */
@@ -44,9 +46,9 @@ insert into expmap_email_sub values
             ('YM', 'ym_clerks_letter',       'clerks-letter@yearly-meeting.quakers.nz');
 
 
-select 'export_email_subs' as `creating`;
+select 'experl_email_subs' as `Creating View`;
 
-create or replace view export_email_subs as
+create or replace view experl_email_subs as
       select lower(ifnull(m.list_email,
                           concat(s.channel,
                                  '@',

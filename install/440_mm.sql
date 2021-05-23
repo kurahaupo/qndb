@@ -42,11 +42,11 @@ create or replace view experl_user_mm_member as
              um.field_user_main_og_target_id    as mmm_xmid,
              mmt.field_short_name_value         as mmm_xmtag,
              1                                  as mmm_formal_member
-        from field_data_field_user_main_og  as um
-   left join field_data_field_short_name    as mmt  on mmt.entity_type = 'node'
-                                                   and mmt.bundle      = 'meeting_group'
-                                                   and not mmt.deleted
-                                                   and mmt.entity_id   = um.field_user_main_og_target_id
+        from field_data_field_user_main_og      as um
+   left join field_data_field_short_name        as mmt  on mmt.entity_type = 'node'
+                                                       and mmt.bundle      = 'meeting_group'
+                                                       and not mmt.deleted
+                                                       and mmt.entity_id   = um.field_user_main_og_target_id
        where um.entity_type = 'user'
          and um.bundle      = 'user'
          and not um.deleted

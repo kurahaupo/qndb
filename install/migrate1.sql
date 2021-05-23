@@ -538,7 +538,7 @@ create or replace procedure test_user_addresses( in xuid integer unsigned,
 begin   /* {{ */
 
     declare dry_run boolean default action_mode = @ACTION_DRY_RUN;
-    declare wrap_transaction boolean default action_mode in( @ACTION_ROLLBACK, @ACTION_COMMIT );
+    declare wrap_transaction boolean default action_mode in ( @ACTION_ROLLBACK, @ACTION_COMMIT );
     declare do_commit boolean default action_mode >= @ACTION_COMMIT;
 
     declare xvid   integer unsigned default null;

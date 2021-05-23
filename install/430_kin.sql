@@ -110,7 +110,7 @@ mysql> desc field_data_field_user_spouse
 
 */
 
-select 'experl_user_kin' as `creating`;
+select 'experl_user_kin' as `Creating View`;
 
 create or replace view experl_user_kin as
      select ukin.entity_id                          as kin_uid,

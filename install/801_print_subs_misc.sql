@@ -34,9 +34,9 @@ create or replace view exp1_user_names as
 ;
 
 
-select 'export_print_subs' as `creating view`;
+select 'experl_print_subs' as `Creating View`;
 
-create or replace view export_print_subs as
+create or replace view experl_print_subs as
       select n.*,
              s.*,
              a.*
@@ -46,9 +46,9 @@ create or replace view export_print_subs as
                                                    and address_use_as_postal
          where s.method = 'print';
 
-select 'export_print_subs2' as `creating legacy view`;
+select 'experl_print_subs2' as `Creating Legacy View`;
 
-create or replace view export_print_subs2 as
+create or replace view experl_print_subs2 as
       select n.*,
              s.*,
              a.*
