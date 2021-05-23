@@ -1,6 +1,6 @@
 delimiter ';;'
 
-create or replace procedure repair_addresses()
+create or replace procedure repair_legacy_addresses()
         modifies sql data
         sql security invoker
 begin
@@ -75,6 +75,42 @@ begin
 
     update field_data_field_user_address_4 set field_user_address_4_first_name = null               where field_user_address_4_first_name in ( 'c/-', 'c/o', 'c/' ) and field_user_address_4_last_name is null;
     update field_data_field_user_address_4 set field_user_address_4_name_line  = null               where field_user_address_4_name_line  in ( 'c/-', 'c/o', 'c/' );
+
+end
+;;
+
+create or replace procedure repair_deceased()
+        modifies sql data
+        sql security invoker
+begin
+
+    select 'Appending "-RIP" to usernames of deceased persons' as `Action`;
+
+    select uid, name, concat(name,'-RIP') as newname, 'deceased' as `Alive?`
+      from users as u
+     where uid in (
+                select entity_id
+                  from field_data_field_user_deceased
+                 where entity_type='user'
+                   and bundle='user'
+                   and not deleted
+                   and field_user_deceased_value
+            )
+       and binary(name) not like '%-RIP'
+    ;
+
+    update users
+       set name = concat(name,'-RIP')
+     where uid in (
+                select entity_id
+                  from field_data_field_user_deceased
+                 where entity_type='user'
+                   and bundle='user'
+                   and not deleted
+                   and field_user_deceased_value
+             )
+       and binary(name) not like '%-RIP'
+    ;
 
 end
 ;;
