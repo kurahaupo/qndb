@@ -18,21 +18,31 @@ argv0=$( readlink -e "$0" ) || die EX_OSFILE "Cannot locate $0"
 dir=${argv0%"${argv0##*/}"}
 [[ $dir = /*/ ]] || die EX_INTERNAL "$argv0 is not absolute, from $0"
 
-dry_run=false
-gen_drop=false
-gen_summary=false
-one_by_one=false
+declare -ri yes=true no=false
 
+declare -i dry_run=false
+declare -i gen_drop=false
+declare -i gen_summary=false
+declare -i one_by_one=false
+
+declare -i val=true
 for ((;$#;)) do
     case $1 in
-        -1|--one-by-one)    one_by_one=true ;;
-        -d|--gen-drop)      gen_drop=true ;;
-        -s|--gen-summary)   gen_summary=true ;;
-        -n|--dry_run)       dry_run=true ;;
-        -*) die EX_USAGE "Invalid option '%1'" ;;
+        -1|--one-by-one)    one_by_one=$val ;;
+        -m|--no-one-by-one) one_by_one=!$val ;;
+        -d|--gen-drop)      gen_drop=$val ;;
+        -s|--gen-summary)   gen_summary=$val ;;
+        -n|--dry-run)       dry_run=$val ;;
+
+        --) shift ; break ;;
+        --no-*) val=!val ; set -- "--${1:5}" "${@:2}" ; continue ;;
+        -[A-Z]) val=!val ; set --   "${1,,}" "${@:2}" ; continue ;;
+        -[!-]?*) set -- "${1:0:2}" "-${1:2}" "${@:2}" ; continue ;;
+        -?*) die EX_USAGE "Invalid option '%1'" ;;
         *)  break ;;
     esac
     shift
+    val=true
 done
 
 (($#)) && die EX_USAGE "Non-option args not allowed"
@@ -48,17 +58,19 @@ if (( gen_drop )) ; then
     sort -u |
     sed -e "
         /^Tables_in/d ;
+
         /^exdata_/bt ;
         /^expmap_/bt ;
         /^qdbt_/bt ;
+
         /^exp[0-9]*_/bv ;
         /^export_/bv ;
         /^qdbv_/bv ;
-        d;
-        s@.*@/* & */@ ; p ; d ;
 
-    :t; s/.*/ select '&' as \`dropping table\`; drop table \`&\`;/ ; p ; d ;
-    :v; s/.*/ select '&' as \`dropping view\`;  drop view \`&\`;/  ; p ; d ;
+        d;
+
+    :t; s/.*/ select '&' as \`Dropping Table\`; drop table \`&\`;/ ; p ; d ;
+    :v; s/.*/ select '&' as \`Dropping View\`;  drop view \`&\`;/  ; p ; d ;
     "
     } > "$f"
 fi
@@ -82,7 +94,7 @@ if (( gen_summary )) ; then
     t='$summary'
     f=999_summary.sql
     {
-    printf "select '%s' as \`creating\`;\n" "$t"
+    printf "select '%s' as \`Creating Summary View\`;\n" "$t"
 
     echo "create or replace view \`$t\` as"
     mysql 2>/dev/null quakers <<< 'show tables;' |
