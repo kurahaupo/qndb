@@ -52,6 +52,8 @@ then
     done
 fi
 
+kpid=
+
 while
     desc=( "${book_opts[@]#--book-}" )
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
@@ -109,8 +111,16 @@ EndOfHelp
     desc=( "${desc[@]/?(ndex|isting)?(-by)-/x\/}" )
     printf >&2 'Book [%s] ...\n' "${desc[*]}"
 
-    time ${libdir}csvdump --preset=book --skip-suppressed-listing "$input_file" "${cur_book_opts[@]}" --force-overwrite --output="$bookfile" &&
-    { evince "$bookfile" <>/dev/null >&0 2>&0 3>&- 4>&- 5>&- 6>&- & }
+    if
+        time ${libdir}csvdump --preset=book --skip-suppressed-listing "$input_file" "${cur_book_opts[@]}" --force-overwrite --output="$bookfile"
+    then
+        if [[ $kpid ]] ; then
+            kill -INT "$kpid"
+            wait "$kpid"
+        fi
+        evince "$bookfile" <>/dev/null >&0 2>&0 3>&- 4>&- 5>&- 6>&- &
+        kpid=$!
+    fi
 
     ((once)) && break
 done
