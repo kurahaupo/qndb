@@ -69,8 +69,8 @@ if (( gen_drop )) ; then
 
         d;
 
-    :t; s/.*/ select '&' as \`Dropping Table\`; drop table \`&\`;/ ; p ; d ;
-    :v; s/.*/ select '&' as \`Dropping View\`;  drop view \`&\`;/  ; p ; d ;
+    :t; s/.*/ select '&' as \`Dropping Table\`; drop table if exists \`&\`;/ ; p ; d ;
+    :v; s/.*/ select '&' as \`Dropping View\`;  drop view if exists \`&\`;/  ; p ; d ;
     "
     } > "$f"
 fi
