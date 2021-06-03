@@ -68,4 +68,3 @@ create or replace view experl_email_subs as
    left join expmap_email_sub               as m    on s.xmtag = m.xmtag
                                                    and s.channel = m.channel
          where s.method = 'email';
-

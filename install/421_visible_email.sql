@@ -32,4 +32,3 @@ create or replace view experl_user_visible_emails as
          and bundle               = 'user'
          and not deleted
          and field_user_fax_value like '%@%';
-

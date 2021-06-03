@@ -100,4 +100,3 @@ create or replace view experl_user_all_subs as
              channel,
              concat('YM_', channel)     as sub_channel
         from exp_unpivot_ym_subs        as s;
-

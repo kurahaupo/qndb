@@ -28,7 +28,7 @@ use quaker_info qw( @mm_order @wg_order %wg_map );
 sub uid { $_[0]->{uid}; }
 
 sub hide_listing() {
-    return undef;   # don't hide. TODO: look for privacy flag
+    return ! $_[0]->{visible};
 }
 
 sub name($) {
@@ -40,7 +40,7 @@ sub name($) {
         #$pn ||= $gn;
         #$gn ||= $pn;
         my $clean_name  = delete $r->{full_name}
-                       || join( ' ', grep { $_ } $gn || $pn, $sn )
+                       || join( ' ', grep { $_ } $pn || $gn, $sn )
                        || '';
         my $sort_by_givenname = lc join ' ', grep { $_ } $gn, $sn;
         my $sort_by_surname   = lc join ' ', grep { $_ } $sn, $gn;
@@ -50,14 +50,13 @@ sub name($) {
                                                 pref_name         => $pn,
                                                 sort_by_surname   => $sort_by_surname,
                                                 sort_by_givenname => $sort_by_givenname;
-        $r->{composite_name} = $n;
         $n;
     }
 }
 
 sub listed_email {
     my $r = shift;
-    return $r->{visible_email} // ();
+    return $r->{visible_emails} // ();
 }
 
     my %phone_slot_map = (
@@ -78,6 +77,18 @@ sub listed_phone {
     my $r = shift;
     _mash_phones $r;
     return flatten $r->{personal_phone}, $r->{household_phone}, $r->{other_phone};
+}
+
+sub mobile_number {
+    my $r = shift;
+    _mash_phones $r;
+    return flatten $r->{personal_phone};
+}
+
+sub phone_number {
+    my $r = shift;
+    _mash_phones $r;
+    return flatten $r->{household_phone};
 }
 
     sub _mash_addresses($) {
@@ -110,6 +121,7 @@ sub listed_phone {
 
 sub listed_address {
     my $r = shift;
+    _mash_addresses $r;
     return
     map {
         my $A = $_->{address};
@@ -118,20 +130,23 @@ sub listed_address {
         $A = "$L: $A" if $L;
         $A
     } grep {
-        $_ && $_->{address_show_in_book} && $_->{address}
-    } flatten $r->{__addresses};
+        $_ && $_->{show_in_book} && $_->{address}
+    } flatten $r->{addresses};
 }
 
-sub mobile_number {
+sub postal_address {
     my $r = shift;
-    _mash_phones $r;
-    return flatten $r->{personal_phone};
-}
-
-sub phone_number {
-    my $r = shift;
-    _mash_phones $r;
-    return flatten $r->{household_phone};
+    _mash_addresses $r;
+    return
+    map {
+        my $A = $_->{address};
+        $A =~ s/\n*(?:New Zealand)$//;
+        my $L = $_->{address_label};
+        $A = "$L: $A" if $L;
+        $A
+    } grep {
+        $_ && $_->{use_as_postal} && $_->{address}
+    } flatten $r->{addresses};
 }
 
 sub birthdate {
@@ -173,8 +188,8 @@ sub fix_one {
     $r->{show_me_in_young_friends_listing} = 'TODO';
 
     $r->{fax} = ''; # defunct
-    $r->{listed_address} = 'TODO';
-    $r->{postal_address} = 'TODO';
+  # $r->{listed_address} = $r->listed_address;
+  # $r->{postal_address} = $r->postal_address;
     $r->{receive_local_newsletter_by_post} = 'TODO';
     $r->{nz_friends_by_post} = 'TODO';
     $r->{receive_local_newsletter_by_email} = 'TODO';
@@ -289,7 +304,7 @@ sub needs_overseas_postage($) {
 }
 
 { package SQL::Drupal7::user_access_needs;      use parent 'SQL::Drupal7'; use export; }        # access_needs_uid
-{ package SQL::Drupal7::user_addresses2;        use parent 'SQL::Drupal7'; use export; }        # key=address_uid
+#{ package SQL::Drupal7::user_addresses2;        use parent 'SQL::Drupal7'; use export; }        # key=address_uid
 { package SQL::Drupal7::user_addresses;         use parent 'SQL::Drupal7'; use export; }        # key=address_uid
 { package SQL::Drupal7::user_all_subs;          use parent 'SQL::Drupal7'; use export; }        # key=subs_uid
 { package SQL::Drupal7::user_kin;               use parent 'SQL::Drupal7'; use export; }        # key=kin_uid

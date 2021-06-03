@@ -168,7 +168,6 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_1_locality                as address_locality,
              a.field_user_address_1_postal_code             as address_postal_code,
              a.field_user_address_1_country                 as address_country,
-             a.field_user_address_1_data                    as address_data,
              null /*unlabelled #1*/                         as address_label,
              phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
@@ -204,7 +203,6 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_2_locality                as address_locality,
              a.field_user_address_2_postal_code             as address_postal_code,
              a.field_user_address_2_country                 as address_country,
-             a.field_user_address_2_data                    as address_data,
              null /*unlabelled #2*/                         as address_label,
              phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
@@ -240,7 +238,6 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_3_locality                as address_locality,
              a.field_user_address_3_postal_code             as address_postal_code,
              a.field_user_address_3_country                 as address_country,
-             a.field_user_address_3_data                    as address_data,
              null /*unlabelled #3*/                         as address_label,
              phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
@@ -275,7 +272,6 @@ create or replace view exp_normalise_user_addresses as
              a.field_user_address_4_locality                as address_locality,
              a.field_user_address_4_postal_code             as address_postal_code,
              a.field_user_address_4_country                 as address_country,
-             a.field_user_address_4_data                    as address_data,
              null /*unlabelled #3*/                         as address_label,
              phy.entity_id is not null                      as address_show_in_book,
              pos.entity_id is not null                      as address_use_as_postal
@@ -293,6 +289,31 @@ create or replace view exp_normalise_user_addresses as
        where a.entity_type = 'user'
          and a.bundle      = 'user'
          and not a.deleted;
+
+/*
+
+mysql> describe field_data_field_address_visibility;
++--------------------------------+------------------+------+-----+---------+-------+
+| Field                          | Type             | Null | Key | Default | Extra |
++--------------------------------+------------------+------+-----+---------+-------+
+| entity_type                    | varchar(128)     | NO   | PRI |         |       |
+| bundle                         | varchar(128)     | NO   | MUL |         |       |
+| deleted                        | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                      | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                    | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                       | varchar(32)      | NO   | PRI |         |       |
+| delta                          | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_address_visibility_value | int(11)          | YES  | MUL | NULL    |       |
++--------------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.05 sec)
+
+*/
+/*
+
+As an interim measure, we report "address_show_in_book" and "address_visible"
+as the same extracted value.
+
+*/
 
 select 'experl_user_addresses2' as `Creating View`;
 
@@ -317,12 +338,17 @@ create or replace view experl_user_addresses2 as
                     ifnull(concat(    /*'ADMINISTRATIVE_AREA:',     */ address_administrative_area, '\n'), ''),
                     ifnull(concat(    /*'POSTCODE:',                */ address_postal_code, '\n'), ''),
                     ifnull(concat(    /*'CC:',                      */ address_country), 'NZ*')
-                    ) as address,
-             address_data,
+                    )                                               as address,
              address_label,
-             address_show_in_book,
-             address_use_as_postal
-        from exp_normalise_user_addresses;
+             address_use_as_postal,
+             address_show_in_book and ifnull(field_address_visibility_value, 0) as address_show_in_book,
+             address_show_in_book and ifnull(field_address_visibility_value, 0) as address_visible
+        from exp_normalise_user_addresses
+   left join field_data_field_address_visibility    as v     on address_uid = v.entity_id
+                                                            and v.entity_type   = 'user'
+                                                            and v.bundle        = 'user'
+                                                            and not v.deleted
+   group by address_uid, address_slot;
 
 
 select 'experl_user_addresses' as `Creating View`;
@@ -336,7 +362,8 @@ create or replace view experl_user_addresses as
              ai.field_preformatted_address_value                    as address,
              al.field_label_value                                   as address_label,
              ifnull(ap.field_use_as_postal_address_value, 0)   != 0 as address_use_as_postal,
-             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_show_in_book
+             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_show_in_book,
+             ifnull(ab.field_print_in_book_value, 0)           != 0 as address_visible
         from field_data_field_addresses             as a
    left join field_data_field_label                 as al   on a.field_addresses_value=al.entity_id
                                                            and al.entity_type = 'field_collection_item'

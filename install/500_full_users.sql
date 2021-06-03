@@ -26,21 +26,42 @@ mysql> desc field_data_field_user_birthdate;
 | field_user_birthdate_value | int(11)          | YES  |     | NULL    |       |
 +----------------------------+------------------+------+-----+---------+-------+
 
+mysql> describe field_data_field_birthday_visibility;
++---------------------------------+------------------+------+-----+---------+-------+
+| Field                           | Type             | Null | Key | Default | Extra |
++---------------------------------+------------------+------+-----+---------+-------+
+| entity_type                     | varchar(128)     | NO   | PRI |         |       |
+| bundle                          | varchar(128)     | NO   | MUL |         |       |
+| deleted                         | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                       | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                     | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                        | varchar(32)      | NO   | PRI |         |       |
+| delta                           | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_birthday_visibility_value | int(11)          | YES  | MUL | NULL    |       |
++---------------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.05 sec)
+
 */
 
 select 'exp_user_birthdate' as `Creating Internal View`;
 
 create or replace view exp_user_birthdate as
-       select entity_id                  as birthdate_uid,
-              revision_id                as birthdate_rev,
-              language                   as birthdate_language,
-              delta                      as birthdate_delta,
-              field_user_birthdate_value as birthdate
-         from field_data_field_user_birthdate
-        where entity_type = 'user'
-          and bundle      = 'user'
-          and not deleted
-          and field_user_birthdate_value != 0
+       select b.entity_id                                   as birthdate_uid,
+              b.revision_id                                 as birthdate_rev,
+              b.language                                    as birthdate_language,
+              b.delta                                       as birthdate_delta,
+              b.field_user_birthdate_value                  as birthdate,
+              ifnull(v.field_birthday_visibility_value, 0)  as birthday_visible
+         from field_data_field_user_birthdate       as b
+    left join field_data_field_birthday_visibility  as v on b.entity_type = v.entity_type
+                                                        and b.entity_id   = v.entity_id
+                                                        and b.bundle      = v.bundle
+                                                        and b.delta       = v.delta
+                                                        and not v.deleted
+        where b.entity_type = 'user'
+          and b.bundle      = 'user'
+          and not b.deleted
+          and b.field_user_birthdate_value != 0
 ;
 
 /*
@@ -326,6 +347,21 @@ mysql> desc field_data_field_user_inactive;
 | field_user_inactive_value | int(11)          | YES  | MUL | NULL    |       |
 +---------------------------+------------------+------+-----+---------+-------+
 
+mysql> describe field_data_field_visibility;
++------------------------+------------------+------+-----+---------+-------+
+| Field                  | Type             | Null | Key | Default | Extra |
++------------------------+------------------+------+-----+---------+-------+
+| entity_type            | varchar(128)     | NO   | PRI |         |       |
+| bundle                 | varchar(128)     | NO   | MUL |         |       |
+| deleted                | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id              | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id            | int(10) unsigned | YES  | MUL | NULL    |       |
+| language               | varchar(32)      | NO   | PRI |         |       |
+| delta                  | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_visibility_value | int(11)          | YES  | MUL | NULL    |       |
++------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.16 sec)
+
 */
 
 /*
@@ -342,7 +378,8 @@ create or replace view exp_all_users as
              u.status                                       = 0 as blocked,
              ifnull(r.field_user_resigned_value, false)         as resigned,
              ifnull(d.field_user_deceased_value, false)         as deceased,
-             ifnull(i.field_user_inactive_value, false)         as inactive
+             ifnull(i.field_user_inactive_value, false)         as inactive,
+             ifnull(v.field_visibility_value, false)            as visible
         from users                          as u
    left join field_data_field_user_old_id   as o    on o.entity_id   = u.uid
                                                    and o.entity_type = 'user'
@@ -360,6 +397,10 @@ create or replace view exp_all_users as
                                                    and i.entity_type = 'user'
                                                    and i.bundle      = 'user'
                                                    and not i.deleted
+   left join field_data_field_visibility    as v    on v.entity_id   = u.uid
+                                                   and v.entity_type = 'user'
+                                                   and v.bundle      = 'user'
+                                                   and not v.deleted
        where u.name is not null
          and u.name != ''
     group by u.uid;
@@ -406,3 +447,22 @@ create or replace view experl_full_users as
    left join exp_user_mm_member        as mm on uid = mmm_uid
     group by u.uid
 ;
+
+/*
+
+mysql> describe field_data_field_visibility;
++------------------------+------------------+------+-----+---------+-------+
+| Field                  | Type             | Null | Key | Default | Extra |
++------------------------+------------------+------+-----+---------+-------+
+| entity_type            | varchar(128)     | NO   | PRI |         |       |
+| bundle                 | varchar(128)     | NO   | MUL |         |       |
+| deleted                | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id              | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id            | int(10) unsigned | YES  | MUL | NULL    |       |
+| language               | varchar(32)      | NO   | PRI |         |       |
+| delta                  | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_visibility_value | int(11)          | YES  | MUL | NULL    |       |
++------------------------+------------------+------+-----+---------+-------+
+8 rows in set (0.05 sec)
+
+*/
