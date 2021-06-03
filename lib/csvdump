@@ -424,6 +424,8 @@ GetOptions
     'A=i'                         => sub { $page_size = $_[0].$_[1]; $page_width = $page_height = undef },  #A4 etc
     'B=i'                         => sub { $page_size = $_[0].$_[1]; $page_width = $page_height = undef },  #B4 etc
     'all-regions|any-region'      => sub { @restrict_regions = () },
+    'book-font=s'                 => \$book_fontname,
+    'book-font-email=s'           => \$book_email_fontname,
     'book-index-all'              => \$do_book_index_all,
     'book-index-by-mm'            => \$do_book_index_by_mm,
     'book-index-by-wg'            => \$do_book_index_by_wg,
@@ -458,6 +460,7 @@ GetOptions
     'encode-utf8|eu8'             => sub { $use_encoding = 'UTF-8' },
     'encoding=s'                  =>      \$use_encoding,
     'escape-char=s'               => \$csv_escape_char,
+    'font-dir=s'                  => \$PDF::paginator::ttf_dir,
     'force-decode-octet|force-decode-byte|fdb' => sub { $force_decoding = 'OCTET' },
     'force-decode-utf16be|fdu16b' => sub { $force_decoding = 'UTF-16BE' },
     'force-decode-utf16le|fdu16l' => sub { $force_decoding = 'UTF-16LE' },
@@ -489,6 +492,8 @@ GetOptions
     'include-unlisted!'           => N$skip_unlisted,
     'include-unsubscribed!'       => N$skip_unsub,
     'instruction-color|instruction-colour=s' => \$label_banner_colour,
+    'label-font=s'                => \$label_fontname,
+    'label-font-banner=s'         => \$label_banner_font,
     'label-height|lh=s'           => M$printable_label_height,
     'label-step-across|lxw=s'     => M$label_step_across,
     'label-step-down|lxh=s'       => M$label_step_down,
