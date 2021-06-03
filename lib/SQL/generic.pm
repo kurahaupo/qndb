@@ -144,12 +144,20 @@ sub Connect($\%) {
 
     my $cmd = 'SET NAMES utf8';
     my $sth = $dbh->prepare($cmd) or die "Could not prepare '$cmd':" . $dbh->errstr . "\n";
+
+    my $t2 = time;
+
     $sth->execute                 or die "Could not execute '$cmd':" . $sth->errstr . "\n";
 
-    my $t1 = time;
+    my $t3 = time;
 
-    warn sprintf "Connecting to [%s] took %.3fs\n",
-                $dsn, $t1-$t0
+    warn sprintf "Connecting to [%s] took %.3fs\n"
+                ."   then PREPARE took %.3fs\n"
+                ."   then EXECUTE took %.3fs\n",
+                $dsn,
+                $t1-$t0,
+                $t2-$t1,
+                $t3-$t2,
             if $debug;
 
     return bless { dbh => $dbh }, $class;
@@ -272,18 +280,24 @@ sub fetch_users($) {
         my $t = $tt =~ s/^.*user_|^exp.*?_//r;
         my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::Drupal7::user_$t";
         my %rz;
+        my $missing_users = 0;
         for my $r (@$rr) {
-            my $uid = $r->{$k} // do { warn sprintf "Missing UID key %s in %s\n", $k, Dumper($r); next };
-            my $u = $mu{$uid}  // do { warn sprintf "No user with UID value %s in %s\n", $uid, Dumper($r); next };
+            my $uid = $r->{$k} //= do { warn sprintf "Missing UID key %s of %s\n", $k, $tt; next };
+            # We filter out users who are blocked, deleted, or deceased, but we
+            # will still get their anciliary records, so avoid complaining
+            # about them.
+            my $u = $mu{$uid} //= do { ++$missing_users; next; };
+            # $u // do { warn sprintf "No user with UID value %s from key %s of %s\n", $uid, $k, $tt; +{ uid => $uid } };
             push @{$u->{"__$t"}}, $r;
             $rz{$uid}++;
         }
-        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s (user field «%s»)\n",
+        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s (user field «%s»)\n\tMissing users: %s\n",
                     $tt,
                     scalar @$rr,
                     scalar keys %rz,
                     $k,
                     "__$t",
+                    $missing_users || "(none)",
                 if $debug;
     }
 
