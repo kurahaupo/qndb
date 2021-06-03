@@ -255,7 +255,7 @@ my @selection_tags;
 ########################################
 # Output selections
 
-my $do_test = 0;
+my $do_birthday_dump = 0;
 my $do_book = 0;
 my $do_book_index_all;
 my $do_book_index_by_mm;
@@ -264,12 +264,12 @@ my $do_book_listing_all;
 my $do_book_listing_by_mm;
 my $do_book_listing_by_wg;
 my $do_diff = 0;
-my $do_birthday_dump = 0;
 my $do_diffable_dump = 0;
-my $do_tag_report = 0;
+my $do_datadump = 0;
 my $do_labels = 0;
 my $do_qndb_map = 0;
-my $book_phones_first = 1;
+my $do_tag_report = 0;
+my $do_test = 0;
 
 my $output_name;
 my $force_overwrite;
@@ -328,6 +328,8 @@ my $book_fontsize = 8.5*pt;     # depends on page size scaling
 my $book_pagenumber_fontsize = $book_fontsize / PHI;
 my $book_margin_fontsize = $book_fontsize * PHI;
 my $use_page_numbers;
+
+my $book_phones_first = 1;
 
 ########################################
 # Label formatting options
@@ -435,6 +437,7 @@ GetOptions
     'class|only-class=s'          => sub { push @restrict_classes, split /[, ]+/, pop },
     'explicitly-shared!'          => \$CSV::Common::only_explicitly_shared_email,
     'csv'                         => sub { $csv_fs_char = ',' },
+    'data-dumper'                 => \$do_datadump,
     'debug|x'                     => sub { set_verbose 'debug='.$_[-1] },
     'decode-octet|decode-byte|db' => sub { $presume_decoding = 'OCTET' },
     'decode-utf16be|du16b'        => sub { $presume_decoding = 'UTF-16BE' },
@@ -442,11 +445,11 @@ GetOptions
     'decode-utf8|du8'             => sub { $presume_decoding = 'UTF-8' },
     'decoding=s'                  =>      \$presume_decoding,
     'diff'                        => \$do_diff,
-    'diff-quietly'                => \$diff_quietly,
     'diff-by-any'                 => sub { $diff_by = '' },
     'diff-by-name'                => sub { $diff_by = 'name' },
     'diff-by-uid'                 => sub { $diff_by = 'uid' },
     'diff-ignore-file=s'          => \$diff_ignore_file,
+    'diff-quietly'                => \$diff_quietly,
     'dump|diffable-dump'          => \$do_diffable_dump,
     'birthday-dump'               => \$do_birthday_dump,
     'encode-octet|encode-byte|eb' => sub { $use_encoding = 'OCTET' },
@@ -3257,7 +3260,7 @@ sub generate_test($) {
 # Sanity-check command-line args
 #
 
-$do_test || $do_book || $do_diff || $do_birthday_dump || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
+$do_test || $do_book || $do_datadump || $do_diff || $do_birthday_dump || $do_diffable_dump || $do_tag_report || $do_labels || $do_qndb_map or die "Need at least one of: --book-* --labels --diff --dump --qndb-map\n";
 
 #
 # Actual work...
@@ -3288,6 +3291,9 @@ else {
 
     for my $a (@ARGV) {
         my $rr = read_source $a;
+        if ($do_datadump) {
+            print "All records:\n", Dumper($rr);
+        }
         if ($do_book) {
             # Force overwrite if the output filename is related to (but not the same as) the input filename
             my $o = $output_name || ( $force_overwrite ||= -1, $a =~ s/(?:\.\w+|)$/-book.pdf/r );
@@ -3340,4 +3346,3 @@ Examples:
    $pdf->mediabox('A4');
    $pdf->mediabox(595, 842);
    $pdf->mediabox(0, 0, 595, 842);
-
