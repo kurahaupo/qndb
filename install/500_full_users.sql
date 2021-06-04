@@ -231,39 +231,51 @@ mysql> desc field_data_field_user_last_name;
 | field_user_last_name_format | varchar(255)     | YES  | MUL | NULL    |       |
 +-----------------------------+------------------+------+-----+---------+-------+
 
+NB: BEGIN WARNING NOTE TODO WARNING NOTE TODO {[({[({[(
+
+    The MySQL database swaps users' preferred names and legal/given names.
+
+    Because that's a database screw-up, fix it here, not the Perl code: get
+    "pname" (preferred name) from field_data_field_user_first_name, and get
+    "gname" (given/legal name) from field_data_field_user_preferred_name.
+
 */
-
-select 'exp_user_gname' as `Creating Internal View`;
-
-create or replace view exp_user_gname as
-      select entity_id                      as gname_uid,
-             revision_id                    as gname_rev,
-             language                       as gname_language,
-             delta                          as gname_delta,
-             field_user_first_name_value    as given_name,
-             field_user_first_name_format   as gname_format
-        from field_data_field_user_first_name
-       where entity_type                 = 'user'
-         and bundle                      = 'user'
-         and not deleted
-         and field_user_first_name_value != '';
 
 select 'exp_user_pname' as `Creating Internal View`;
 
 create or replace view exp_user_pname as
-      select entity_id                          as pname_uid,
-             revision_id                        as pname_rev,
-             language                           as pname_language,
-             delta                              as pname_delta,
-             field_user_preferred_name_value    as pref_name,
-             field_user_preferred_name_format   as pname_format
+      select entity_id                      as pname_uid,
+             revision_id                    as pname_rev,
+             language                       as pname_language,
+             delta                          as pname_delta,
+             field_user_first_name_value    as pref_name,
+             field_user_first_name_format   as pname_format
+        from field_data_field_user_first_name
+       where entity_type = 'user'
+         and bundle      = 'user'
+         and not deleted
+         and field_user_first_name_value != '';
+
+select 'exp_user_gname' as `Creating Internal View`;
+
+create or replace view exp_user_gname as
+      select entity_id                          as gname_uid,
+             revision_id                        as gname_rev,
+             language                           as gname_language,
+             delta                              as gname_delta,
+             field_user_preferred_name_value    as given_name,
+             field_user_preferred_name_format   as gname_format
         from field_data_field_user_preferred_name
-       where entity_type                     = 'user'
-         and bundle                          = 'user'
+       where entity_type = 'user'
+         and bundle      = 'user'
          and not deleted
          and field_user_preferred_name_value != '';
 
 select 'exp_user_sname' as `Creating Internal View`;
+
+/*
+NB: END WARNING NOTE TODO WARNING NOTE TODO - see description above )]})]})]}
+*/
 
 create or replace view exp_user_sname as
       select entity_id                      as sname_uid,
