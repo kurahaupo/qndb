@@ -223,6 +223,11 @@ my $sql_pass;
 my $sql_pass_file;
 
 ########################################
+# Filtering that applies at the SQL layer
+
+our $hide_address_labels = 1;
+
+########################################
 # How are records selected (these affect various modes in DWIM ways...)
 
 use constant {
@@ -468,6 +473,7 @@ GetOptions
     'force-decoding=s'            =>      \$force_decoding,
     'force-overwrite|f!'          => \$force_overwrite,
     'fs-char|sep-char=s'          => \$csv_fs_char,
+    'hide-address-labels'         => \$hide_address_labels,
     'hide-adult-birthdays!'       => \$hide_adult_birthdays,
     'hide-hyperlinks!'            => \$hide_hyperlinks,
     'hide-last-updated!'          => \$hide_last_update,
@@ -528,6 +534,7 @@ GetOptions
     'sample-tail'                 => sub { $sample_method = SAMPLE_METHOD_TAIL; },
     'select-and-include=s'        => II { push @selection_tags, $_[1]; push @inclusion_labels, $_[0]; push @inclusion_tags, $_[1]; },
     'select=s'                    => II { push @selection_tags, $_[0]; },
+    'show-address-labels'         => N$hide_address_labels,
     'show-adult-birthdays!'       => N$hide_adult_birthdays,
     'show-hyperlinks!'            => N$hide_hyperlinks,
     'show-last-updated!'          => N$hide_last_update,

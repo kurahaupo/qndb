@@ -125,9 +125,12 @@ sub listed_address {
     return
     map {
         my $A = $_->{address};
+        $A =~ s/[\r\n]+/\n/g;
         $A =~ s/\n*(?:New Zealand)$//;
-        my $L = $_->{address_label};
-        $A = "$L: $A" if $L;
+        if (! $::hide_address_labels) {
+            my $L = $_->{address_label};
+            $A = "$L: $A" if $L;
+        }
         $A
     } grep {
         $_ && $_->{show_in_book} && $_->{address}
@@ -140,9 +143,12 @@ sub postal_address {
     return
     map {
         my $A = $_->{address};
+        $A =~ s/[\r\n]+/\n/g;
         $A =~ s/\n*(?:New Zealand)$//;
-        my $L = $_->{address_label};
-        $A = "$L: $A" if $L;
+        if (! $::hide_address_labels) {
+            my $L = $_->{address_label};
+            $A = "$L: $A" if $L;
+        }
         $A
     } grep {
         $_ && $_->{use_as_postal} && $_->{address}
