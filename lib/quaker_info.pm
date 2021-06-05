@@ -22,10 +22,12 @@ our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
     'WN - Wellington',
     'YF - Young Friends',
     'NO - not in any meeting',
+    'XX - practice',
+    'control - control',
 ;
 
 # Arrange Monthly Meetings in North-to-South order
-our @mm_order = qw( NT MNI WG TN PN KP WN CH DN YF NO );
+our @mm_order = qw( NT MNI WG TN PN KP WN CH DN YF NO XX control );
 
 our %skip_mm_listing = (
 #       AK => 1,
@@ -118,58 +120,36 @@ our %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) 
 our %wg_map = (
 
     'CH - Canterbury'                   => 'CH - Christchurch',
-    'Christchurch Worship Group'        => 'CH - Christchurch',
-    'Golden Bay'                        => 'CH - Golden Bay',
-    'Marlborough'                       => 'CH - Marlborough',
-    'Motueka'                           => 'CH - Motueka',
-    'Nelson Recognised Meeting'         => 'CH - Nelson',
-    'South Canterbury'                  => 'CH - South Canterbury',
-    'Westland'                          => 'CH - Westland',
+    'CH - Christchurch Worship Group'   => 'CH - Christchurch',
+    'CH - Nelson Recognised Meeting'    => 'CH - Nelson',
 
     'DN - Otago'                        => 'DN - Dunedin',
-    'Dunedin Worship Group'             => 'DN - Dunedin',
+    'DN - Dunedin Worship Group'        => 'DN - Dunedin',
     'DN - Southland'                    => 'DN - Invercargill',
-    'Invercargill'                      => 'DN - Invercargill',
 
     'KP - Kapiti'                       => 'KP - Kāpiti',
-    'Kāpiti'                            => 'KP - Kāpiti',
-    'K?piti'                            => 'KP - Kāpiti',       # bug in database connector doesn't do UTF8
+#   'KP - K?piti'                       => 'KP - Kāpiti',       # bug in database connector sometimes doesn't do UTF8
 
-    'Hamilton'                          => 'MNI - Hamilton',
     'MNI - Waikato'                     => 'MNI - Hamilton',
-    'Tauranga'                          => 'MNI - Tauranga',
-    'Thames & Coromandel'               => 'MNI - Thames & Coromandel',
     'MNI - Whakatane'                   => 'MNI - Wairarapa',
-    'Wairarapa Worship Group'           => 'MNI - Wairarapa',
-    'Whakatane'                         => 'MNI - Wairarapa',
+    'MNI - Wairarapa Worship Group'     => 'MNI - Wairarapa',
+    'MNI - Whakatane'                   => 'MNI - Wairarapa',
 
     'NONE'                              => 'NO - not in any worship group',
     'Not attending any NZ meeting'      => 'NO - not in any worship group',
+    'control - Not attending any NZ meeting' => 'NO - not in any worship group',
 
-    'Bay of Islands'                    => 'NT - Bay of Islands',
-    'Howick'                            => 'NT - Howick',
-    'Kaitaia'                           => 'NT - Kaitaia',
-    'Mt Eden'                           => 'NT - Mt Eden',
-    'North Shore'                       => 'NT - North Shore',
-    'Waiheke Island, Auckland'          => 'NT - Waiheke',
+    'NT - Waiheke Island, Auckland'     => 'NT - Waiheke',
     ' Auckland'                         => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
-    'Waiheke Island'                    => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
-    'Warkworth'                         => 'NT - Warkworth',
+    'NT - Waiheke Island'               => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
     'NT - Whangarei'                    => 'NT - Whangārei',
-    'Whangārei'                         => 'NT - Whangārei',
-    'Whang?rei'                         => 'NT - Whangārei',    # bug in database connector doesn't do UTF8
-    'Hawkes Bay'                        => 'PN - Hawkes Bay',
-    'Levin'                             => 'PN - Levin',
-    'Palmerston North'                  => 'PN - Palmerston North',
+#   'NT - Whang?rei'                    => 'NT - Whangārei',    # bug in database connector doesn't do UTF8
 
-    'New Plymouth'                      => 'TN - New Plymouth',
-    'Stratford'                         => 'TN - Stratford',
+    'WG - Quaker Settlement'            => 'WG - Settlement',
 
-    'Quaker Settlement'                 => 'WG - Settlement',
-    'Whanganui'                         => 'WG - Whanganui',
-
-    'Hutt Valley Worship Group'         => 'WN - Hutt Valley',
-    'Wellington Worship Group'          => 'WN - Wellington',
+    'WN - Hutt Valley Worship Group'    => 'WN - Hutt Valley',
+    'WN - Wellington Worship Group'     => 'WN - Wellington',
+    'WN - Wairarapa Worship Group'      => 'WN - Wairarapa',
 
 );
 

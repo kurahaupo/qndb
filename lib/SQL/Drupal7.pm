@@ -25,6 +25,13 @@ use POSIX 'strftime', 'floor';
 use list_functions qw( flatten uniq randomly_choose flip_coin );
 use quaker_info qw( @mm_order @wg_order %wg_map );
 
+sub gtags_is_fake {1}
+sub gtags {
+    confess "GTAGS not applicable to SQL database";
+}
+
+sub is_archived { return 0; }   # no correspondence to gtags
+
 sub uid { $_[0]->{uid}; }
 
 sub hide_listing() {
@@ -191,7 +198,7 @@ sub fix_one {
     $r->{monthly_meeting_area} = do { delete $r->{mmm_xmtag} } // '';
     $r->{formal_membership} = do { my $mmm = delete $r->{__mm_member}; $mmm ? join "\n", map { $_->{mmm_xmtag} } @$mmm : undef; } // '';
     $r->{inactive} = 0; # TODO
-    $r->{show_me_in_young_friends_listing} = 'TODO';
+    $r->{show_me_in_young_friends_listing} = flip_coin 0.875; # TODO
 
     $r->{fax} = ''; # defunct
   # $r->{listed_address} = $r->listed_address;
@@ -207,6 +214,8 @@ sub fix_one {
 }
 
 sub want_shown_in_book {
+    my $r = shift;
+    return $r->{visible};
     return 1;   # TODO
 }
 
@@ -277,23 +286,59 @@ sub is_maci($) {
 
 sub want_wg_listings($) {
     my $r = shift;
-    #state $wgx = [ grep { !/^NO/ } @wg_order ];
-    #return @{ $r->{__wg_listings} ||= [ randomly_choose flip_coin 0.125 ? 2 : 1, @$wgx ] }; # TODO
     return @{ $r->{__wg_listings} ||= do {
-        my $w = delete $r->{__wgroup} || [];
-        my @w = @$w;
-        @w = grep { $_ } map { $_->{wgroup_name} } @w;
-        @w or @w = 'NONE';
-        @w = map { $wg_map{$_} || $_ } @w;
-        \@w
-    } }; # TODO
+        my $wg = $r->{__wgroup} || [];
+        my @wg = grep { $_ } map { $_->{wgroup_xmtag} . ' - ' . $_->{wgroup_name} } @$wg;
+        @wg or @wg = 'NONE';
+        @wg = map { $wg_map{$_} || $_ } @wg;
+        push @wg, 'YF' if $r->{show_me_in_young_friends_listing};
+        [ uniq @wg ]
+    } };
+}
+
+sub want_wg_listing($$) {
+    my ($r, $wg) = @_;
+    return ( $r->{__wg_listingx} ||= do {
+        my %wg = map { ( $_ => 1 ) } $r->want_wg_listings;
+        \%wg
+    } )->{$wg};
 }
 
 sub want_mm_listings($) {
     my $r = shift;
-    my @wg = want_wg_listings $r;
-    s/\S.*// for @wg;
-    return uniq @wg;
+    return @{ $r->{__mm_listings} ||= do {
+        my @mm = $r->{formal_membership} || ();
+        my $wg = $r->{__wgroup} || [];
+        push @mm, grep { $_ } map { $_->{wgroup_xmtag} } @$wg;
+        push @mm, 'YF' if $r->{show_me_in_young_friends_listing};
+        [ uniq @mm ];
+    } };
+}
+
+sub want_mm_listing($$) {
+    my ($r, $mm) = @_;
+    return ( $r->{__mm_listingx} ||= do {
+        my %mm = map { ( $_ => 1 ) } $r->want_mm_listings;
+        \%mm;
+    } )->{$mm};
+}
+
+sub want_elsewhere($$) {
+    my ($r, $mm) = @_;
+
+    return $r->want_mm_listing($mm)
+        && ! ( $r->{__mms_of_wg_listings} ||= do {
+                my $wg = $r->{__wgroup} || [];
+                my @mm = grep { $_ } map { $_->{wgroup_xmtag} } @$wg;
+                my %mm = map { ( $_ => 1 ) } @mm;
+                \%mm;
+            } )->{$mm};
+
+    warn "CHECK ELSEWHERE? name=".$r->name;
+    return 0;
+#   return $r->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
+#       || ! $r->gtags( qr/^listing[- ]+$mm/ )
+#         && $r->gtags( qr/^member[- ]+$mm/ )
 }
 
 sub postal_inclusions($@) {
@@ -304,7 +349,7 @@ sub postal_inclusions($@) {
 
 sub needs_overseas_postage($) {
     my $r = shift;
-    return flip_coin 0.0625;        # TODO
+    return $r->postal_address !~ /NZ$|New Zealand$/i;
 }
 
 }

@@ -1569,19 +1569,19 @@ use quaker_info '$mm_keys_re';
                 return 1;
             }
         }
-        if ( $r->can('gtags') ) {
-            if ($need_region) {
-                if ( ! $r->want_mm_listings ) {
-                    warn sprintf "Skipping NOREGION %s\n", $r->debuginfo if $why_not;
-                    return 1;
-                }
+        if ($need_region) {
+            if ( ! $r->want_mm_listings ) {
+                warn sprintf "Skipping NOREGION %s\n", $r->debuginfo if $why_not;
+                return 1;
             }
-            if ($skip_archived) {
-                if ( my @s = $r->gtags( qr/^archive - (.*)/ ) ) {
-                    warn sprintf "Skipping ARCHIVED %s [%s]\n", $r->debuginfo, "@s" if $why_not;
-                    return 1;
-                }
+        }
+        if ($skip_archived) {
+            if ( my $s = $r->is_archived ) {
+                warn sprintf "Skipping ARCHIVED %s [%s]\n", $r->debuginfo, $s if $why_not;
+                return 1;
             }
+        }
+        if ( $r->can('gtags') && ! $r->can('gtags_is_fake') ) {
             state $skips = do {
                 my @skips;
                 push @skips, 'archive - deceased'     if $skip_deceased && ! $skip_archived;
@@ -2641,10 +2641,7 @@ sub generate_labels($$;$) {
     sub elsewhere_filter($$) {
         my ($rrr, $mm) = @_;
         $rrr or return;
-        return [ grep { $_->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
-                   || ! $_->gtags( qr/^listing[- ]+$mm/ )
-                     && $_->gtags( qr/^member[- ]+$mm/ )
-                    } @$rrr ];
+        return [ grep { $_->want_elsewhere($mm) } @$rrr ];
     }
 
 use quaker_info qw( %wg_abbrev @mm_order %mm_titles @wg_order %skip_mm_listing %skip_wg_listing );
@@ -2663,20 +2660,13 @@ sub generate_book($$;$) {
         @when = localtime $^T;
     }
     my $rev_year = strftime '%Y',           @when;
-  # my $rev_date = strftime "%d-%b-%Y",     @when;
     my $rev_ts   = strftime "%H:%M %d%b%Y", @when;
-    my $return_info_page = 'XX';
 
-    my @copyright;
-  # $copyright[0] .= "Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. For personal use only. Revised $rev_date";
-    $copyright[0] .= "Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. Revised $rev_ts";
-  # $copyright[0] .= "©$rev_year. ";
-  # $copyright[1] .= "©$rev_year Quakers RSoFANZ. ";
-  # $copyright[0] .= "Personal use only - do not copy or forward without authorisation from The Religious Society of Friends Aotearoa New Zealand List Holder. ";
-    $copyright[1] .= "Personal use only - do not copy or forward without authorisation from the YM List Holder. If found please shred or burn.";
-  # $copyright[0] .= "Revised $rev_date. ";
-  # $copyright[0] .= "Revised $rev_ts. ";
-    $copyright[2] .= "For uptodate information see https://quakers.nz/find-a-friend";
+    my @copyright = split /\n+/, <<EndOfCopyright;
+Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. Revised $rev_ts
+Personal use only - do not copy or forward without authorisation from the YM Privacy Officer. If found please shred or burn.
+For uptodate information see https://quakers.nz/find-a-friend
+EndOfCopyright
 
     my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
 
@@ -2701,14 +2691,23 @@ sub generate_book($$;$) {
         }
     }
     {
-        # Find meeting tags, make sure they're in the "@wg_order" list
+        # Find WG tags, make sure they're in the "@wg_order" list
         my @wg = keys %by_wg;
         my %w1 = map { ( $_ => 1 ) } @wg;
         my %w2 = map { ( $_ => 1 ) } @wg_order;
         delete @w1{ @wg_order };
         delete @w2{ @wg };
         ! %w2 or warn sprintf "WG_ORDER has excess %s\n", join ',', sort keys %w2;
-        ! %w1 or die sprintf "WG_ORDER is missing %s\n", join ',', sort keys %w1;
+        ! %w1 or die sprintf "WG_ORDER is missing %s\nPlease resolve by editing quaker_info.pm and adding entry to \@wg_order\n", join ',', sort keys %w1;
+
+        # Find MM tags, make sure they're in the "@mm_order" list
+        my @mm = keys %by_mm;
+        my %m1 = map { ( $_ => 1 ) } @mm;
+        my %m2 = map { ( $_ => 1 ) } @mm_order;
+        delete @m1{ @mm_order };
+        delete @m2{ @mm };
+        ! %m2 or warn sprintf "MM_ORDER has excess %s\n", join ',', sort keys %m2;
+        ! %m1 or die sprintf "MM_ORDER is missing %s\nPlease resolve by editing quaker_info.pm and adding entry to \@mm_order\n", join ',', sort keys %m1;
     }
 
     my $pq = new PDF::paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
@@ -3062,7 +3061,7 @@ sub generate_book($$;$) {
         warn "doing book LISTING - all\n" if $verbose;
         # Margin name index letters
         my %render_context = (  margin_note     => "(full alphanetical listing)",
-                                heading         => "Everyone",
+                                heading         => "All Friends",
                                 heading_bold    => 1,
                                 heading_size    => $fontsize * PHI,
                              );
@@ -3137,8 +3136,8 @@ sub generate_book($$;$) {
         warn "doing book INDEX - all\n" if $verbose;
         # Margin name index letters
         push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
-        my %render_context = (  margin_note     => "full alphanetical index",
-                                heading         => "Everyone",
+        my %render_context = (  margin_note     => "(full alphanetical index)",
+                                heading         => "All Friends",
                                 heading_bold    => 1,
                                 heading_size    => $fontsize * PHI,
                              );

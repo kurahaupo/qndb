@@ -640,7 +640,8 @@ sub hide_listing($) {
 
 sub is_archived($) {
     my $r = shift;
-    return 0;   # TODO
+    return 'gtags(archived)' if $r->gtags( qr/^archive - (.*)/ );
+    return;
 }
 
 sub is_member($) {
@@ -709,6 +710,13 @@ sub want_wg_listings($) {
 sub want_mm_listings($) {
     my $r = shift;
     return uniq $r->gtags( qr/^(?:listing|member)[- ]+($mm_keys_re|YF)\b/ )
+}
+
+sub want_elsewhere($$) {
+    my ($r, $mm) = @_;
+    return $r->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
+        || ! $r->gtags( qr/^listing[- ]+$mm/ )
+          && $r->gtags( qr/^member[- ]+$mm/ )
 }
 
 sub postal_inclusions($@) {
