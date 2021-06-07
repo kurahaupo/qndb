@@ -232,76 +232,49 @@ sub _fetch_rows($$$) {
     return \@rows;
 }
 
-sub fetch_mms($) {
-    my $dbx = shift;
-    my $dbh = $dbx->{dbh};
-    return _fetch_rows $dbh, <<'EoQ', SQL::Drupal7::user_mm_member::
-        select field_short_name_value as tag, entity_id as id
-          from field_data_field_short_name
-         where bundle = 'meeting_group'
-EoQ
-}
-
-#TODO: pull apart user_all_subs into user_email_subs and user_print_subs
-#   sub fetch_distrib($$) {
-#       my $dbx = shift;
-#       my $type = shift;
-#       $type eq 'print' || $type eq 'email' || croak "parameter 2 (type) must be 'print' or 'email'";
-#       my $dbh = $dbx->{dbh};
-#       return _fetch_rows $dbh, "select * from experl_user_all_subs where method='$type'", 'SQL::Drupal7::{$type}_sub';
-#   }
-
 sub fetch_users($) {
     my $dbx = shift;
     my $dbh = $dbx->{dbh};
-    my $ru = _fetch_rows $dbh, 'select * from experl_full_users', SQL::Drupal7::users::;
-    $_->{user_name} //= delete $_->{name} for @$ru;   # WTF?!? whyyyy, Drupal?
 
-    my %mu; @mu{ map { $_->{uid} } @$ru } = @$ru;
+    my $core_class = $dbx->_core_user_class;
+    my $core_table = $core_class->fetch_from;
+    my $core_key = $core_class->fetch_key;
+
+    my @aux_classes = $dbx->_joined_user_classes;
+
+    my $ru = _fetch_rows $dbh, 'select * from '.$core_table, $core_class;
+
+    my %mu; @mu{ map { $_->{$core_key} } @$ru } = @$ru;
     warn sprintf "Mapped %s rows to %s keys\n", scalar @$ru, scalar keys %mu;
 
-    for my $tk (qw(
-
-                    experl_user_access_needs.access_needs_uid
-                    experl_user_med_needs.med_needs_uid
-                    experl_user_addresses.address_uid
-                    experl_user_addresses2.address_uid
-                    experl_user_all_subs.subs_uid
-                    experl_user_kin.kin_uid
-                    experl_user_mm_member.mmm_uid
-                    experl_user_notes.notes_uid
-                    experl_user_phones.phone_uid
-                    experl_user_visible_emails.visible_email_uid
-                    experl_user_websites.website_uid
-                    experl_user_wgroup.wgroup_uid
-
-                )) {
-        my ($tt, $k) = split /\./, $tk;
-        my $t = $tt =~ s/^.*user_|^exp.*?_//r;
-        my $rr = _fetch_rows $dbh, "select * from $tt", "SQL::Drupal7::user_$t";
+    for my $aux_class (@aux_classes) {
+        my $aux_table = $aux_class->fetch_from;
+        my $aux_key = $aux_class->fetch_key;
+        my $t = $aux_table =~ s/^.*user_|^exp.*?_//r;
+        my $rr = _fetch_rows $dbh, "select * from $aux_table", $aux_class;
         my %rz;
         my $missing_users = 0;
         for my $r (@$rr) {
-            my $uid = $r->{$k} //= do { warn sprintf "Missing UID key %s of %s\n", $k, $tt; next };
+            my $uid = $r->{$aux_key} //= do { warn sprintf "Missing UID key %s of %s\n", $aux_key, $aux_table; next };
             # We filter out users who are blocked, deleted, or deceased, but we
             # will still get their anciliary records, so avoid complaining
             # about them.
-            my $u = $mu{$uid} //= do { ++$missing_users; next; };
-            # $u // do { warn sprintf "No user with UID value %s from key %s of %s\n", $uid, $k, $tt; +{ uid => $uid } };
+            my $u = $mu{$uid} // do { ++$missing_users; next; };
+            # $u // do { warn sprintf "No user with UID value %s from key %s of %s\n", $uid, $aux_key, $aux_table; +{ uid => $uid } };
             push @{$u->{"__$t"}}, $r;
             $rz{$uid}++;
         }
-        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s (user field «%s»)\n\tMissing users: %s\n",
-                    $tt,
+        warn sprintf "Read %s, got %u rows mapped as %u uids in field %s\n\tuser field «%s» type %s\n\tMissing users: %s\n",
+                    $aux_table,
                     scalar @$rr,
                     scalar keys %rz,
-                    $k,
+                    $aux_key,
                     "__$t",
                     $missing_users || "(none)",
                 if $debug;
     }
 
-    if ( my $fix = UNIVERSAL::can(SQL::Drupal7::users::, 'fix_one') ) {
+    if ( my $fix = UNIVERSAL::can($core_class, 'fix_one') ) {
         warn sprintf "Trying fix_one using %s; starting with %d records", $fix, scalar @$ru if $debug;
         for my $u ( @$ru ) { $fix->($u) }
         warn "Completed fix_one" if $debug;

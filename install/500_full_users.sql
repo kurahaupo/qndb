@@ -47,8 +47,8 @@ select 'exp_user_birthdate' as `Creating Internal View`;
 
 create or replace view exp_user_birthdate as
        select b.entity_id                                   as birthdate_uid,
-              b.revision_id                                 as birthdate_rev,
-              b.language                                    as birthdate_language,
+           /* b.revision_id                                 as birthdate_rev, */
+           /* b.language                                    as birthdate_language, */
               b.delta                                       as birthdate_delta,
               b.field_user_birthdate_value                  as birthdate,
               ifnull(v.field_birthday_visibility_value, 0)  as birthday_visible
@@ -86,8 +86,8 @@ select 'exp_user_joined_year' as `Creating Internal View`;
 
 create or replace view exp_user_joined_year as
        select entity_id                         as joined_year_uid,
-              revision_id                       as joined_year_rev,
-              language                          as joined_year_language,
+           /* revision_id                       as joined_year_rev, */
+           /* language                          as joined_year_language, */
               delta                             as joined_year_delta,
               field_user_joined_year_value      as joined_year
          from field_data_field_user_joined_year
@@ -129,23 +129,82 @@ mysql> desc field_data_field_short_name;
 
 */
 
-select 'exp_user_mm_member' as `Creating Internal View`;
+select 'exp_user_mmlink' as `Creating Internal View`;
 
-create or replace view exp_user_mm_member as
-      select um.entity_id                       as mmm_uid,
-             um.revision_id                     as mmm_rev,
-             um.language                        as mmm_language,
-             um.delta                           as mmm_delta,
-             um.field_user_main_og_target_id    as mmm_xmid,
-             mmt.field_short_name_value         as mmm_xmtag
+create or replace view exp_user_mmlink as
+      select um.entity_id                       as mlink_uid,
+          /* um.revision_id                     as mlink_rev, */
+          /* um.language                        as mlink_language, */
+             um.delta                           as mlink_delta,
+             um.field_user_main_og_target_id    as mlink_xmid,
+             ml.field_short_name_value          as mlink_xmtag
         from field_data_field_user_main_og  as um
-   left join field_data_field_short_name    as mmt  on mmt.entity_type = 'node'
-                                                   and mmt.bundle      = 'meeting_group'
-                                                   and not mmt.deleted
-                                                   and mmt.entity_id   = um.field_user_main_og_target_id
+   left join field_data_field_short_name    as ml   on ml.entity_type = 'node'
+                                                   and ml.bundle      = 'meeting_group'
+                                                   and not ml.deleted
+                                                   and ml.entity_id   = um.field_user_main_og_target_id
        where um.entity_type = 'user'
          and um.bundle      = 'user'
          and not um.deleted
+;
+
+/*
+
+mysql> describe field_data_field_member_status;
++-------------------------+------------------+------+-----+---------+-------+
+| Field                   | Type             | Null | Key | Default | Extra |
++-------------------------+------------------+------+-----+---------+-------+
+| entity_type             | varchar(128)     | NO   | PRI |         |       |
+| bundle                  | varchar(128)     | NO   | MUL |         |       |
+| deleted                 | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id               | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id             | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                | varchar(32)      | NO   | PRI |         |       |
+| delta                   | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_member_status_tid | int(10) unsigned | YES  | MUL | NULL    |       |
++-------------------------+------------------+------+-----+---------+-------+
+
+*/
+
+select 'exdata_mstat' as `Creating Internal Table`;
+
+create or replace table exdata_mstat(
+    mstat_tid           int         primary key,
+    mstat               varchar(1)  unique key,
+    mstat_description   varchar(12)
+) default charset=utf8;
+insert into exdata_mstat
+     values ( 30, 'M', 'Member' ),
+            ( 31, 'A', 'Attender' ),
+            ( 32, 'E', 'Associate' ),
+            ( null, 'U', 'Unlinked' );
+
+select 'exp_user_mstatus' as `Creating Internal View`;
+
+create or replace view exp_user_mstatus as
+      select entity_id                      as mstat_uid,
+          /* revision_id                    as mstat_rev, */
+          /* language                       as mstat_language, */
+             delta                          as mstat_delta,
+             case field_member_status_tid
+               when 30   then 'M'
+               when 31   then 'A'
+               when 32   then 'E'
+               when null then 'U'
+               else           'X'
+             end                            as mstat,
+             case field_member_status_tid
+               when 30   then 'Member'
+               when 31   then 'Attender'
+               when 32   then 'Associate'
+               when null then 'Unlinked'
+               else    concat('StatusUnknown#', field_member_status_tid)
+             end                            as mstat_description,
+             field_member_status_tid        as mstat_tid
+       from field_data_field_member_status as ms
+      where entity_type = 'user'
+        and bundle      = 'user'
+        and not deleted
 ;
 
 /*
@@ -171,11 +230,11 @@ select 'exp_user_access_needs' as `Creating View`;
 
 create or replace view exp_user_access_needs as
        select entity_id                         as access_needs_uid,
-              revision_id                       as access_needs_rev,
-              language                          as access_needs_language,
+           /* revision_id                       as access_needs_rev, */
+           /* language                          as access_needs_language, */
               delta                             as access_needs_delta,
-              field_user_access_needs_value     as access_needs,
-              field_user_access_needs_format    as access_needs_format
+              field_user_access_needs_value     as access_needs
+           /* field_user_access_needs_format    as access_needs_format */
          from field_data_field_user_access_needs
         where entity_type = 'user'
           and bundle      = 'user'
@@ -245,11 +304,11 @@ select 'exp_user_pname' as `Creating Internal View`;
 
 create or replace view exp_user_pname as
       select entity_id                      as pname_uid,
-             revision_id                    as pname_rev,
-             language                       as pname_language,
+          /* revision_id                    as pname_rev, */
+          /* language                       as pname_language, */
              delta                          as pname_delta,
-             field_user_first_name_value    as pref_name,
-             field_user_first_name_format   as pname_format
+             field_user_first_name_value    as pref_name
+          /* field_user_first_name_format   as pname_format, */
         from field_data_field_user_first_name
        where entity_type = 'user'
          and bundle      = 'user'
@@ -260,11 +319,11 @@ select 'exp_user_gname' as `Creating Internal View`;
 
 create or replace view exp_user_gname as
       select entity_id                          as gname_uid,
-             revision_id                        as gname_rev,
-             language                           as gname_language,
+          /* revision_id                        as gname_rev, */
+          /* language                           as gname_language, */
              delta                              as gname_delta,
-             field_user_preferred_name_value    as given_name,
-             field_user_preferred_name_format   as gname_format
+             field_user_preferred_name_value    as given_name
+          /* field_user_preferred_name_format   as gname_format */
         from field_data_field_user_preferred_name
        where entity_type = 'user'
          and bundle      = 'user'
@@ -279,11 +338,11 @@ NB: END WARNING NOTE TODO WARNING NOTE TODO - see description above )]})]})]}
 
 create or replace view exp_user_sname as
       select entity_id                      as sname_uid,
-             revision_id                    as sname_rev,
-             language                       as sname_language,
+          /* revision_id                    as sname_rev, */
+          /* language                       as sname_language, */
              delta                          as sname_delta,
-             field_user_last_name_value     as surname,
-             field_user_last_name_format    as sname_format
+             field_user_last_name_value     as surname
+          /* field_user_last_name_format    as sname_format */
         from field_data_field_user_last_name
        where entity_type                = 'user'
          and bundle                     = 'user'
@@ -429,7 +488,8 @@ create or replace view exp_active_users as
 
 /*********************** USER RECORDS ***********************
  *
- * Select from `users` and left-join with all the singleton adjunct  tables.
+ * Select from `exp_active_users` and left-join with all the singleton adjunct
+ * tables, and group-id uid.
  *
  * Since this relies on all the other tables, it has to come last
  */
@@ -446,35 +506,17 @@ create or replace view experl_full_users as
              /*wb.website,*/
              bd.birthdate,
              jy.joined_year,
-             mm.mmm_xmid    as mm_id,
-             mm.mmm_xmtag   as mm_tag
+             ml.mlink_xmid    as mm_id,
+             ml.mlink_xmtag   as mm_tag
         from exp_active_users as u
    left join exp_user_pname            as pn on uid = pname_uid
    left join exp_user_gname            as gn on uid = gname_uid
    left join exp_user_sname            as sn on uid = sname_uid
-   /*left join exp_user_visible_email    as ve on uid = visible_email_uid*/
-   /*left join exp_user_website          as wb on uid = website_uid*/
+/* left join exp_user_visible_email    as ve on uid = visible_email_uid */
+/* left join exp_user_website          as wb on uid = website_uid */
    left join exp_user_birthdate        as bd on uid = birthdate_uid
    left join exp_user_joined_year      as jy on uid = joined_year_uid
-   left join exp_user_mm_member        as mm on uid = mmm_uid
+   left join exp_user_mmlink           as ml on uid = mlink_uid
+   left join exp_user_mstatus          as ms on uid = mstat_uid
     group by u.uid
 ;
-
-/*
-
-mysql> describe field_data_field_visibility;
-+------------------------+------------------+------+-----+---------+-------+
-| Field                  | Type             | Null | Key | Default | Extra |
-+------------------------+------------------+------+-----+---------+-------+
-| entity_type            | varchar(128)     | NO   | PRI |         |       |
-| bundle                 | varchar(128)     | NO   | MUL |         |       |
-| deleted                | tinyint(4)       | NO   | PRI | 0       |       |
-| entity_id              | int(10) unsigned | NO   | PRI | NULL    |       |
-| revision_id            | int(10) unsigned | YES  | MUL | NULL    |       |
-| language               | varchar(32)      | NO   | PRI |         |       |
-| delta                  | int(10) unsigned | NO   | PRI | NULL    |       |
-| field_visibility_value | int(11)          | YES  | MUL | NULL    |       |
-+------------------------+------------------+------+-----+---------+-------+
-8 rows in set (0.05 sec)
-
-*/

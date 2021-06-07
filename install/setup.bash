@@ -15,8 +15,8 @@ die() {
 }
 
 argv0=$( readlink -e "$0" ) || die EX_OSFILE "Cannot locate $0"
+[[ $argv0 = /* ]] || die EX_INTERNAL "$argv0 is not absolute, from $0"
 dir=${argv0%"${argv0##*/}"}
-[[ $dir = /*/ ]] || die EX_INTERNAL "$argv0 is not absolute, from $0"
 
 declare -ri yes=true no=false
 
@@ -28,8 +28,38 @@ declare -i one_by_one=false
 declare -i val=true
 for ((;$#;)) do
     case $1 in
+        --help)          die EX_OK \
+'%s [options]
+  -1  --one-by-one      Run each SQL command in a separate invocation of mysql
+  -d  --gen-drop        Generate a new 000_dropall.sql file
+  -s  --gen-summary     Generate a new 999_summary.sql file and run it
+  -n  --dry-run         Do not make changes to SQL database (just show)
+  -h  --help            Show this message
+
+The --gen-drop option causes all existing views to be dropped before creating
+any new ones. View creation is ordered so that this should not normally be
+needed; only if you have manually changed some views could this be an issue.
+
+The --gen-summary option causes the $summary view to be rebuilt. This view is
+as a diagnostic convenience, not a functional requirement, so this option is
+not enabled by default. (It may need to be rebuilt if views or tables are
+removed, or if a view becomes invalid because its prerequisites are
+unavailable.)
+
+The --dry-run option prevents changes to the database, and instead just prints
+what would be done. However it does not prevent reading from the database by
+the --gen-drop and --summary options.
+
+Normally all the SQL files are simply concatenated together and run in a single
+MySQL client session. If any file has a syntax error, this may prevent commands
+from all subsequent files from running. The --one-by-one option helps in this
+situation by running each SQL file in a separate MySQL client session, which is
+obviously slower but may be less fragile in the face of errors.
+
+Long options are inverted by starting them with --no, such as --no-gen-drop.
+Short options are inverted by using upper-case, such as -D.\n' "$argv0" ;;
+
         -1|--one-by-one)    one_by_one=$val ;;
-        -m|--no-one-by-one) one_by_one=!$val ;;
         -d|--gen-drop)      gen_drop=$val ;;
         -s|--gen-summary)   gen_summary=$val ;;
         -n|--dry-run)       dry_run=$val ;;
@@ -38,7 +68,7 @@ for ((;$#;)) do
         --no-*) val=!val ; set -- "--${1:5}" "${@:2}" ; continue ;;
         -[A-Z]) val=!val ; set --   "${1,,}" "${@:2}" ; continue ;;
         -[!-]?*) set -- "${1:0:2}" "-${1:2}" "${@:2}" ; continue ;;
-        -?*) die EX_USAGE "Invalid option '%1'" ;;
+        -?*) die EX_USAGE "Invalid option '%s'\n(Try %s --help)" "$1" "$argv0" ;;
         *)  break ;;
     esac
     shift

@@ -10,9 +10,9 @@ package SQL::Drupal7;
 #BEGIN { my $p = __PACKAGE__; $p =~ s@::@/@; $p .= '.pm'; warn sprintf "INC{%s} = %s\n", $p, $INC{$p}; $INC{'SQL/Drupal7.pm'} ||= __FILE__; }
 #use export; # also patches up %INC so that use « parent 'SQL::Drupal7' » works
 
-#use SQL::Common;
+#use SQL::generic;
 
-use parent 'SQL::Common';
+use parent 'SQL::generic';
 use parent 'CSV::Common';
 
 {
@@ -195,10 +195,12 @@ sub birthdate {
 sub fix_one {
     my ($r) = @_;
 
-    $r->{monthly_meeting_area} = do { delete $r->{mmm_xmtag} } // '';
-    $r->{formal_membership} = do { my $mmm = delete $r->{__mm_member}; $mmm ? join "\n", map { $_->{mmm_xmtag} } @$mmm : undef; } // '';
+    $r->{user_name} //= delete $r->{name};   # WTF?!? whyyyy, Drupal?
+
+    $r->{monthly_meeting_area} = do { $r->{mlink_xmtag} } // '';
+    $r->{formal_membership} = do { my $mlink = delete $r->{__mlink}; $mlink ? join "\n", map { $_->{mlink_xmtag} } @$mlink : undef; } // '';
     $r->{inactive} = 0; # TODO
-    $r->{show_me_in_young_friends_listing} = flip_coin 0.875; # TODO
+#   $r->{show_me_in_young_friends_listing} = flip_coin 0.875; # TODO
 
     $r->{fax} = ''; # defunct
   # $r->{listed_address} = $r->listed_address;
@@ -284,61 +286,71 @@ sub is_maci($) {
     return is_member_or_attender($r) || is_child_or_inactive($r);
 }
 
+sub _wg_set($) {
+    my $r = shift;
+    # %wg_map fixes all the variant names to a single form
+    return $r->{__wg_set} ||= { map { ( ( $wg_map{$_} ||= $_ ) => 1 ) }
+                                map { $_->{wgroup_xmtag} . ' - ' . $_->{wgroup_name} }
+                                grep { $_ }
+                                @{ $r->{__wgroup} || [] } };
+}
+
+sub _mm_from_wg_set($) {
+    my $r = shift;
+    return $r->{__mm_from_wg_set} ||= { map { ( $_ => 1 ) }
+                                        map { $_->{wgroup_xmtag} }
+                                        grep { $_ }
+                                        @{ $r->{__wgroup} || [] } };
+}
+
+sub _mm_from_og_set($) {
+    my $r = shift;
+    return $r->{__mm_from_og_set} ||= { map { ( $_ => 1 ) }
+                                        map { $_->{wgroup_xmtag} }
+                                        grep { $_ }
+                                        @{ $r->{__wgroup} || [] } };
+}
+
+sub _mm_set($) {
+    my $r = shift;
+    return $r->{__mm_set} ||= do {
+        my %mm = %{ $r->_mm_from_wg_set };
+        if (my $f = $r->{formal_membership}) {
+            $mm{$f} = 1;
+        }
+        \%mm;
+    };
+}
+
 sub want_wg_listings($) {
     my $r = shift;
-    return @{ $r->{__wg_listings} ||= do {
-        my $wg = $r->{__wgroup} || [];
-        my @wg = grep { $_ } map { $_->{wgroup_xmtag} . ' - ' . $_->{wgroup_name} } @$wg;
-        @wg or @wg = 'NONE';
-        @wg = map { $wg_map{$_} || $_ } @wg;
-        push @wg, 'YF' if $r->{show_me_in_young_friends_listing};
-        [ uniq @wg ]
-    } };
+    my @wg = keys %{ $r->_wg_set };
+    @wg or @wg = 'NONE';
+    return @wg;
 }
 
 sub want_wg_listing($$) {
     my ($r, $wg) = @_;
-    return ( $r->{__wg_listingx} ||= do {
-        my %wg = map { ( $_ => 1 ) } $r->want_wg_listings;
-        \%wg
-    } )->{$wg};
+    return $r->_wg_set->{$wg};
 }
 
 sub want_mm_listings($) {
     my $r = shift;
-    return @{ $r->{__mm_listings} ||= do {
-        my @mm = $r->{formal_membership} || ();
-        my $wg = $r->{__wgroup} || [];
-        push @mm, grep { $_ } map { $_->{wgroup_xmtag} } @$wg;
-        push @mm, 'YF' if $r->{show_me_in_young_friends_listing};
-        [ uniq @mm ];
-    } };
+    return keys %{ $r->_mm_set };
 }
 
 sub want_mm_listing($$) {
     my ($r, $mm) = @_;
-    return ( $r->{__mm_listingx} ||= do {
-        my %mm = map { ( $_ => 1 ) } $r->want_mm_listings;
-        \%mm;
-    } )->{$mm};
+    my @mm = $r->_mm_set->{$mm};
+  # @mm or @mm = 'NO';
+    return @mm;
 }
 
+# In a MM but not in any WG for that MM
 sub want_elsewhere($$) {
     my ($r, $mm) = @_;
-
-    return $r->want_mm_listing($mm)
-        && ! ( $r->{__mms_of_wg_listings} ||= do {
-                my $wg = $r->{__wgroup} || [];
-                my @mm = grep { $_ } map { $_->{wgroup_xmtag} } @$wg;
-                my %mm = map { ( $_ => 1 ) } @mm;
-                \%mm;
-            } )->{$mm};
-
-    warn "CHECK ELSEWHERE? name=".$r->name;
-    return 0;
-#   return $r->gtags( qr/^listing[- ]+$mm[- ]+elsewhere/ )
-#       || ! $r->gtags( qr/^listing[- ]+$mm/ )
-#         && $r->gtags( qr/^member[- ]+$mm/ )
+    return $r->_mm_set->{$mm} && ! $r->_mm_from_wg_set->{$mm};
+#   return $r->_mm_set->{$mm} && ! $r->_mm_from_wg_set->{$mm} || $r->_wg_set->{$mm.' - elsewhere'};
 }
 
 sub postal_inclusions($@) {
@@ -352,23 +364,42 @@ sub needs_overseas_postage($) {
     return $r->postal_address !~ /NZ$|New Zealand$/i;
 }
 
+                                             use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_full_users',          fetch_key => 'uid'               };
 }
 
-{ package SQL::Drupal7::user_access_needs;      use parent 'SQL::Drupal7'; use export; }        # access_needs_uid
-#{ package SQL::Drupal7::user_addresses2;        use parent 'SQL::Drupal7'; use export; }        # key=address_uid
-{ package SQL::Drupal7::user_addresses;         use parent 'SQL::Drupal7'; use export; }        # key=address_uid
-{ package SQL::Drupal7::user_all_subs;          use parent 'SQL::Drupal7'; use export; }        # key=subs_uid
-{ package SQL::Drupal7::user_kin;               use parent 'SQL::Drupal7'; use export; }        # key=kin_uid
-{ package SQL::Drupal7::user_med_needs;         use parent 'SQL::Drupal7'; use export; }        # key=med_needs_uid
-{ package SQL::Drupal7::user_mm_member;         use parent 'SQL::Drupal7'; use export; }        # key=mmm_uid
-{ package SQL::Drupal7::user_notes;             use parent 'SQL::Drupal7'; use export; }        # key=notes_uid
-{ package SQL::Drupal7::user_phones;            use parent 'SQL::Drupal7'; use export; }        # key=phones_uid
-{ package SQL::Drupal7::user_phones;            use parent 'SQL::Drupal7'; use export; }        # key=phone_uid
-{ package SQL::Drupal7::user_visible_emails;    use parent 'SQL::Drupal7'; use export; }        # key=visible_email_uid
-{ package SQL::Drupal7::user_websites;          use parent 'SQL::Drupal7'; use export; }        # key=website_uid
-{ package SQL::Drupal7::user_wgroup;            use parent 'SQL::Drupal7'; use export; }        # key=wgroup_uid
+{ package SQL::Drupal7::user_mlink;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_mlink',          fetch_key => 'mlink_uid'         }; }
+{ package SQL::Drupal7::user_wgroup;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_wgroup',         fetch_key => 'wgroup_uid'        }; }
+{ package SQL::Drupal7::user_addresses;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_addresses',      fetch_key => 'address_uid'       }; }
+{ package SQL::Drupal7::user_phones;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_phones',         fetch_key => 'phone_uid'         }; }
+{ package SQL::Drupal7::user_visible_emails; use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_visible_emails', fetch_key => 'visible_email_uid' }; }
+{ package SQL::Drupal7::user_websites;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_websites',       fetch_key => 'website_uid'       }; }
 
-{ package SQL::Drupal7::user_email_subs;        use parent 'SQL::Drupal7::user_all_subs'; }     # TODO: not used yet
-{ package SQL::Drupal7::user_print_subs;        use parent 'SQL::Drupal7::user_all_subs'; }     # TODO: not used yet
+{ package SQL::Drupal7::user_all_subs;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_all_subs',       fetch_key => 'subs_uid'          }; }
+{ package SQL::Drupal7::user_kin;            use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_kin',            fetch_key => 'kin_uid'           }; }
+{ package SQL::Drupal7::user_access_needs;   use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_access_needs',   fetch_key => 'access_needs_uid'  }; }
+{ package SQL::Drupal7::user_med_needs;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_med_needs',      fetch_key => 'med_needs_uid'     }; }
+{ package SQL::Drupal7::user_notes;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_notes',          fetch_key => 'notes_uid'         }; }
+
+#{package SQL::Drupal7::user_email_subs;        use parent 'SQL::Drupal7::user_all_subs'; use constant { fetch_from => 'experl_user_email_subs', fetch_key => 'sub_uid' }; } # TODO: not used yet;
+#{package SQL::Drupal7::user_print_subs;        use parent 'SQL::Drupal7::user_all_subs'; use constant { fetch_from => 'experl_user_print_subs', fetch_key => 'sub_uid' }; } # TODO: not used yet;
+
+sub _core_user_class { SQL::Drupal7::users::; }
+
+sub _joined_user_classes {
+    return (
+        SQL::Drupal7::user_mlink::,
+        SQL::Drupal7::user_wgroup::,
+        SQL::Drupal7::user_addresses::,
+        SQL::Drupal7::user_phones::,
+        SQL::Drupal7::user_visible_emails::,
+        SQL::Drupal7::user_websites::,
+
+        SQL::Drupal7::user_all_subs::,
+        SQL::Drupal7::user_kin::,
+        SQL::Drupal7::user_access_needs::,
+        SQL::Drupal7::user_med_needs::,
+        SQL::Drupal7::user_notes::,
+    )
+}
 
 1;

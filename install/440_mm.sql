@@ -1,5 +1,178 @@
+/*
+
+Drupal does not provide a clean way to link worship groups to monthly meetings.
+It's also rather hit-and-miss on standard abbreviations.
+
+need set names utf8 so that uploaded data from here will work cleanly.
+
+ */
+
+set names utf8;
+set @id_no = 0;     /* but don't actually use 'no meeting' */
+set @id_yf = -1;
+set @id_os = -2;    /* TODO: find a suitable node-id */
+set @id_pw = -3;    /* practice worship group */
+set @id_ym = -4;
+
+set @id_pm = 2163;  /* practice mm */
+set @id_ctl = 5895; /* control */
+
+select 'exdata_mm_info' as `Creating Internal Table`;
+
+/*drop table if exists exdata_mm_info;*/
+create or replace table exdata_mm_info(
+    mm_id               int         not null    primary key,
+    mm_tag              varchar(3)  not null    unique,
+    mm_name             varchar(32) not null    unique,
+    mm_fake             boolean     not null,
+    mm_possible_member  boolean     not null,
+    mm_implicit_member  boolean     not null
+) default charset=utf8;
+/*truncate table exdata_mm_info;*/
+
+insert into exdata_mm_info
+     select n.nid,
+            mt.field_short_name_value,
+            n.title,
+            n.nid in (@id_pm, @id_ctl),
+            true,
+            false
+       from node                        as n
+       join field_data_field_short_name as mt    on mt.entity_type = 'node'
+                                                and mt.bundle      = 'meeting_group'
+                                                and not mt.deleted
+                                                and mt.entity_id   = n.nid
+      where type = 'meeting_group'
+        and nid != @id_ctl
+;
+insert into exdata_mm_info
+     values ( @id_yf, 'YF', 'Young Friends',        false, false, false ),
+            ( @id_os, 'OS', 'any overseas meeting', false, true,  true  ),
+            ( @id_ym, 'YM', 'Yearly Meeting',       false, false, false );
+
+            /* entry for "no meeting" intentionally excluded */
+
+select 'exdata_wg_mm' as `Creating Temporary Table`;
+
+/*drop table if exists exdata_wg_mm;*/
+create or replace temporary table exdata_wg_mm(
+    wg_id   integer     not null    primary key,
+    wg_tag  varchar(5)  not null    unique,
+    wg_xmid integer     not null,
+        unique key (wg_id,wg_xmid),
+        key (wg_xmid)
+) default charset=utf8;
+truncate table exdata_wg_mm;
+insert into exdata_wg_mm(wg_xmid, wg_id, wg_tag)
+     values (     48,   2131, 'Chch ' ),    /* Christchurch Worship Group   CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   1708, 'GldnB' ),    /* Golden Bay                   CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   2130, 'Mlbro' ),    /* Marlborough                  CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   3545, 'Motka' ),    /* Motueka                      CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   2124, 'Nelsn' ),    /* Nelson Recognised Meeting    CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,     79, 'SCant' ),    /* South Canterbury             CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,     77, 'WestL' ),    /* Westland                     CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     47,   2135, 'DnEdn' ),    /* Dunedin Worship Group        DN     47   Dunedin Monthly Meeting (DN)                        */
+            (     47,   2136, 'Ivcgl' ),    /* Invercargill                 DN     47   Dunedin Monthly Meeting (DN)                        */
+            (     46,   2490, 'Raumt' ),    /* Raumati                      KP     46   Kāpiti Monthly Meeting (KP)                         */
+            (     46,   2128, 'Kāpti' ),    /* Kāpiti                       KP     46   Kāpiti Monthly Meeting (KP)                         */
+            (     45,   1813, 'Ŵktan' ),    /* Whakatane                    MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     45,   2114, 'Hamtn' ),    /* Hamilton                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     45,   2116, 'Trnga' ),    /* Tauranga                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     45,   2117, 'ThmCo' ),    /* Thames & Coromandel          MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     44,   2103, 'ByIsl' ),    /* Bay of Islands               NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2102, 'Ktaia' ),    /* Kaitaia                      NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2106, 'MtEdn' ),    /* Mt Eden                      NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2120, 'NthSh' ),    /* North Shore                  NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2112, 'Wkwth' ),    /* Warkworth                    NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2104, 'Ŵŋrei' ),    /* Whangārei                    NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2107, 'Waihk' ),    /* Waiheke Island, Auckland     NT     44   Northern Monthly Meeting (NT)                       */
+            (     43,     97, 'HwkBy' ),    /* Hawkes Bay                   PN     43   Palmerston North Monthly Meeting (PN)               */
+            (     43,   2126, 'PalmN' ),    /* Palmerston North             PN     43   Palmerston North Monthly Meeting (PN)               */
+            (     43,   4730, 'Kahut' ),    /* Kahuterawa Worship Group     PN     43   Palmerston North Monthly Meeting (PN)               */
+            (     42,    332, 'NPlym' ),    /* New Plymouth                 TN     42   Taranaki Monthly Meeting (TN)                       */
+            (     42,   2090, 'Strfd' ),    /* Stratford                    TN     42   Taranaki Monthly Meeting (TN)                       */
+            (     40,   2122, 'QStlm' ),    /* Quaker Settlement            WG     40   Whanganui Monthly Meeting (WG)                      */
+            (     40,   2123, 'Ŵŋnui' ),    /* Whanganui                    WG     40   Whanganui Monthly Meeting (WG)                      */
+            (     41,   2024, 'Wrapa' ),    /* Wairarapa Worship Group      WN     41   Wellington Monthly Meeting (WN)                     */
+            (     41,   2021, 'HutVy' ),    /* Hutt Valley Worship Group    WN     41   Wellington Monthly Meeting (WN)                     */
+            (     41,   2127, 'Levin' ),    /* Levin                        WN     41   Wellington Monthly Meeting (WN)                     */
+            (     41,   2129, 'Wlgtn' ),    /* Wellington Worship Group     WN     41   Wellington Monthly Meeting (WN)                     */
+            ( @id_yf, @id_yf, 'YF'    ),    /* Linked to Young Friends      YF      -   -                                                   */
+            ( @id_os, @id_os, 'OSeas' ),    /* Member of overseas meeting   OS      -   -                                                   */
+            ( @id_pm, @id_pw, 'XPrWG' ),    /*                              XX   2163   Practice Monthly Meeting                            */
+            ( @id_ym, @id_ym, 'Natnl' );    /* Linked directly to YM        YM      -   -                                                   */
+
+            /* entries for "no meeting" intentionally excluded */
+
+select 'exdata_wg_info' as `Creating Internal Table`;
+
+/* drop table if exists exdata_wg_info; */
+create or replace table exdata_wg_info(
+    wg_id       integer     not null    primary key,
+    wg_tag      varchar(5)  not null    unique,
+    wg_name     varchar(32) not null    unique,
+    wg_xmid     integer     not null,
+    wg_xmtag    varchar(3)  not null,
+        unique key (wg_id,wg_tag,wg_name,wg_xmid,wg_xmtag),
+        unique key (wg_id,wg_tag,wg_xmid,wg_xmtag),
+        unique key (wg_id,wg_xmid),
+        unique key (wg_id,wg_tag),
+        key (wg_xmid,wg_xmtag),
+        key (wg_xmid),
+        key (wg_xmtag)
+) default charset=utf8;
+insert into exdata_wg_info
+     select w.wg_id,
+            w.wg_tag,
+            n.title,
+            m.mm_id,
+            m.mm_tag
+       from exdata_wg_mm    as w
+       join exdata_mm_info  as m    on w.wg_xmid = m.mm_id
+       join node            as n    on nid = w.wg_id
+                                   and type = 'store_location'
+ /*
+   on duplicate key update wg_id = w.wg_id - 10000,
+                           wg_tag  = concat('+', w.wg_tag),
+                           wg_name = concat('DUP:', wg_name),
+                           wg_xmid = w.wg_xmid - 10000,
+                           wg_xmtag = concat('+', wg_xmtag)
+  */
+;
+
+drop table if exists exdata_wg_mm;
 
 /*
+
+Membership and Monthly Meetings
+
+There are 4 ways to link to a monthly meeting:
+
+    1. Your "home meeting".
+       Unfortunately this is only recorded through Drupal's OG permissions
+       system (in field_data_field_user_main_og)
+       but that means we have to check which
+       Any MM's where you have "participant" access level ()
+
+       If you have one of these, then field_data_field_member_status says
+       whether you are a formal member of this meeting.
+
+
+    2. Being a member of an overseas meeting; *any* overseas meeting.
+       field_data_field_membership_held_overseas simply says "yes" or "no".
+       ("formal member" is always true if this is present).
+
+    3. Young Friends; this behaves like a MM, except that it has no formal
+       members.
+
+    4. The MM's of each worship group that you attend.
+
+There will of course be overlaps, and therefore it's necessary to use "group by
+uid, xmtag", and to use "max(formal_member)".
+
+We can be a bit more efficient by avoiding putting OS & YF inside that
+group-by, since they cannot overlap with any other meetings.
+
 
 mysql> desc field_data_field_user_main_og;
 +------------------------------+------------------+------+-----+---------+-------+
@@ -30,28 +203,199 @@ mysql> desc field_data_field_short_name;
 | field_short_name_format | varchar(255)     | YES  | MUL | NULL    |       |
 +-------------------------+------------------+------+-----+---------+-------+
 
+mysql> describe field_data_field_shown_to_young_friends;
++------------------------------------+------------------+------+-----+---------+-------+
+| Field                              | Type             | Null | Key | Default | Extra |
++------------------------------------+------------------+------+-----+---------+-------+
+| entity_type                        | varchar(128)     | NO   | PRI |         |       |
+| bundle                             | varchar(128)     | NO   | MUL |         |       |
+| deleted                            | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                          | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                        | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                           | varchar(32)      | NO   | PRI |         |       |
+| delta                              | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_shown_to_young_friends_value | int(11)          | YES  | MUL | NULL    |       |
++------------------------------------+------------------+------+-----+---------+-------+
+
+mysql> describe field_data_field_membership_held_overseas;
++--------------------------------------+------------------+------+-----+---------+-------+
+| Field                                | Type             | Null | Key | Default | Extra |
++--------------------------------------+------------------+------+-----+---------+-------+
+| entity_type                          | varchar(128)     | NO   | PRI |         |       |
+| bundle                               | varchar(128)     | NO   | MUL |         |       |
+| deleted                              | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                            | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                          | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                             | varchar(32)      | NO   | PRI |         |       |
+| delta                                | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_membership_held_overseas_value | int(11)          | YES  | MUL | NULL    |       |
++--------------------------------------+------------------+------+-----+---------+-------+
+
+
+mysql> describe field_data_field_member_status;
++-------------------------+------------------+------+-----+---------+-------+
+| Field                   | Type             | Null | Key | Default | Extra |
++-------------------------+------------------+------+-----+---------+-------+
+| entity_type             | varchar(128)     | NO   | PRI |         |       |
+| bundle                  | varchar(128)     | NO   | MUL |         |       |
+| deleted                 | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id               | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id             | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                | varchar(32)      | NO   | PRI |         |       |
+| delta                   | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_member_status_tid | int(10) unsigned | YES  | MUL | NULL    |       |
++-------------------------+------------------+------+-----+---------+-------+
+
 */
 
-select 'experl_user_mm_member' as `Creating Internal View`;
+select 'exp_mlink_home' as `Creating Internal View`;
 
-create or replace view experl_user_mm_member as
-      select um.entity_id                       as mmm_uid,
-             um.revision_id                     as mmm_rev,
-             um.language                        as mmm_language,
-             um.delta                           as mmm_delta,
-             um.field_user_main_og_target_id    as mmm_xmid,
-             mmt.field_short_name_value         as mmm_xmtag,
-             1                                  as mmm_formal_member
-        from field_data_field_user_main_og      as um
-   left join field_data_field_short_name        as mmt  on mmt.entity_type = 'node'
-                                                       and mmt.bundle      = 'meeting_group'
-                                                       and not mmt.deleted
-                                                       and mmt.entity_id   = um.field_user_main_og_target_id
-       where um.entity_type = 'user'
-         and um.bundle      = 'user'
-         and not um.deleted
+create or replace view exp_mlink_home as
+     select um.entity_id                                     as ml_uid,
+         /* um.revision_id                                   as ml_rev, */
+         /* um.language                                      as ml_language, */
+            um.delta                                         as ml_delta,
+            mm.mm_id                                         as ml_xmid,
+            mm.mm_tag                                        as ml_xmtag,
+            ifnull(ms.field_member_status_tid = 30, false)   as ml_formal_member,
+            'OG'                                             as ml_source
+       from field_data_field_user_main_og    as um
+  left join exdata_mm_info                   as mm   on mm.mm_id = um.field_user_main_og_target_id
+  left join field_data_field_member_status   as ms   on ms.entity_type = 'user'
+                                                    and ms.bundle      = 'user'
+                                                    and not ms.deleted
+                                                    and ms.entity_id   = um.field_user_main_og_target_id
+      where um.entity_type = 'user'
+        and um.bundle      = 'user'
+        and not um.deleted
 ;
-/* TODO: union this with the "affiliation" MM's; that is,
-    also find the MM's where formal_member would be
-    false.
- */
+
+select 'exp_mlink_yf' as `Creating Internal View`;
+
+create or replace view exp_mlink_yf as
+     select entity_id    as ml_uid,
+         /* revision_id  as ml_rev, */
+         /* language     as ml_language, */
+            delta        as ml_delta,
+            -1           as ml_xmid,    /* @id_yf */
+            'YF'         as ml_xmtag,
+            false        as ml_formal_member,
+            'YF'         as ml_source
+       from field_data_field_shown_to_young_friends as yf
+      where entity_type = 'user'
+        and bundle      = 'user'
+        and not deleted
+        and field_shown_to_young_friends_value
+;
+
+select 'exp_mlink_wg' as `Creating Internal View`;
+
+create or replace view exp_mlink_wg as
+     select w.entity_id                          as ml_uid,
+         /* w.revision_id                        as ml_rev, */
+         /* w.language                           as ml_language, */
+            w.delta                              as ml_delta,
+            wi.wg_xmid                           as ml_xmid,
+            wi.wg_xmtag                          as ml_xmtag,
+            false                                as ml_formal_member,
+            'WG'                                 as ml_source
+       from field_data_field_user_worship_group  as w
+  left join exdata_wg_info                       as wi   on wi.wg_id        = w.field_user_worship_group_target_id
+      where w.entity_type = 'user'
+        and w.bundle      = 'user'
+        and not w.deleted
+;
+
+select 'exp_mlink_os' as `Creating Internal View`;
+
+create or replace view exp_mlink_os as
+     select entity_id    as ml_uid,
+         /* revision_id  as ml_rev, */
+         /* language     as ml_language, */
+            delta        as ml_delta,
+            -2           as ml_xmid,    /* @id_os */
+            'OS'         as ml_xmtag,
+            true         as ml_formal_member,
+            'OS'         as ml_source
+       from field_data_field_membership_held_overseas as os
+      where entity_type = 'user'
+        and bundle      = 'user'
+        and not deleted
+;
+
+/*
+
+mysql> desc field_data_field_user_worship_group;
++------------------------------------+------------------+------+-----+---------+-------+
+| Field                              | Type             | Null | Key | Default | Extra |
++------------------------------------+------------------+------+-----+---------+-------+
+| entity_type                        | varchar(128)     | NO   | PRI |         |       |
+| bundle                             | varchar(128)     | NO   | MUL |         |       |
+| deleted                            | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                          | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                        | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                           | varchar(32)      | NO   | PRI |         |       |
+| delta                              | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_user_worship_group_target_id | int(10) unsigned | NO   | MUL | NULL    |       |
++------------------------------------+------------------+------+-----+---------+-------+
+
+mysql> describe field_data_field_shown_to_young_friends;
++------------------------------------+------------------+------+-----+---------+-------+
+| Field                              | Type             | Null | Key | Default | Extra |
++------------------------------------+------------------+------+-----+---------+-------+
+| entity_type                        | varchar(128)     | NO   | PRI |         |       |
+| bundle                             | varchar(128)     | NO   | MUL |         |       |
+| deleted                            | tinyint(4)       | NO   | PRI | 0       |       |
+| entity_id                          | int(10) unsigned | NO   | PRI | NULL    |       |
+| revision_id                        | int(10) unsigned | YES  | MUL | NULL    |       |
+| language                           | varchar(32)      | NO   | PRI |         |       |
+| delta                              | int(10) unsigned | NO   | PRI | NULL    |       |
+| field_shown_to_young_friends_value | int(11)          | YES  | MUL | NULL    |       |
++------------------------------------+------------------+------+-----+---------+-------+
+
+*/
+
+select 'experl_user_wgroup' as `Creating View`;
+
+create or replace view experl_user_wgroup as
+     select w.entity_id      as wgroup_uid,
+         /* w.revision_id    as wgroup_rev, */
+         /* w.language       as wgroup_language, */
+            w.delta          as wgroup_delta,
+            wi.wg_id         as wgroup_id,
+            wi.wg_name       as wgroup_name,
+            wi.wg_xmid       as wgroup_xmid,
+            wi.wg_xmtag      as wgroup_xmtag
+       from field_data_field_user_worship_group  as w
+       join exdata_wg_info                       as wi   on w.field_user_worship_group_target_id = wi.wg_id
+      where w.entity_type = 'user'
+        and w.bundle      = 'user'
+        and not w.deleted
+ union
+     select yf.ml_uid        as wgroup_uid,
+            yf.ml_delta      as wgroup_delta,
+            -1               as wgroup_id,      /* @id_yf */
+            'Young Friends'  as wgroup_name,
+            yf.ml_xmid       as wgroup_xmid,    /* @id_yf */
+            yf.ml_xmtag      as wgroup_xmtag
+       from exp_mlink_yf as yf
+;
+
+select 'experl_user_mlink' as `Creating View`;
+
+create or replace view experl_user_mlink as
+     select ml_uid                                   as mlink_uid,
+         /* ml_rev                                   as mlink_rev, */
+         /* ml_language                              as mlink_language, */
+            ml_delta                                 as mlink_delta,
+            ml_xmid                                  as mlink_xmid,
+            ml_xmtag                                 as mlink_xmtag,
+            max(ml_formal_member)                    as mlink_formal_member,
+            group_concat(ml_source separator ':')    as mlink_source
+       from (     select * from exp_mlink_home
+            union select * from exp_mlink_wg
+            union select * from exp_mlink_yf
+            union select * from exp_mlink_os ) as t
+      where ml_xmid is not null
+   group by mlink_uid, mlink_xmtag
+;

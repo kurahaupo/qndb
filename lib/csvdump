@@ -1218,7 +1218,7 @@ sub fetch_dbi($) {
             pass        => scalar read_passfile( "/run/user/$</qdb_secret", RP_IGNORE_BADFILE ),
             ;
 
-    my $dbx = SQL::generic::Connect($pseudo_filename, %sql_opts);
+    my $dbx = SQL::Drupal7::->Connect($pseudo_filename, \%sql_opts);
     return SQL::Drupal7::, $pseudo_filename.strftime("-%Y%m%d.", localtime), $dbx->fetch_users;
 }
 
@@ -2663,9 +2663,9 @@ sub generate_book($$;$) {
     my $rev_ts   = strftime "%H:%M %d%b%Y", @when;
 
     my @copyright = split /\n+/, <<EndOfCopyright;
-Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. Revised $rev_ts
-Personal use only - do not copy or forward without authorisation from the YM Privacy Officer. If found please shred or burn.
-For uptodate information see https://quakers.nz/find-a-friend
+Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. This book contains
+confidential personal information for your household use only; do not copy or forward without authorisation from the YM Privacy Officer.
+If found please shred or burn. For uptodate information see https://quakers.nz/find-a-friend - last updated $rev_ts
 EndOfCopyright
 
     my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
