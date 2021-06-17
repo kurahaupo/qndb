@@ -89,13 +89,13 @@ insert into exdata_wg_mm(wg_xmid, wg_id, wg_tag)
             (     43,     97, 'HwkBy' ),    /* Hawkes Bay                   PN     43   Palmerston North Monthly Meeting (PN)               */
             (     43,   2126, 'PalmN' ),    /* Palmerston North             PN     43   Palmerston North Monthly Meeting (PN)               */
             (     43,   4730, 'Kahut' ),    /* Kahuterawa Worship Group     PN     43   Palmerston North Monthly Meeting (PN)               */
+            (     43,   2127, 'Levin' ),    /* Levin                        PN     43   Palmerston North Monthly Meeting (PN)               */
             (     42,    332, 'NPlym' ),    /* New Plymouth                 TN     42   Taranaki Monthly Meeting (TN)                       */
             (     42,   2090, 'Strfd' ),    /* Stratford                    TN     42   Taranaki Monthly Meeting (TN)                       */
             (     40,   2122, 'QStlm' ),    /* Quaker Settlement            WG     40   Whanganui Monthly Meeting (WG)                      */
             (     40,   2123, 'Ŵŋnui' ),    /* Whanganui                    WG     40   Whanganui Monthly Meeting (WG)                      */
             (     41,   2024, 'Wrapa' ),    /* Wairarapa Worship Group      WN     41   Wellington Monthly Meeting (WN)                     */
             (     41,   2021, 'HutVy' ),    /* Hutt Valley Worship Group    WN     41   Wellington Monthly Meeting (WN)                     */
-            (     41,   2127, 'Levin' ),    /* Levin                        WN     41   Wellington Monthly Meeting (WN)                     */
             (     41,   2129, 'Wlgtn' ),    /* Wellington Worship Group     WN     41   Wellington Monthly Meeting (WN)                     */
             ( @id_yf, @id_yf, 'YF'    ),    /* Linked to Young Friends      YF      -   -                                                   */
             ( @id_os, @id_os, 'OSeas' ),    /* Member of overseas meeting   OS      -   -                                                   */
