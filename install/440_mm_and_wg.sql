@@ -363,6 +363,7 @@ create or replace view experl_user_wgroup as
          /* w.language       as wgroup_language, */
             w.delta          as wgroup_delta,
             wi.wg_id         as wgroup_id,
+            wi.wg_tag        as wgroup_tag,
             wi.wg_name       as wgroup_name,
             wi.wg_xmid       as wgroup_xmid,
             wi.wg_xmtag      as wgroup_xmtag
@@ -375,9 +376,10 @@ create or replace view experl_user_wgroup as
      select yf.ml_uid        as wgroup_uid,
             yf.ml_delta      as wgroup_delta,
             -1               as wgroup_id,      /* @id_yf */
+            wi.ml_xmtag      as wgroup_tag,     /* 'YF' */
             'Young Friends'  as wgroup_name,
             yf.ml_xmid       as wgroup_xmid,    /* @id_yf */
-            yf.ml_xmtag      as wgroup_xmtag
+            yf.ml_xmtag      as wgroup_xmtag    /* 'YF' */
        from exp_mlink_yf as yf
 ;
 
