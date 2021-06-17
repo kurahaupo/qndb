@@ -23,8 +23,8 @@ select 'experl_user_websites' as `Creating View`;
 
 create or replace view experl_user_websites as
       select entity_id                      as website_uid,
-             revision_id                    as website_rev,
-             language                       as website_language,
+          /* revision_id                    as website_rev, */
+          /* language                       as website_language, */
              delta                          as website_delta,
              field_user_website_value       as website,
              field_user_website_format      as website_format

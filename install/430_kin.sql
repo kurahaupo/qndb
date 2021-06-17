@@ -114,8 +114,8 @@ select 'experl_user_kin' as `Creating View`;
 
 create or replace view experl_user_kin as
      select ukin.entity_id                          as kin_uid,
-            ukin.revision_id                        as kin_rev,
-            ukin.language                           as kin_language,
+         /* ukin.revision_id                        as kin_rev, */
+         /* ukin.language                           as kin_language, */
             ukin.delta                              as kin_delta,
             ukint.field_user_kin_relationship_value as kin_rel_type,
             ukinr.field_user_kin_user_ref_target_id as kin_uid2
@@ -123,20 +123,20 @@ create or replace view experl_user_kin as
        join field_data_field_user_kin_user_ref      as ukinr on ukinr.bundle        = 'field_user_kin'
                                                             and ukinr.entity_type   = 'field_collection_item'
                                                             and not ukinr.deleted
-                                                            and ukinr.revision_id   = ukin.field_user_kin_revision_id
+                                                         /* and ukinr.revision_id   = ukin.field_user_kin_revision_id */
                                                             and ukinr.entity_id     = ukin.field_user_kin_value
        join field_data_field_user_kin_relationship  as ukint on ukint.entity_type   = 'field_collection_item'
                                                             and ukint.bundle        = 'field_user_kin'
                                                             and not ukint.deleted
                                                             and ukint.entity_id     = ukin.field_user_kin_value
-                                                            and ukint.revision_id   = ukin.field_user_kin_revision_id
+                                                         /* and ukint.revision_id   = ukin.field_user_kin_revision_id */
       where ukin.entity_type = 'user'
         and ukin.bundle      = 'user'
         and not ukin.deleted
  union
      select entity_id                               as kin_uid,
-            revision_id                             as kin_rev,
-            language                                as kin_language,
+         /* revision_id                             as kin_rev, */
+         /* language                                as kin_language, */
             delta                                   as kin_delta,
             'spouse'                                as kin_rel_type,
             field_user_spouse_target_id             as kin_uid2

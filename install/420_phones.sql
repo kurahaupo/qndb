@@ -38,8 +38,8 @@ create or replace view experl_user_phones as
       select entity_id                  as phone_uid,
              'M'                        as phone_slot,
              true                       as phone_can_message,
-             revision_id                as phone_rev,
-             language                   as phone_language,
+          /* revision_id                as phone_rev, */
+          /* language                   as phone_language, */
              delta                      as phone_delta,
              field_user_mobile_value    as phone,
              field_user_mobile_format   as phone_format
@@ -52,8 +52,8 @@ create or replace view experl_user_phones as
       select entity_id                  as phone_uid,
              'H'                        as phone_slot,
              false                      as phone_can_message,
-             revision_id                as phone_rev,
-             language                   as phone_language,
+          /* revision_id                as phone_rev, */
+          /* language                   as phone_language, */
              delta                      as phone_delta,
              field_user_phone_value     as phone,
              field_user_phone_format    as phone_format_

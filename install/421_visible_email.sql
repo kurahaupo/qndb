@@ -22,8 +22,8 @@ select 'experl_user_visible_emails' as `Creating Internal View`;
 
 create or replace view experl_user_visible_emails as
       select entity_id                  as visible_email_uid,
-             revision_id                as visible_email_rev,
-             language                   as visible_email_language,
+          /* revision_id                as visible_email_rev, */
+          /* language                   as visible_email_language, */
              delta                      as visible_email_delta,
              field_user_fax_value       as visible_email,
              field_user_fax_format      as visible_email_format

@@ -22,8 +22,8 @@ select 'experl_user_access_needs' as `Creating View`;
 
 create or replace view experl_user_access_needs as
        select entity_id                         as access_needs_uid,
-              revision_id                       as access_needs_rev,
-              language                          as access_needs_language,
+           /* revision_id                       as access_needs_rev, */
+           /* language                          as access_needs_language, */
               delta                             as access_needs_delta,
               field_user_access_needs_value     as access_needs,
               field_user_access_needs_format    as access_needs_format

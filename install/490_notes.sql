@@ -54,18 +54,18 @@ select 'experl_user_notes' as `Creating View`;
 
 create or replace view experl_user_notes as
       select nn.entity_id                       as notes_uid,
-             nn.revision_id                     as notes_rev,
-             nn.language                        as notes_language,
+          /* nn.revision_id                     as notes_rev, */
+          /* nn.language                        as notes_language, */
              nn.delta                           as notes_delta,
              nn.field_user_notes_value          as notes_index,
-             nn.field_user_notes_revision_id    as notes_index_rev,
+          /* nn.field_user_notes_revision_id    as notes_index_rev, */
              nd.entity_id                       as notes_did,
-             nd.revision_id                     as notes_drev,
-             nd.language                        as notes_dlanguage,
+          /* nd.revision_id                     as notes_drev, */
+          /* nd.language                        as notes_dlanguage, */
              nd.delta                           as notes_ddelta,
              nd.field_user_notes_date_value     as notes_date,
              nt.entity_id                       as notes_tid,
-             nt.revision_id                     as notes_trev,
+          /* nt.revision_id                     as notes_trev, */
              nt.language                        as notes_tlanguage,
              nt.delta                           as notes_tdelta,
              nt.field_user_notes_text_value     as notes,

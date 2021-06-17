@@ -3,8 +3,8 @@ select 'experl_user_med_needs' as `Creating View`;
 
 create or replace view experl_user_med_needs as
        select entity_id                         as med_needs_uid,
-              revision_id                       as med_needs_rev,
-              language                          as med_needs_language,
+           /* revision_id                       as med_needs_rev, */
+           /* language                          as med_needs_language, */
               delta                             as med_needs_delta,
               field_user_medical_needs_value    as med_needs,
               field_user_medical_needs_format   as med_needs_format

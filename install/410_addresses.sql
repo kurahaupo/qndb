@@ -152,9 +152,9 @@ select 'exp_normalise_user_addresses' as `Creating Internal View`;
 
 create or replace view exp_normalise_user_addresses as
       select a.entity_id                                    as address_uid,
-             a.revision_id                                  as address_vid,
+          /* a.revision_id                                  as address_vid, */
+          /* a.language                                     as address_language, */
              convert(1, unsigned)                           as address_slot,
-             a.language                                     as address_language,
              a.field_user_address_1_first_name              as address_first_name,
              a.field_user_address_1_last_name               as address_last_name,
              a.field_user_address_1_name_line               as address_name_line,
@@ -187,9 +187,9 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
-             a.revision_id                                  as address_vid,
+          /* a.revision_id                                  as address_vid, */
+          /* a.language                                     as address_language, */
              convert(2, unsigned)                           as address_slot,
-             a.language                                     as address_language,
              a.field_user_address_2_first_name              as address_first_name,
              a.field_user_address_2_last_name               as address_last_name,
              a.field_user_address_2_name_line               as address_name_line,
@@ -222,9 +222,9 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
-             a.revision_id                                  as address_vid,
+          /* a.revision_id                                  as address_vid, */
+          /* a.language                                     as address_language, */
              convert(3, unsigned)                           as address_slot,
-             a.language                                     as address_language,
              a.field_user_address_3_first_name              as address_first_name,
              a.field_user_address_3_last_name               as address_last_name,
              a.field_user_address_3_name_line               as address_name_line,
@@ -256,9 +256,9 @@ create or replace view exp_normalise_user_addresses as
          and not a.deleted
  union
       select a.entity_id                                    as address_uid,
-             a.revision_id                                  as address_vid,
+          /* a.revision_id                                  as address_vid, */
+          /* a.language                                     as address_language, */
              convert(4, unsigned)                           as address_slot,
-             a.language                                     as address_language,
              a.field_user_address_4_first_name              as address_first_name,
              a.field_user_address_4_last_name               as address_last_name,
              a.field_user_address_4_name_line               as address_name_line,
@@ -319,9 +319,9 @@ select 'experl_user_addresses2' as `Creating View`;
 
 create or replace view experl_user_addresses2 as
       select address_uid,
-             address_vid,
+          /* address_vid, */
+          /* address_language, */
              address_slot,
-             address_language,
              concat(
                     ifnull( concat(   /*'FIRST_AND_LAST_NAMES:',    */ address_first_name, ' ',  address_last_name, '\n'),
                      ifnull( concat(  /*'FIRST_NAME:',              */ address_first_name, '\n'),
@@ -355,9 +355,9 @@ select 'experl_user_addresses' as `Creating View`;
 
 create or replace view experl_user_addresses as
       select a.entity_id                                            as address_uid,
-             ai.revision_id                                         as address_vid,
+          /* ai.revision_id                                         as address_vid, */
+          /* ai.language                                            as address_language, */
              ifnull(a.delta+1, 0)                                   as address_slot,
-             ai.language                                            as address_language,
              ai.delta                                               as address_delta,
              ai.field_preformatted_address_value                    as address,
              al.field_label_value                                   as address_label,
