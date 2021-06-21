@@ -9,7 +9,7 @@ package quaker_info;
 
 use verbose;
 
-our %mm_names = map { /^([A-Z]{2,3}) - / ? ( $1 => $_ ) : ( $_ => $_ ) }
+our %mm_names = map { ( /^([A-Z]{2,3}) - / ? $1 : $_ ) => $_ }
     'BP - Bay of Plenty',
     'CH - Christchurch',
     'DN - Dunedin',
@@ -38,17 +38,16 @@ our %skip_mm_listing = (
 our @wg_order = (
 
     'NT - Kaitaia',
-    'NT - Bay of Islands',
+    'NT - Bay of Islands',  # Kerikeri
     'NT - Whangārei',
-    'NT - North Shore',
-    'NT - Mt Eden',
-    'NT - Howick',
-    'NT - Waiheke',
     'NT - Warkworth',
+    'NT - Waiheke',         # Palm Beach
+    'NT - North Shore',     # Takapuna
+    'NT - Mt Eden',
     'NT - elsewhere',
     'NT - overseas',
 
-    'MNI - Thames & Coromandel',
+    'MNI - Thames & Coromandel', # Thames
     'MNI - Hamilton',
     'MNI - Tauranga',
     'MNI - Rotorua-Taupo',
@@ -56,41 +55,41 @@ our @wg_order = (
     'MNI - elsewhere',
     'MNI - overseas',
 
-    'PN - Palmerston North',
-    'PN - Hawkes Bay',
-    'PN - Levin',
-    'PN - elsewhere',
-    'PN - overseas',
-
-    'WG - Whanganui',
-    'WG - Settlement',
-    'WG - elsewhere',
-    'WG - overseas',
-
     'TN - New Plymouth',
     'TN - Stratford',
-    'TN - Taranaki',
     'TN - elsewhere',
     'TN - overseas',
 
-    'KP - Kāpiti',
-    'KP - Paraparaumu',
+    'WG - Settlement',      # Otamatea  } 3.7 km apart
+    'WG - Whanganui',       #           }
+    'WG - elsewhere',
+    'WG - overseas',
+
+    'PN - Hawkes Bay',      # Hastings (actually itinerant; also, north of Whanganui)
+    'PN - Palmerston North', # West End
+    'PN - Levin',
+    'PN - Kahuterawa',
+    'PN - elsewhere',
+    'PN - overseas',
+
+    'KP - Kāpiti',          # Paraparaumu   } 2.7 km apart
+    'KP - Raumati',         # Raumati Beach } (but different days)
     'KP - elsewhere',
     'KP - overseas',
 
-    'WN - Wellington',
-    'WN - Wairarapa',
-    'WN - Hutt Valley',
+    'WN - Wairarapa',       # Masterton
+    'WN - Hutt Valley',     # Petone
+    'WN - Wellington',      # Mt Victoria
     'WN - elsewhere',
     'WN - overseas',
 
-    'CH - Golden Bay',
-    'CH - Marlborough',
+    'CH - Golden Bay',      # Pakawau
+    'CH - Marlborough',     # Blenheim
     'CH - Motueka',
     'CH - Nelson',
     'CH - Christchurch',
     'CH - South Canterbury',
-    'CH - Westland',
+    'CH - Westland',        # Greymouth
     'CH - elsewhere',
     'CH - overseas',
 
@@ -100,6 +99,7 @@ our @wg_order = (
     'DN - overseas',
 
     'YF',
+    'YF - elsewhere',
     'YF - overseas',
 
     'NO - not in any worship group',
@@ -116,7 +116,7 @@ our %mm_titles = map { ( $_ => ($mm_names{$_} =~ s/$mm_keys_re[- ]+//r).' MM' ) 
 
 ################################################################################
 
-# strings that might come from a database
+# strings that might come from a database or spreadsheet.
 our %wg_map = (
 
     'CH - Canterbury'                   => 'CH - Christchurch',
@@ -128,7 +128,6 @@ our %wg_map = (
     'DN - Southland'                    => 'DN - Invercargill',
 
     'KP - Kapiti'                       => 'KP - Kāpiti',
-#   'KP - K?piti'                       => 'KP - Kāpiti',       # bug in database connector sometimes doesn't do UTF8
 
     'MNI - Waikato'                     => 'MNI - Hamilton',
     'MNI - Whakatane'                   => 'MNI - Wairarapa',
@@ -143,7 +142,8 @@ our %wg_map = (
     ' Auckland'                         => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
     'NT - Waiheke Island'               => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
     'NT - Whangarei'                    => 'NT - Whangārei',
-#   'NT - Whang?rei'                    => 'NT - Whangārei',    # bug in database connector doesn't do UTF8
+
+    'PN - Kahuterawa Worship Group'     => 'PN - Kahuterawa',
 
     'WG - Quaker Settlement'            => 'WG - Settlement',
 
@@ -158,7 +158,6 @@ our %wg_map = (
 our %wg_abbrev = (              #         ╰─────────╯╰────╯╰─╯╰─╯╰────╯╰─╯╰─╯▽
 
         'NT - Bay of Islands'       => [ undef, 'B',   'BI', 'BoI', 'BayI', 'BayIs', 'BayOfl', 'BayOfIs', 'BayOfIsl', 'BayIsland', 'BayOfIslnd', 'BayOfIslnds', 'BayOfIslands', 'Bay ofIslands', 'Bay of Islands', ],
-        'NT - Howick'               => [ undef, undef, 'Hw', 'Hwk', 'Hwck', 'Howck', 'Howick', ],
         'NT - Kaitaia'              => [ undef, undef, 'Kt', 'Kta', 'Ktai', 'Ktaia', 'Kaitai', 'Kaitaia', ],
         'NT - Mt Eden'              => [ undef, undef, 'ME', 'MtE', 'MtEd', 'MtEdn', 'MtEden', 'Mt Eden', ],
         'NT - North Shore'          => [ undef, undef, 'NS', 'NSh', 'NShr', 'NShre', 'NShore', 'NthShre', 'NthShore', 'NorthShre', 'NorthShore', 'North Shore', ],
