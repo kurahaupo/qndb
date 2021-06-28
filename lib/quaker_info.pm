@@ -27,7 +27,7 @@ our %mm_names = map { ( /^([A-Z]{2,3}) - / ? $1 : $_ ) => $_ }
 ;
 
 # Arrange Monthly Meetings in North-to-South order
-our @mm_order = qw( NT MNI WG TN PN KP WN CH DN YF NO XX control );
+our @mm_order = qw( NT MNI TN WG PN KP WN CH DN YF NO XX control );
 
 our %skip_mm_listing = (
 #       AK => 1,
@@ -43,15 +43,15 @@ our @wg_order = (
     'NT - Warkworth',
     'NT - Waiheke',         # Palm Beach
     'NT - North Shore',     # Takapuna
-    'NT - Mt Eden',
+    'NT - Mount Eden',
     'NT - elsewhere',
     'NT - overseas',
 
     'MNI - Thames & Coromandel', # Thames
     'MNI - Hamilton',
-    'MNI - Tauranga',
     'MNI - Rotorua-Taupo',
-    'MNI - Wairarapa',
+    'MNI - Whakatane',
+    'MNI - Tauranga',
     'MNI - elsewhere',
     'MNI - overseas',
 
@@ -88,8 +88,8 @@ our @wg_order = (
     'CH - Motueka',
     'CH - Nelson',
     'CH - Christchurch',
-    'CH - South Canterbury',
     'CH - Westland',        # Greymouth
+    'CH - South Canterbury',
     'CH - elsewhere',
     'CH - overseas',
 
@@ -99,9 +99,11 @@ our @wg_order = (
     'DN - overseas',
 
     'YF',
+    'YF - Young Friends',
     'YF - elsewhere',
     'YF - overseas',
 
+    'NONE',
     'NO - not in any worship group',
 
 );
@@ -130,17 +132,14 @@ our %wg_map = (
     'KP - Kapiti'                       => 'KP - Kāpiti',
 
     'MNI - Waikato'                     => 'MNI - Hamilton',
-    'MNI - Whakatane'                   => 'MNI - Wairarapa',
-    'MNI - Wairarapa Worship Group'     => 'MNI - Wairarapa',
-    'MNI - Whakatane'                   => 'MNI - Wairarapa',
+
+    'NT - Mt Eden'                      => 'NT - Mount Eden',
 
     'NONE'                              => 'NO - not in any worship group',
     'Not attending any NZ meeting'      => 'NO - not in any worship group',
     'control - Not attending any NZ meeting' => 'NO - not in any worship group',
 
-    'NT - Waiheke Island, Auckland'     => 'NT - Waiheke',
-    ' Auckland'                         => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
-    'NT - Waiheke Island'               => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
+#   'NT - Waiheke Island'               => 'NT - Waiheke',      # NB: this is split from "Waiheke Island, Auckland"
     'NT - Whangarei'                    => 'NT - Whangārei',
 
     'PN - Kahuterawa Worship Group'     => 'PN - Kahuterawa',

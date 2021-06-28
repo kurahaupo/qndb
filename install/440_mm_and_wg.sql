@@ -66,18 +66,20 @@ create or replace temporary table exdata_wg_mm(
 truncate table exdata_wg_mm;
 SET insert_id=4;
 insert into exdata_wg_mm(wg_xmid, wg_id, wg_tag)
-     values (     44,   2103, 'ByIsl' ),    /* Bay of Islands               NT     44   Northern Monthly Meeting (NT)                       */
-            (     44,   2102, 'Ktaia' ),    /* Kaitaia                      NT     44   Northern Monthly Meeting (NT)                       */
+     values
+
+            (     44,   2103, 'ByIsl' ),    /* Bay of Islands               NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2102, 'Ktaia' ),    /* Kaitaia                      NT     44   Northern Monthly Meeting (NT) (Kerikeri)            */
             (     44,   2106, 'MtEdn' ),    /* Mt Eden                      NT     44   Northern Monthly Meeting (NT)                       */
+            (     44,   2107, 'Waihk' ),    /* Waiheke Island, Auckland     NT     44   Northern Monthly Meeting (NT) (Palm Beach)          */
             (     44,   2120, 'NthSh' ),    /* North Shore                  NT     44   Northern Monthly Meeting (NT) (Takapuna)            */
             (     44,   2112, 'Wkwth' ),    /* Warkworth                    NT     44   Northern Monthly Meeting (NT)                       */
             (     44,   2104, 'Ŵŋrei' ),    /* Whangārei                    NT     44   Northern Monthly Meeting (NT)                       */
-            (     44,   2107, 'Waihk' ),    /* Waiheke Island, Auckland     NT     44   Northern Monthly Meeting (NT)                       */
 
-            (     45,   1813, 'Ŵktan' ),    /* Whakatane                    MNI    45   Mid-North Island Monthly Meeting (MNI)              */
-            (     45,   2114, 'Hamtn' ),    /* Hamilton                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
-            (     45,   2116, 'Trnga' ),    /* Tauranga                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
             (     45,   2117, 'ThmCo' ),    /* Thames & Coromandel          MNI    45   Mid-North Island Monthly Meeting (MNI) (Thames)     */
+            (     45,   2114, 'Hamtn' ),    /* Hamilton                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     45,   1813, 'Ŵktan' ),    /* Whakatane                    MNI    45   Mid-North Island Monthly Meeting (MNI)              */
+            (     45,   2116, 'Trnga' ),    /* Tauranga                     MNI    45   Mid-North Island Monthly Meeting (MNI)              */
 
             (     42,    332, 'NPlym' ),    /* New Plymouth                 TN     42   Taranaki Monthly Meeting (TN)                       */
             (     42,   2090, 'Strfd' ),    /* Stratford                    TN     42   Taranaki Monthly Meeting (TN)                       */
@@ -90,19 +92,19 @@ insert into exdata_wg_mm(wg_xmid, wg_id, wg_tag)
             (     43,   4730, 'Khtwa' ),    /* Kahuterawa Worship Group     PN     43   Palmerston North Monthly Meeting (PN)               */
             (     43,   2127, 'Levin' ),    /* Levin                        PN     43   Palmerston North Monthly Meeting (PN)               */
 
-            (     46,   2490, 'Raumt' ),    /* Raumati                      KP     46   Kāpiti Monthly Meeting (KP)                         */
-            (     46,   2128, 'Kāpti' ),    /* Kāpiti                       KP     46   Kāpiti Monthly Meeting (KP)                         */
+            (     46,   2128, 'Kāpti' ),    /* Kāpiti                       KP     46   Kāpiti Monthly Meeting (KP) (Paraparaumu)           */
+            (     46,   2490, 'Raumt' ),    /* Raumati                      KP     46   Kāpiti Monthly Meeting (KP) (Raumati Beach)         */
 
             (     41,   2024, 'Wrapa' ),    /* Wairarapa Worship Group      WN     41   Wellington Monthly Meeting (WN) (Masterton)         */
             (     41,   2021, 'HutVy' ),    /* Hutt Valley Worship Group    WN     41   Wellington Monthly Meeting (WN) (Petone)            */
-            (     41,   2129, 'Wlgtn' ),    /* Wellington Worship Group     WN     41   Wellington Monthly Meeting (WN)                     */
+            (     41,   2129, 'Wgtn'  ),    /* Wellington Worship Group     WN     41   Wellington Monthly Meeting (WN) (Mt Victoria)       */
 
-            (     48,   1708, 'GldnB' ),    /* Golden Bay                   CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   1708, 'GldnB' ),    /* Golden Bay                   CH     48   Christchurch Monthly Meeting (CH) (Pakawau)         */
+            (     48,   2124, 'Nelsn' ),    /* Nelson Recognised Meeting    CH     48   Christchurch Monthly Meeting (CH) (Blenheim)        */
             (     48,   3545, 'Motka' ),    /* Motueka                      CH     48   Christchurch Monthly Meeting (CH)                   */
-            (     48,   2124, 'Nelsn' ),    /* Nelson Recognised Meeting    CH     48   Christchurch Monthly Meeting (CH)                   */
             (     48,   2130, 'Malbr' ),    /* Marlborough                  CH     48   Christchurch Monthly Meeting (CH)                   */
-            (     48,   2131, 'Chch ' ),    /* Christchurch Worship Group   CH     48   Christchurch Monthly Meeting (CH)                   */
-            (     48,     77, 'WestL' ),    /* Westland                     CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,   2131, 'Chch'  ),    /* Christchurch Worship Group   CH     48   Christchurch Monthly Meeting (CH)                   */
+            (     48,     77, 'WestL' ),    /* Westland                     CH     48   Christchurch Monthly Meeting (CH) (Greymouth)       */
             (     48,     79, 'SthCn' ),    /* South Canterbury             CH     48   Christchurch Monthly Meeting (CH)                   */
 
             (     47,   2135, 'DnEdn' ),    /* Dunedin Worship Group        DN     47   Dunedin Monthly Meeting (DN)                        */
@@ -122,6 +124,7 @@ create or replace table exdata_wg_info(
     wg_id       integer     not null    primary key,
     wg_tag      varchar(5)  not null    unique,
     wg_name     varchar(32) not null    unique,
+    wg_fullname varchar(32) not null    unique,
     wg_xmid     integer     not null,
     wg_xmtag    varchar(3)  not null,
     wg_order    smallint unsigned    not null unique,
@@ -137,6 +140,7 @@ insert into exdata_wg_info
      select w.wg_id,
             w.wg_tag,
             n.title,
+            n.title,
             m.mm_id,
             m.mm_tag,
             w.wg_order
@@ -144,16 +148,13 @@ insert into exdata_wg_info
        join exdata_mm_info  as m    on w.wg_xmid = m.mm_id
        join node            as n    on nid = w.wg_id
                                    and type = 'store_location'
- /*
-   on duplicate key update wg_id = w.wg_id - 10000,
-                           wg_tag  = concat('+', w.wg_tag),
-                           wg_name = concat('DUP:', wg_name),
-                           wg_xmid = w.wg_xmid - 10000,
-                           wg_xmtag = concat('+', wg_xmtag)
-  */
 ;
 
 drop table if exists exdata_wg_mm;
+
+update exdata_wg_info
+   set wg_name = regexp_replace(wg_name, ' Island, Auckland| Recognised Meeting| Worship Group|,.*', ''),
+       wg_fullname = regexp_replace(wg_fullname, ',.*', '') ;
 
 /*
 
@@ -389,7 +390,7 @@ create or replace view experl_user_wgroup as
      select yf.ml_uid        as wgroup_uid,
             yf.ml_delta      as wgroup_delta,
             -1               as wgroup_id,      /* @id_yf */
-            wi.ml_xmtag      as wgroup_tag,     /* 'YF' */
+            yf.ml_xmtag      as wgroup_tag,     /* 'YF' */
             'Young Friends'  as wgroup_name,
             yf.ml_xmid       as wgroup_xmid,    /* @id_yf */
             yf.ml_xmtag      as wgroup_xmtag    /* 'YF' */
@@ -414,3 +415,4 @@ create or replace view experl_user_mlink as
       where ml_xmid is not null
    group by mlink_uid, mlink_xmtag
 ;
+
