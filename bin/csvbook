@@ -112,7 +112,7 @@ EndOfHelp
     printf >&2 'Book [%s] ...\n' "${desc[*]}"
 
     if
-        time ${libdir}csvdump --preset=book --skip-suppressed-listing "$input_file" "${cur_book_opts[@]}" --force-overwrite --output="$bookfile"
+        time ${libdir}csvdump --preset=book --skip-suppressed-listing "$input_file" "${cur_book_opts[@]}" --force-overwrite --output="$bookfile" --first-page-number=9 --book-font=DejaVuSerif --book-names-first
     then
         if [[ $kpid ]] ; then
             kill -INT "$kpid"
