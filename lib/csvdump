@@ -327,11 +327,13 @@ my $book_interdetail_spacing = 1.75*mm;
 my $book_sort_by_givenname;  # } will output BOTH lists if both these are selected
 my $book_sort_by_surname;    # }
 
-my $book_fontname  = 'Helvetica';
+my $book_fontname  = 'DejaVuSerif';
 my $book_email_fontname  = 'Courier';
 my $book_fontsize = 8.5*pt;     # depends on page size scaling
 my $book_pagenumber_fontsize = $book_fontsize / PHI;
 my $book_margin_fontsize = $book_fontsize * PHI;
+
+my $first_page_number = undef;
 my $use_page_numbers;
 
 my $book_phones_first = 1;
@@ -465,6 +467,7 @@ GetOptions
     'encode-utf8|eu8'             => sub { $use_encoding = 'UTF-8' },
     'encoding=s'                  =>      \$use_encoding,
     'escape-char=s'               => \$csv_escape_char,
+    'first-page-number=i'         => sub { $use_page_numbers = 1; $first_page_number = $_[-1] },
     'font-dir=s'                  => \$PDF::paginator::ttf_dir,
     'force-decode-octet|force-decode-byte|fdb' => sub { $force_decoding = 'OCTET' },
     'force-decode-utf16be|fdu16b' => sub { $force_decoding = 'UTF-16BE' },
@@ -2399,6 +2402,8 @@ sub generate_labels($$;$) {
         ( sprintf "custom[%.2f × %.2f mm]", $page_height/mm, $page_width/mm ),
     );
 
+    $pq->set_next_page_number($first_page_number) if defined $first_page_number;
+
     my $x_start = $label_left_margin + $page_left_margin;
     my $y_start = $label_top_margin  + $page_top_margin ;
 
@@ -2660,12 +2665,12 @@ sub generate_book($$;$) {
         @when = localtime $^T;
     }
     my $rev_year = strftime '%Y',           @when;
-    my $rev_ts   = strftime "%H:%M %d%b%Y", @when;
+    my $rev_ts   = strftime "%H:%M %d %b %Y", @when;
 
     my @copyright = split /\n+/, <<EndOfCopyright;
-Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved. This book contains
-confidential personal information for your household use only; do not copy or forward without authorisation from the YM Privacy Officer.
-If found please shred or burn. For uptodate information see https://quakers.nz/find-a-friend - last updated $rev_ts
+Compilation copyright ©$rev_year The Religious Society of Friends Aotearoa New Zealand, all rights reserved.
+This book contains confidential personal information for your household use only; do not copy or forward.
+Uptodate as at $rev_ts; for more recent information see https://quakers.nz/find-a-friend
 EndOfCopyright
 
     my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
@@ -2690,7 +2695,8 @@ EndOfCopyright
             push @{$by_mm{'NO - not in any meeting'}}, $r;
         }
     }
-    {
+
+    if ($do_book_index_by_wg) {
         # Find WG tags, make sure they're in the "@wg_order" list
         my @wg = keys %by_wg;
         my %w1 = map { ( $_ => 1 ) } @wg;
@@ -2699,7 +2705,9 @@ EndOfCopyright
         delete @w2{ @wg };
         ! %w2 or warn sprintf "WG_ORDER has excess %s\n", join ',', sort keys %w2;
         ! %w1 or die sprintf "WG_ORDER is missing %s\nPlease resolve by editing quaker_info.pm and adding entry to \@wg_order\n", join ',', sort keys %w1;
+    }
 
+    if ($do_book_index_by_mm) {
         # Find MM tags, make sure they're in the "@mm_order" list
         my @mm = keys %by_mm;
         my %m1 = map { ( $_ => 1 ) } @mm;
@@ -2711,6 +2719,8 @@ EndOfCopyright
     }
 
     my $pq = new PDF::paginator:: ( page_size => [$page_size || ($page_width, $page_height)] );
+
+    $pq->set_next_page_number($first_page_number) if defined $first_page_number;
 
     # if pagesize was given as eg "A5", convert that back to actual dimensions
     $page_width = $pq->{page_width};
@@ -2788,7 +2798,13 @@ EndOfCopyright
             my $right_page = $pagenum % 2;
             for my $ci (0 .. $#copyright) {
             my $c = $copyright[$ci];
-            $pq->text_at($c, { fn => $book_fontname, fs => $book_pagenumber_fontsize, y => $page_height-$page_top_margin/2-($ci - $#copyright/2)*$book_pagenumber_fontsize, , x => $page_width/2, halign => 1, valign => 1, italic => 1, });
+            $pq->text_at($c, { fn => $book_fontname,
+                               fs => $book_pagenumber_fontsize,
+                               y => $page_height-$page_top_margin/2-($ci - $#copyright/2)*$book_pagenumber_fontsize,
+                               x => $page_width/2,
+                               halign => 1,
+                               valign => 1,
+                               italic => 0, });
             }
         };
 
@@ -2798,7 +2814,13 @@ EndOfCopyright
         push @{$pq->{upon_end_page}}, sub {
             my ($pq, $pagenum) = @_;
             my $right_page = $pagenum % 2;
-            $pq->text_at($pagenum, { fn => $book_fontname, fs => $book_pagenumber_fontsize, y => $page_bottom_margin/2, x => $page_width/2, halign => 1, valign => 1, italic => 1, });
+            $pq->text_at($pagenum, { fn => $book_fontname,
+                                     fs => $book_pagenumber_fontsize,
+                                     y => $page_bottom_margin/2,
+                                     x => $page_width/2,
+                                     halign => 1,
+                                     valign => 1,
+                                     italic => 0, });
         };
     }
 
@@ -3075,6 +3097,7 @@ EndOfCopyright
     if ($do_book_listing_by_mm) {
         warn "doing book LISTING - by MM\n" if $verbose;
         push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
+        my $p1 = 0;
         for my $mm ( @mm_order ) {
             $skip_mm_listing{$mm} and next;
             my $rrr = $by_mm{$mm} or next;
@@ -3085,11 +3108,11 @@ EndOfCopyright
                                     heading_bold    => 1,
                                     heading_size    => $fontsize * PHI,
                                  );
-            $pq->closepage;
+            $pq->closepage if $p1++;
             my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
             ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rrr, 1, 1, $col, $top);
         }
-        $pq->closepage;
+        $pq->closepage if $p1++;
         pop @{$pq->{upon_end_page}};
     }
 
@@ -3124,6 +3147,7 @@ EndOfCopyright
                                     heading_bold    => 1,
                                     heading_size    => $fontsize * PHI,
                                  );
+            $top = 0;
             if ( $top < $fontsize*$line_spacing*(6+@$rrr/2) ) { $top = 0 }    # skip to next column if not enough room for 6 lines or if the following list is "large"
             else { $top -= $fontsize*$line_spacing*2 }              # leave 2 blank lines between end of previous group and heading for next group
             ($col, $top) = render_columnated_list       ($pq, $render_column_heading, \%render_context, [undef], 1, 1, $col, $top);

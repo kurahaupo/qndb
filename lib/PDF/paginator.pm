@@ -40,16 +40,21 @@ sub pdf {
     $p->{pdf} ||= PDF::API2->new(@_)
 }
 
+sub set_next_page_number {
+    my $p = shift;
+    $p->{next_page_number} = (shift // 1);
+}
+
 sub _startpage {
     my $p = shift;
     my $pdf = $p->pdf;
     warn "Next Page\n" if $verbose;
     my $page = $p->{page} = $pdf->page(@_);
+    my $pagenum = $p->{next_page_number};
     $page->mediabox(@{ $p->{page_size} });
     ( undef, undef, $p->{page_width}, $p->{page_height} ) = $page->get_mediabox();
     $p->{page_item_num} = 0;
     if (my $cb = $p->{upon_start_page}) {
-        my $pagenum = $pdf->pages || 0;
         if (ref $cb eq 'CODE') {
             $cb->($p, $pagenum);
         } else {
@@ -62,9 +67,8 @@ sub _startpage {
 
 sub pagenum {
     my $p = shift;
-    $p->_startpage if ! $p->{page};
-    my $pdf = $p->pdf;
-    $pdf->pages || 0;
+    my $page = $p->{page} or return;  # no current page
+    $p->{next_page_number};
 }
 
 # get the current page (starting a new page if necessary)
@@ -77,9 +81,10 @@ sub page {
 # close the current page, so that the next call to "page" will start a new page
 sub closepage {
     my $p = shift;
-    $p->{page} or return;  # no current page
+    my $page = $p->{page} or return;  # no current page
+    my $pagenum = $p->{next_page_number}++;
     if (my $cb = $p->{upon_end_page}) {
-        my $pagenum = $p->pdf->pages || 0;
+        #my $pagenum = $p->pdf->pages || 0;
         if (ref $cb eq 'CODE') {
             $cb->($p, $pagenum);
         } else {
