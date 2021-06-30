@@ -635,7 +635,7 @@ sub is_child($) {
 
 sub hide_listing($) {
     my $r = shift;
-    return 0;   # TODO
+    return ! $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' );
 }
 
 sub is_archived($) {
@@ -695,11 +695,6 @@ sub is_maci($) {
     my $r = shift;
     return $r->gtags('members', 'attenders', 'child', 'inactive');
    #return is_member_or_attender($r) || is_child_or_inactive($r);
-}
-
-sub want_shown_in_book($) {
-    my $r = shift;
-    return $r->gtags( 'members', 'attenders', 'child', 'inactive', 'meeting' );
 }
 
 sub want_wg_listings($) {

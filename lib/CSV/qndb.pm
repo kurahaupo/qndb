@@ -524,4 +524,13 @@ sub receive_local_newsletter_by_email($) {
 sub phone_number { $_[0]->{phone_number} }
 sub mobile_number { $_[0]->{mobile_number} }
 
+sub skip_meetings {
+    my $r = shift;
+
+    return ! $r->{monthly_meeting_area} &&
+           ! $r->{formal_membership} &&
+           ! ( $r->{show_me_in_young_friends_listing}
+            && $r->{show_me_in_young_friends_listing} eq 'Yes' );
+}
+
 1;

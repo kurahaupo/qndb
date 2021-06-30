@@ -1624,17 +1624,14 @@ use quaker_info '$mm_keys_re';
                 }
             }
         }
-        elsif ( $r->can('hide_listing') ) {
+        if ( $r->can('hide_listing') ) {
             if ( my $reason = $r->hide_listing ) {
                 warn sprintf "Skipping UNLISTED %s [%s]\n", $r->debuginfo, $reason if $why_not;
                 return 1;
             }
         }
-        else {
-            if ($skip_meetings && (! $r->{monthly_meeting_area} &&
-            ! $r->{formal_membership} &&
-            ! ( $r->{show_me_in_young_friends_listing}
-             && $r->{show_me_in_young_friends_listing} eq 'Yes' ))) {
+        if ($skip_meetings && $r->can('skip_meetings')) {
+            if ($r->skip_meetings) {
                 warn sprintf "Skipping UNLISTED %s [no MM membership, WG listing, or YF listing]\n", $r->debuginfo if $why_not;
                 return 1;
             }
@@ -2673,7 +2670,7 @@ This book contains confidential personal information for your household use only
 Uptodate as at $rev_ts; for more recent information see https://quakers.nz/find-a-friend
 EndOfCopyright
 
-    my $rr = [ grep { $_->want_shown_in_book } skip_unwanted_records @$rr0 ];
+    my $rr = [ skip_unwanted_records @$rr0 ];
 
     my %by_mm;
     my %by_wg;

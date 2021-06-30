@@ -35,7 +35,7 @@ sub is_archived { return 0; }   # no correspondence to gtags
 sub uid { $_[0]->{uid}; }
 
 sub hide_listing() {
-    return ! $_[0]->{visible};
+    return ! $_[0]->{visible} && 'User elected to be invisible';
 }
 
 sub name($) {
@@ -213,12 +213,6 @@ sub fix_one {
 
     CSV::Common::make_name_sortable($r);    # copied from CSV::Common::fix_one
     return $r;
-}
-
-sub want_shown_in_book {
-    my $r = shift;
-    return $r->{visible};
-    return 1;   # TODO
 }
 
 sub is_human($) {
