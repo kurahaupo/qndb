@@ -19,7 +19,6 @@ use verbose;
 use PDF::scale_factors;
 
 our $ttf_dir = '/usr/share/fonts/truetype/';
--d $ttf_dir or croak "Truetype fonts not in $ttf_dir;\nPlease modify \$ttf_dir in ".__FILE__." to indicate correct location\n";
 our $ttf_suffix = '.ttf';
 
 sub _unmethod {
@@ -173,7 +172,65 @@ use constant {
 };
 
 my %font_info;
+
 {
+package PDF::paginator::font_info_ ;
+
+sub fd($$) {
+    my ($prefix, $plain, $bold, $italic) = ('-', '', @_);
+    [ $plain                      ? $prefix . $plain           : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef ]
+}
+
+sub fd6($$$) {
+    my ($prefix, $plain, $bold, $italic, $italic2) = ('-', '', @_);
+    [ $plain                      ? $prefix . $plain           : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef,
+      defined( $italic2          ) ? $prefix . $plain . $italic2 : undef,
+      defined( $bold && $italic2 ) ? $prefix . $bold . $italic2  : undef,
+    ]
+}
+
+sub fda($$$) {
+    my ($prefix, $plain, $bold, $italic, $plain_alt) = ('-', '', @_);
+    $plain_alt //= $plain;
+    [ $plain_alt                  ? $prefix . $plain_alt       : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef ]
+}
+
+sub f0a($$$) {
+    my ($prefix, $plain, $bold, $italic, $plain_alt) = ('', '', @_);
+    $plain_alt //= $plain;
+    $prefix //= '';
+    [ $plain_alt                  ? $prefix . $plain_alt       : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef ]
+}
+
+sub f0($$$) {
+    my ($prefix, $plain, $bold, $italic) = ('', @_);
+    $prefix //= '';
+    [ $plain                      ? $prefix . $plain           : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef ]
+}
+
+sub fv($$$$) {
+    my ($prefix, $plain, $bold, $italic) = @_;
+    $prefix //= '';
+    [ $plain                      ? $prefix . $plain           : '',
+      defined( $bold            ) ? $prefix . $bold            : undef,
+      defined( $italic          ) ? $prefix . $plain . $italic : undef,
+      defined( $bold && $italic ) ? $prefix . $bold . $italic  : undef ]
+}
 
 # D - dash
 # N - nodash
@@ -186,194 +243,234 @@ my %font_info;
 # 1 - single letter (R rather than Regular)
 # l - lowercase (italic rather than Italic)
 
-my @xx =    ( '',            (undef) x 3,                                   );  # no variants
+# with leading dash that's suppressed on empty
 
-# with leading dash
-my @Dbbo =  ( '-Book',      '-Bold',    '-BookOblique',     '-BoldOblique', );
-my @Dbbx =  ( '-Book',      '-Bold',    (undef),            (undef),        );  # Bold but no italic/oblique
-my @Dbi =   ( '',           '-Bold',    '-Italic',          '-BoldItalic',  );
-my @Dqbi =  ( '-Regular',   '-Bold',    '-Italic',          '-BoldItalic',  );  # like bold+italic, except with "-Regular" instead of empty
-my @Dbio =  ( '',           '-Bold',    '-Italic',          '-BoldItalic',  '-Oblique', '-BoldOblique', );  # functions are @Dbi
-my @Dbo =   ( '',           '-Bold',    '-Oblique',         '-BoldOblique', );
-my @Dbx =   ( '',           '-Bold',    (undef),             undef,,        );
-my @Dmbi =  ( '-Medium',    '-Bold',    '-MediumItalic',    '-BoldItalic',  );
-my @Dmbo =  ( '-Medium',    '-Bold',    '-MediumOblique',   '-BoldOblique', );
-my @Drbi =  ( '-R',         '-B',       '-RI',              '-BI'           );  # upper-case single letter suffix: R/B + I with '-'
-my @Drbo =  ( '-Regular',   '-Bold',    '-RegularOblique',  '-BoldOblique', );
-my @Drbx =  ( '-Regular',   '-Bold',    (undef),             undef,,        );  # no italic/oblique
-my @Dxbo =  ( (undef),      '-Bold',    (undef),            '-BoldOblique', );  # Oblique but no un-Bold
+sub Dbi()    { return vs => fd( 'Bold', 'Italic' ),                   'path'; }
+sub Dbio()   { return vs => fd6( 'Bold', 'Italic', 'Oblique' ),       'path'; }
+sub Dqbi()   { return vs => fda( 'Bold', 'Italic', 'Regular' ),       'path'; }     # like bold+italic, except with "-Regular" instead of empty
+sub DqbiM()  { return vs => fda( 'Bold', 'Italic', 'Regular' ), mono => 1, 'path'; } # like bold+italic, except with "-Regular" instead of empty
+sub Dbo()    { return vs => fd( 'Bold', 'Oblique' ),                  'path'; }
+sub DboM()   { return vs => fd( 'Bold', 'Oblique' ),       mono => 1, 'path'; }
+sub Dbx()    { return vs => fd( 'Bold', undef ),                      'path'; }
 
-# with no lead
-my @Nqbi1=  ( 'R',          'B',        'I',                'BI',           );  # single letter suffices, with R instead of empty
-my @Nrbi1l= ( 'r',          'b',        'ri',               'bi'            );  # lower-case single letter suffix: r/b + i without '-'
-my @Nbi =   ( '',           'Bold',     'Italic',           'BoldItalic',   );  # like regular Bold+Italic but no '-' before suffix
-my @Nbo =   ( '',           'Bold',     'Oblique',          'BoldOblique',  );  # like regular Bold+Oblique but no '-' before suffix
-my @Nqbo =  ( 'Regular',    'Bold',     'Oblique',          'BoldOblique',  );  # like Bold+Oblique, but with 'Regular' instead of empty, and without '- before suffix
-my @Nbx =   ( '',           'Bold',     (undef),            (undef),        );  # Bold but no italic/oblique; no '-' before suffix
-my @Nbxl =  ( '',           'bold',     (undef),            (undef),        );  # bold but no italic/oblique; no '-' before suffix
-my @Nxi1 =   ( '',           (undef),   'I',                (undef),        );  # I but no B; no '-' before suffix
-my @Nxi =   ( '',           (undef),    'Italic',           (undef),        );  # Italic but no Bold; no '-' before suffix
-my @Nxo =   ( '',           (undef),    'Oblique',          (undef),        );  # Oblique but no Bold; no '-' before suffix
+# no separating punctuation before the suffix
+
+sub NxM()    { return vs => [ '' ],                         mono => 1,  'path'; }
+sub Nx()     { return vs => [ '' ], 'path'; }
+sub Nxi1()   { return vs => [ '', undef, 'I', undef ],                  'path'; }   # I but no B; no '-' before suffix
+sub Nxo()    { return vs => [ '', undef, 'Oblique', undef ],            'path'; }   # Oblique but no Bold; no '-' before suffix
+sub Nrdo()   { return vs => [ '', undef, 'Oblique', undef ],            'path'; }   # Oblique but no Bold; no '-' before suffix
+sub Nbxl2()  { return vs => f0( '', '-bold', undef ),                   'path'; }   # bold but no italic/oblique; no '-' before suffix
+sub Nbi()    { return vs => f0( '', 'Bold', 'Italic' ),                 'path'; }   # like regular Bold+Italic but no '-' before suffix
+sub Nbo()    { return vs => f0( '', 'Bold', 'Oblique' ),                'path'; }   # ; Bold; Oblique; Bold+Oblique
+sub NboM()   { return vs => f0( '', 'Bold', 'Oblique' ),     mono => 1, 'path'; }   # like regular Bold+Oblique but no '-' before suffix
+sub Nbx()    { return vs => f0( '', 'Bold', undef ),                    'path'; }   # Bold but no italic/oblique; no '-' before suffix
+sub Nbxl()   { return vs => f0( '', 'bold', undef ),                    'path'; }   # bold but no italic/oblique; no '-' before suffix
+sub Dbbo()   { return vs => f0( '-Book', '-Bold', 'Oblique' ),          'path'; }   # Book/Bold + Oblique
+sub Dbbx()   { return vs => f0( '-Book', '-Bold', undef ),              'path'; }   # Book/Bold but no italic/oblique
+sub Dmbi()   { return vs => f0( '-Medium', '-Bold', 'Italic' ),         'path'; }   
+sub Dmbo()   { return vs => f0( '-Medium', '-Bold', 'Oblique' ),        'path'; }   
+sub Drbi()   { return vs => f0( '-R', '-B', 'I' ),                      'path'; }   # upper-case single letter suffix: R/B + I with '-'
+sub DrbiM()  { return vs => f0( '-R', '-B', 'I' ),           mono => 1, 'path'; }   # upper-case single letter suffix: R/B + I with '-'
+sub Drbo()   { return vs => f0( '-Regular', '-Bold', 'Oblique' ),       'path'; }   
+sub Drbx()   { return vs => f0( '-Regular', '-Bold', undef ),           'path'; }   # no italic/oblique
+sub Dnbx()   { return vs => f0( '-n', '-b', undef ),                    'path'; }   # -n; -b; ;  (no italic)
+sub Nrbi1l() { return vs => f0( 'r', 'b', 'i' ),                        'path'; }   # lower-case single letter suffix: r/b + i without '-'
+sub Nqbi1()  { return vs => f0a( 'B', 'I', 'R' ),                       'path'; }   # single letter suffices, with R instead of empty
+sub Nqbi()   { return vs => f0a( 'Bold', 'Italic', 'Regular' ),         'path'; }   # like fNbo but with 'Regular' instead of empty, and without '- before suffix
+sub Nqbo()   { return vs => f0a( 'Bold', 'Oblique', 'Regular' ),        'path'; }   # like fNbo but with 'Regular' instead of empty, and without '- before suffix
+sub Dxti()   { return vs => f0a( undef, '-i', '-t' ),                   'path'; }   # -t; ; -i;  (no bold)
 
 # with leading underscore (or two)
-my @UUbi =  ( '',           '_Bold',    '_Italic',          '_Bold_Italic', );  # like Bold+Italic, but with _ before suffix
 
 %font_info = (
 
-    AbyssinicaSIL               => { vs => \@xx,    path => 'abyssinica/AbyssinicaSIL-R', },    # (no variants)
-    ani                         => { vs => \@xx,    path => 'ttf-bengali-fonts/ani', },         # (no variants)
-    Balker                      => { vs => \@xx,    path => 'dustin/Balker', },                 # (no variants)
-    cmex10                      => { vs => \@xx,    path => 'lyx/cmex10', },                    # (no variants)
-    cmmi10                      => { vs => \@xx,    path => 'lyx/cmmi10', },                    # (no variants)
-    cmr10                       => { vs => \@xx,    path => 'lyx/cmr10', },                     # (no variants)
-    cmsy10                      => { vs => \@xx,    path => 'lyx/cmsy10', },                    # (no variants)
-    Courier                     => { vs => \@Dbo,   std14 => 1, mono => 1, },
-    DavidCLM                    => { vs => \@Dmbi,  path => 'culmus/DavidCLM', },
-    DejaVuSans                  => { vs => \@Dbo,   path => 'dejavu/DejaVuSans', },
-    DejaVuSansCondensed         => { vs => \@Dbo,   path => 'dejavu/DejaVuSansC', },
-    DejaVuSansMono              => { vs => \@Dbo,   path => 'dejavu/DejaVuSansM', mono => 1, },
-    DejaVuSerif                 => { vs => \@Dbo,   path => 'dejavu/DejaVuSerif', },
-    DejaVuSerifCondensed        => { vs => \@Dbo,   path => 'dejavu/DejaVuSerif', },
-    Domestic_Manners            => { vs => \@xx,    path => 'dustin/Domestic_Manners', },       # (no variants)
-    DroidNaskh                  => { vs => \@Drbx,  path => 'droid/DroidNaskh', },              # -Regular; -Bold
-    DroidSans                   => { vs => \@Dbx,   path => 'droid/DroidSans', },               # ; -Bold
-    DroidSansArmenian           => { vs => \@xx,    path => 'droid/DroidSansArmenian', },       # (no variants)
-    DroidSansEthiopic           => { vs => \@Drbx,  path => 'droid/DroidSansEthiopic', },       # -Regular; -Bold
-    DroidSansFallbackFull       => { vs => \@xx,    path => 'droid/DroidSansFallbackFull', },   # (no variants)
-    DroidSansGeorgian           => { vs => \@xx,    path => 'droid/DroidSansGeorgian', },       # (no variants)
-    DroidSansHebrew             => { vs => \@Drbx,  path => 'droid/DroidSansHebrew', },         # -Regular; -Bold
-    DroidSansJapanese           => { vs => \@xx,    path => 'droid/DroidSansJapanese', },       # (no variants)
-    DroidSansMono               => { vs => \@xx,    path => 'droid/DroidSansMono', mono => 1, }, # (no variants)
-    DroidSansThai               => { vs => \@xx,    path => 'droid/DroidSansThai', },           # (no variants)
-    DroidSerif                  => { vs => \@Dqbi, path => 'droid/DroidSerif', },               # -Regular; -Bold; -Italic; -BoldItalic
-    Dustismo_Roman              => { vs => \@UUbi,  path => 'dustin/Dustismo_Roman', },         # ; _Bold; _Italic; _Italic_Bold
-    El_Abogado_Loco             => { vs => \@xx,    path => 'dustin/El_Abogado_Loco', },        # (no variants)
-    esint10                     => { vs => \@xx,    path => 'lyx/esint10', },                   # (no variants)
-    eufm10                      => { vs => \@xx,    path => 'lyx/eufm10', },                    # (no variants)
-    flatline                    => { vs => \@xx,    path => 'dustin/flatline', },               # (no variants)
-    FrankRuehlCLM               => { vs => \@Dmbo,  path => 'culmus/FrankRuehlCLM', },
-    FreeMono                    => { vs => \@Nbo,   path => 'freefont/FreeMono',  mono => 1, }, # ; Bold; Oblique; BoldOblique
-    FreeSans                    => { vs => \@Nbo,   path => 'freefont/FreeSans',  },            # ; Bold; Oblique; BoldOblique
-    FreeSerif                   => { vs => \@Nbi,   path => 'freefont/FreeSerif', },            # ; Bold; Italic; BoldItalic
-    gargi                       => { vs => \@xx,    path => 'ttf-indic-fonts-core/gargi', },    # (no variants)
-    Garuda                      => { vs => \@Dbo,   path => 'tlwg/Garuda', },                   # ; -Bold; -Oblique; -BoldOblique
-    GenBas                      => { vs => \@Nqbi1, path => 'gentium-basic/GenBas',  },         # R; B; I; BI
-    GenBkBas                    => { vs => \@Nqbi1, path => 'gentium-basic/GenBkBas', },        # R; B; I; BI
-    HadasimCLM                  => { vs => \@Drbo,  path => 'culmus/HadasimCLM', },
-    Helvetica                   => { vs => \@Dbo,   std14 => 1, },
-    It_wasn_t_me                => { vs => \@xx,    path => 'dustin/It_wasn_t_me', },           # (no variants)
-    JamrulNormal                => { vs => \@xx,    path => 'ttf-bengali-fonts/JamrulNormal', }, # (no variants)
-    Junkyard                    => { vs => \@xx,    path => 'dustin/Junkyard', },               # (no variants)
-    KacstArt                    => { vs => \@xx,    path => 'kacst/KacstArt', },                # (no variants)
-    KacstBook                   => { vs => \@xx,    path => 'kacst/KacstBook', },               # (no variants)
-    KacstDecorative             => { vs => \@xx,    path => 'kacst/KacstDecorative', },         # (no variants)
-    KacstDigital                => { vs => \@xx,    path => 'kacst/KacstDigital', },            # (no variants)
-    KacstFarsi                  => { vs => \@xx,    path => 'kacst/KacstFarsi', },              # (no variants)
-    KacstLetter                 => { vs => \@xx,    path => 'kacst/KacstLetter', },             # (no variants)
-    KacstNaskh                  => { vs => \@xx,    path => 'kacst/KacstNaskh', },              # (no variants)
-    KacstOffice                 => { vs => \@xx,    path => 'kacst/KacstOffice', },             # (no variants)
-    KacstOne                    => { vs => \@Dbx,   path => 'kacst-one/KacstOne', },            # ; -Bold
-    KacstPen                    => { vs => \@xx,    path => 'kacst/KacstPen', },                # (no variants)
-    KacstPoster                 => { vs => \@xx,    path => 'kacst/KacstPoster', },             # (no variants)
-    KacstQurn                   => { vs => \@xx,    path => 'kacst/KacstQurn', },               # (no variants)
-    KacstScreen                 => { vs => \@xx,    path => 'kacst/KacstScreen', },             # (no variants)
-    KacstTitle                  => { vs => \@xx,    path => 'kacst/KacstTitle', },              # (no variants)
-    KacstTitleL                 => { vs => \@xx,    path => 'kacst/KacstTitleL', },             # (no variants)
-    KeterYG                     => { vs => \@Dmbo,  path => 'culmus/KeterYG', },
-    KhmerOS                     => { vs => \@xx,    path => 'ttf-khmeros-core/KhmerOS', },      # (no variants)
-    KhmerOSsys                  => { vs => \@xx,    path => 'ttf-khmeros-core/KhmerOSsys', },   # (no variants)
-    Kinnari                     => { vs => \@Dbio,  path => 'tlwg/Kinnari', },                  # ; -Bold; -Italic; -BoldItalic; -Oblique; -BoldOblique
-    Lato                        => { vs => \@Dqbi, path => 'lato/Lato', },                      # -Regular; -Bold; -Italic; -BoldItalic
-    LiberationMono              => { vs => \@Dqbi, path => 'liberation/LiberationMono', mono => 1, }, # -Regular; -Bold; -Italic; -BoldItalic
-    LiberationSans              => { vs => \@Dqbi, path => 'liberation/LiberationSans', },      # -Regular; -Bold; -Italic; -BoldItalic
-    LiberationSansNarrow        => { vs => \@Dqbi, path => 'liberation/LiberationSansNarrow', }, # -Regular; -Bold; -Italic; -BoldItalic
-    LiberationSerif             => { vs => \@Dqbi, path => 'liberation/LiberationSerif', },     # -Regular; -Bold; -Italic; -BoldItalic
-    LikhanNormal                => { vs => \@xx,    path => 'ttf-bengali-fonts/LikhanNormal', }, # (no variants)
-    lklug                       => { vs => \@xx,    path => 'sinhala/lklug', },                 # (no variants)
-    lohit_as                    => { vs => \@xx,    path => 'ttf-bengali-fonts/lohit_as', },    # (no variants)
-    lohit_bn                    => { vs => \@xx,    path => 'ttf-indic-fonts-core/lohit_bn', }, # (no variants)
-    lohit_gu                    => { vs => \@xx,    path => 'ttf-indic-fonts-core/lohit_gu', }, # (no variants)
-    lohit_hi                    => { vs => \@xx,    path => 'ttf-indic-fonts-core/lohit_hi', }, # (no variants)
-    lohit_kn                    => { vs => \@xx,    path => 'ttf-kannada-fonts/lohit_kn', },    # (no variants)
-    lohit_or                    => { vs => \@xx,    path => 'ttf-oriya-fonts/lohit_or', },      # (no variants)
-    lohit_pa                    => { vs => \@xx,    path => 'ttf-punjabi-fonts/lohit_pa', },    # (no variants)
-    lohit_ta                    => { vs => \@xx,    path => 'ttf-indic-fonts-core/lohit_ta', }, # (no variants)
-    lohit_te                    => { vs => \@xx,    path => 'ttf-telugu-fonts/lohit_te', },     # (no variants)
-    Loma                        => { vs => \@Dbo,   path => 'tlwg/Loma', },                     # ; -Bold; -Oblique; -BoldOblique
-    luxim                       => { vs => \@Nrbi1l, path => 'ttf-xfree86-nonfree/luxim', },    # r; b; ri; bi
-    luxir                       => { vs => \@Nrbi1l, path => 'ttf-xfree86-nonfree/luxir', },    # r; b; ri; bi
-    luxis                       => { vs => \@Nrbi1l, path => 'ttf-xfree86-nonfree/luxis', },    # r; b; ri; bi
-    MarkedFool                  => { vs => \@xx,    path => 'dustin/MarkedFool', },             # (no variants)
-    Meera_04                    => { vs => \@xx,    path => 'ttf-indic-fonts-core/Meera_04', }, # (no variants)
-    MgOpenCanonica              => { vs => \@Nqbo,  path => 'mgopen/MgOpenCanonica', },         # Regular; Bold; Italic; BoldItalic
-    MgOpenCosmetica             => { vs => \@Nqbo,  path => 'mgopen/MgOpenCosmetica', },        # Regular; Bold; Oblique; BoldOblique
-    MgOpenModata                => { vs => \@Nqbo,  path => 'mgopen/MgOpenModata', },           # Regular; Bold; Oblique; BoldOblique
-    MgOpenModerna               => { vs => \@Nqbo,  path => 'mgopen/MgOpenModerna', },          # Regular; Bold; Oblique; BoldOblique
-    MiriamCLM                   => { vs => \@Dbbx,  path => 'culmus/MiriamCLM', },
-    MiriamMonoCLM               => { vs => \@Dbbo,  path => 'culmus/MiriamMonoCLM', mono => 1, }, # -Book; -Bold; -BookOblique; -BoldOblique
-    mitra                       => { vs => \@xx,    path => 'ttf-bengali-fonts/mitra', },       # (no variants)
-    mry_KacstQurn               => { vs => \@xx,    path => 'kacst/mry_KacstQurn', },           # (no variants)
-    msam10                      => { vs => \@xx,    path => 'lyx/msam10', },                    # (no variants)
-    msbm10                      => { vs => \@xx,    path => 'lyx/msbm10', },                    # (no variants)
-    MuktiNarrow                 => { vs => \@Nbx,   path => 'ttf-indic-fonts-core/MuktiNarrow', }, # ; Bold
-    NanumBarunGothic            => { vs => \@Nbx,   path => 'nanum/NanumBarunGothic', },        # ; Bold
-    NanumGothic                 => { vs => \@Nbx,   path => 'nanum/NanumGothic', },             # ; Bold
-    NanumMyeongjo               => { vs => \@Nbx,   path => 'nanum/NanumMyeongjo', },           # ; Bold
-    Norasi                      => { vs => \@Dbio,  path => 'tlwg/Norasi', },                   # ; -Bold; -Italic; -BoldItalic; -Oblique; -BoldOblique
-    opens___                    => { vs => \@xx,    path => 'openoffice/opens___', },           # (no variants)
-    Padauk                      => { vs => \@Nbxl,  path => 'padauk/Padauk', },                 # ; bold
-    PenguinAttack               => { vs => \@xx,    path => 'dustin/PenguinAttack', },          # (no variants)
-    Phetsarath_OT               => { vs => \@xx,    path => 'lao/Phetsarath_OT', },             # (no variants)
-    Pothana2000                 => { vs => \@xx,    path => 'ttf-indic-fonts-core/Pothana2000', }, # (no variants)
-    progenisis                  => { vs => \@xx,    path => 'dustin/progenisis', },             # (no variants)
-    Purisa                      => { vs => \@Dbo,   path => 'tlwg/Purisa', },                   # ; -Bold; -Oblique; -BoldOblique
-    Rachana_04                  => { vs => \@xx,    path => 'ttf-indic-fonts-core/Rachana_04', }, # (no variants)
-    Rekha                       => { vs => \@xx,    path => 'ttf-indic-fonts-core/Rekha', },    # (no variants)
-    rsfs10                      => { vs => \@xx,    path => 'lyx/rsfs10', },                    # (no variants)
-    Saab                        => { vs => \@xx,    path => 'ttf-punjabi-fonts/Saab', },        # (no variants)
-    Sawasdee                    => { vs => \@Dbo,   path => 'tlwg/Sawasdee', },                 # ; -Bold; -Oblique; -BoldOblique
-    ShofarDemi                  => { vs => \@Dxbo,  path => 'culmus/ShofarDemi', },             # -Bold; -BoldOblique
-    ShofarRegular               => { vs => \@Nxo,   path => 'culmus/ShofarRegular', },          # ; Oblique, without '-'
-    SILEOT                      => { vs => \@xx,    path => 'ezra/SILEOT', },                   # (no variants)
-    SILEOTSR                    => { vs => \@xx,    path => 'ezra/SILEOTSR', },                 # (no variants)
-    SimpleCLM                   => { vs => \@Dmbo,  path => 'culmus/SimpleCLM', },              # -Medium; -Bold; -MediumOblique; -BoldOblique
-    StamAshkenazCLM             => { vs => \@xx,    path => 'culmus/StamAshkenazCLM', },        # (no variants)
-    StamSefaradCLM              => { vs => \@xx,    path => 'culmus/StamSefaradCLM', },         # (no variants)
-    Swift                       => { vs => \@xx,    path => 'dustin/Swift', },                  # (no variants)
-    Symbol                      => { vs => \@xx,    std14 => 1, },                              # (no variants)
-    TakaoPGothic                => { vs => \@xx,    path => 'takao-gothic/TakaoPGothic', },     # (no variants)
-    TibetanMachineUni           => { vs => \@xx,    path => 'tibetan-machine/TibetanMachineUni', }, # (no variants)
-    Times                       => { vs => \@Dbi,   std14 => 1, },
-    TlwgMono                    => { vs => \@Dbo,   path => 'tlwg/TlwgMono', mono => 1, },      # ; -Bold; -Oblique; -BoldOblique
-    TlwgTypewriter              => { vs => \@Dbo,   path => 'tlwg/TlwgTypewriter', },           # ; -Bold; -Oblique; -BoldOblique
-    TlwgTypist                  => { vs => \@Dbo,   path => 'tlwg/TlwgTypist', },               # ; -Bold; -Oblique; -BoldOblique
-    TlwgTypo                    => { vs => \@Dbo,   path => 'tlwg/TlwgTypo', },                 # ; -Bold; -Oblique; -BoldOblique
-    Ubuntu                      => { vs => \@Drbi,  path => 'ubuntu-font-family/Ubuntu', },     # -R; -B; -RI; -BI
-    UbuntuMono                  => { vs => \@Drbi,  path => 'ubuntu-font-family/UbuntuMono', mono => 1, }, # -R; -B; -RI; -BI
-   'Ubuntu-L'                   => { vs => \@Nxi1,  path => 'ubuntu-font-family/Ubuntu-L', },   # -L; -LI;
-   'Ubuntu-M'                   => { vs => \@Nxi1,  path => 'ubuntu-font-family/Ubuntu-M', },   # -M; -MI;
-   'Ubuntu-C'                   => { vs => \@xx,    path => 'ubuntu-font-family/Ubuntu-C', },   # -C
-    Umpush                      => { vs => \@Dbo,   path => 'tlwg/Umpush', },                   # ; -Bold; -Oblique; -BoldOblique
-   'Umpush-Light'               => { vs => \@Nxo,   path => 'tlwg/Umpush-Light', },             # -Light; -LightOblique
-    utkal                       => { vs => \@xx,    path => 'ttf-indic-fonts-core/utkal', },    # (no variants)
-    Vemana                      => { vs => \@xx,    path => 'ttf-indic-fonts-core/Vemana', },   # (no variants)
-    Waree                       => { vs => \@Dbo,   path => 'tlwg/Waree', },                    # ; -Bold; -Oblique; -BoldOblique
-    Wargames                    => { vs => \@xx,    path => 'dustin/Wargames', },               # (no variants)
-    wasy10                      => { vs => \@xx,    path => 'lyx/wasy10', },                    # (no variants)
-    Winks                       => { vs => \@xx,    path => 'dustin/Winks', },                  # (no variants)
-   'DejaVuSans-ExtraLight'      => { vs => \@xx,    path => 'dejavu/DejaVuSans', },             # (no variants)
-   'Lato-Black'                 => { vs => \@Nxi,   path => 'lato/Lato-Black', },               # -Black; -BlackItalic
-   'Lato-Hairline'              => { vs => \@Nxi,   path => 'lato/Lato-Hairline', },            # -Hairline; -HairlineItalic
-   'Lato-Heavy'                 => { vs => \@Nxi,   path => 'lato/Lato-Heavy', },               # -Heavy; -HeavyItalic
-   'Lato-Light'                 => { vs => \@Nxi,   path => 'lato/Lato-Light', },               # -Light; -LightItalic
-   'Lato-Medium'                => { vs => \@Nxi,   path => 'lato/Lato-Medium', },              # -Medium; -MediumItalic
-   'Lato-Semibold'              => { vs => \@Nxi,   path => 'lato/Lato-Semibold', },            # -Semibold; -SemiboldItalic
-   'Lato-Thin'                  => { vs => \@Nxi,   path => 'lato/Lato-Thin', },                # -Thin; -ThinItalic
-   'Padauk-book'                => { vs => \@Nbxl,  path => 'padauk/Padauk-book', },            # -book; -bookbold
-   'Samyak-Oriya'               => { vs => \@xx,    path => 'ttf-oriya-fonts/Samyak-Oriya', },  # (no variants)
-   'Zapf Dingbats'              => { vs => \@xx,    std14 => 1, },                              # (no variants)
+    AbyssinicaSIL               => { Nx,      'abyssinica/AbyssinicaSIL-R' },       # (no variants )
+    Courier                     => { std14 => 'Courier', DboM, undef },
+    DavidCLM                    => { Dmbi,    'culmus/DavidCLM' },
+    DejaVuSans                  => { Dbo,     'dejavu/DejaVuSans' },
+    DejaVuSansCondensed         => { Dbo,     'dejavu/DejaVuSansCondensed' },
+    DejaVuSansExtraLight        => { Nx,      'dejavu/DejaVuSans-ExtraLight' },     # (no variants )
+    DejaVuSansMono              => { DboM,    'dejavu/DejaVuSansMono' },
+    DejaVuSerif                 => { Dbi,     'dejavu/DejaVuSerif' },
+    DejaVuSerifCondensed        => { Dbi,     'dejavu/DejaVuSerifCondensed' },
+    DroidNaskh                  => { Drbx,    'droid/DroidNaskh' },                 # -Regular; -Bold
+    DroidSans                   => { Dbx,     'droid/DroidSans' },                  # ; -Bold
+    DroidSansArmenian           => { Nx,      'droid/DroidSansArmenian' },          # (no variants )
+    DroidSansEthiopic           => { Drbx,    'droid/DroidSansEthiopic' },          # -Regular; -Bold
+    DroidSansFallbackFull       => { Nx,      'droid/DroidSansFallbackFull' },      # (no variants )
+    DroidSansGeorgian           => { Nx,      'droid/DroidSansGeorgian' },          # (no variants )
+    DroidSansHebrew             => { Drbx,    'droid/DroidSansHebrew' },            # -Regular; -Bold
+    DroidSansJapanese           => { Nx,      'droid/DroidSansJapanese' },          # (no variants )
+    DroidSansMono               => { NxM,     'droid/DroidSansMono' },              # (no variants )
+    DroidSansThai               => { Nx,      'droid/DroidSansThai' },              # (no variants )
+    DroidSerif                  => { Dqbi,    'droid/DroidSerif' },                 # -Regular; -Bold; -Italic; -BoldItalic
+    FrankRuehlCLM               => { Dmbo,    'culmus/FrankRuehlCLM' },
+    FreeMono                    => { NboM,    'freefont/FreeMono' },                # ; Bold; Oblique; BoldOblique
+    FreeSans                    => { Nbo,     'freefont/FreeSans' },                # ; Bold; Oblique; BoldOblique
+    FreeSerif                   => { Nbi,     'freefont/FreeSerif' },               # ; Bold; Italic; BoldItalic
+    Garuda                      => { Dbo,     'tlwg/Garuda' },                      # ; -Bold; -Oblique; -BoldOblique
+    Gen102                      => { path => 'gentium/Gen', vs => [ 'R102', 'AR102', 'I102', 'AI102' ] },   # GenAI102.ttf; GenAR102.ttf; GenI102.ttf; GenR102.ttf
+    GenBas                      => { Nqbi1,   'gentium-basic/GenBas' },             # R; B; I; BI
+    GenBkBas                    => { Nqbi1,   'gentium-basic/GenBkBas' },           # R; B; I; BI
+    HadasimCLM                  => { Drbo,    'culmus/HadasimCLM' },
+    Helvetica                   => { std14 => 'Helvetica', Dbo, undef, },
+    JamrulNormal                => { Nx,      'ttf-bengali-fonts/JamrulNormal' },   # (no variants )
+    KacstArt                    => { Nx,      'kacst/KacstArt' },                   # (no variants )
+    KacstBook                   => { Nx,      'kacst/KacstBook' },                  # (no variants )
+    KacstDecorative             => { Nx,      'kacst/KacstDecorative' },            # (no variants )
+    KacstDigital                => { Nx,      'kacst/KacstDigital' },               # (no variants )
+    KacstFarsi                  => { Nx,      'kacst/KacstFarsi' },                 # (no variants )
+    KacstLetter                 => { Nx,      'kacst/KacstLetter' },                # (no variants )
+    KacstNaskh                  => { Nx,      'kacst/KacstNaskh' },                 # (no variants )
+    KacstOffice                 => { Nx,      'kacst/KacstOffice' },                # (no variants )
+    KacstOne                    => { Dbx,     'kacst-one/KacstOne' },               # ; -Bold
+    KacstPen                    => { Nx,      'kacst/KacstPen' },                   # (no variants )
+    KacstPoster                 => { Nx,      'kacst/KacstPoster' },                # (no variants )
+    KacstQurn                   => { Nx,      'kacst/KacstQurn' },                  # (no variants )
+    KacstScreen                 => { Nx,      'kacst/KacstScreen' },                # (no variants )
+    KacstTitle                  => { Nx,      'kacst/KacstTitle' },                 # (no variants )
+    KacstTitleL                 => { Nx,      'kacst/KacstTitleL' },                # (no variants )
+    KeterYG                     => { Dmbo,    'culmus/KeterYG' },
+    KhmerOS                     => { Nx,      'ttf-khmeros-core/KhmerOS' },         # (no variants )
+    KhmerOSsys                  => { Nx,      'ttf-khmeros-core/KhmerOSsys' },      # (no variants )
+    Kinnari                     => { Dbio,    'tlwg/Kinnari' },                     # ; -Bold; -Italic; -BoldItalic; -Oblique; -BoldOblique (ignore Oblique )
+    LiberationMono              => { DqbiM,   'liberation/LiberationMono' },        # -Regular; -Bold; -Italic; -BoldItalic
+    LiberationSans              => { Dqbi,    'liberation/LiberationSans' },        # -Regular; -Bold; -Italic; -BoldItalic
+    LiberationSansNarrow        => { Dqbi,    'liberation/LiberationSansNarrow' },  # -Regular; -Bold; -Italic; -BoldItalic
+    LiberationSerif             => { Dqbi,    'liberation/LiberationSerif' },       # -Regular; -Bold; -Italic; -BoldItalic
+    LikhanNormal                => { Nx,      'ttf-bengali-fonts/LikhanNormal' },   # (no variants )
+    Loma                        => { Dbo,     'tlwg/Loma' },                        # ; -Bold; -Oblique; -BoldOblique
+    Meera_04                    => { Nx,      'ttf-indic-fonts-core/Meera_04' },    # (no variants )
+    MgOpenCanonica              => { Nqbi,    'mgopen/MgOpenCanonica' },            # Regular; Bold; Italic; BoldItalic
+    MgOpenCosmetica             => { Nqbo,    'mgopen/MgOpenCosmetica' },           # Regular; Bold; Oblique; BoldOblique
+    MgOpenModata                => { Nqbo,    'mgopen/MgOpenModata' },              # Regular; Bold; Oblique; BoldOblique
+    MgOpenModerna               => { Nqbo,    'mgopen/MgOpenModerna' },             # Regular; Bold; Oblique; BoldOblique
+    MiriamCLM                   => { Dbbx,    'culmus/MiriamCLM' },
+    MiriamMonoCLM               => { Dbbo,    'culmus/MiriamMonoCLM', mono => 1 },  # -Book; -Bold; -BookOblique; -BoldOblique
+    MuktiNarrow                 => { Nbx,     'ttf-indic-fonts-core/MuktiNarrow' }, # ; Bold
+    NanumBarunGothic            => { Nbx,     'nanum/NanumBarunGothic' },           # ; Bold
+    NanumGothic                 => { Nbx,     'nanum/NanumGothic' },                # ; Bold
+    NanumMyeongjo               => { Nbx,     'nanum/NanumMyeongjo' },              # ; Bold
+    Norasi                      => { Dbio,    'tlwg/Norasi' },                      # ; -Bold; -Italic; -BoldItalic; -Oblique; -BoldOblique (ignore Oblique )
+    Padauk                      => { Nbxl2,   'padauk/Padauk' },                    # ; -bold
+    Padauk_book                 => { Nbxl,    'padauk/Padauk-book' },               # -book; -bookbold
+    Phetsarath_OT               => { Nx,      'lao/Phetsarath_OT' },                # (no variants )
+    Pothana2000                 => { Nx,      'ttf-indic-fonts-core/Pothana2000' }, # (no variants )
+    Purisa                      => { Dbo,     'tlwg/Purisa' },                      # ; -Bold; -Oblique; -BoldOblique
+    Rachana_04                  => { Nx,      'ttf-indic-fonts-core/Rachana_04' },  # (no variants )
+    Rekha                       => { Nx,      'ttf-indic-fonts-core/Rekha' },       # (no variants )
+    SILEOT                      => { Nx,      'ezra/SILEOT' },                      # (no variants )
+    SILEOTSR                    => { Nx,      'ezra/SILEOTSR' },                    # (no variants )
+    Saab                        => { Nx,      'ttf-punjabi-fonts/Saab' },           # (no variants )
+    Samyak_Oriya                => { Nx,      'ttf-oriya-fonts/Samyak-Oriya' },     # (no variants )
+    Sawasdee                    => { Dbo,     'tlwg/Sawasdee' },                    # ; -Bold; -Oblique; -BoldOblique
+    Shofar                      => { path =>'culmus/Shofar', vs => f0( 'Regular', 'Demi-Bold', 'Oblique' ) },   # Regular; Demi-Bold; RegularOblique; Demi-BoldOblique
+    SimpleCLM                   => { Dmbo,    'culmus/SimpleCLM' },                 # -Medium; -Bold; -MediumOblique; -BoldOblique
+    StamAshkenazCLM             => { Nx,      'culmus/StamAshkenazCLM' },           # (no variants )
+    StamSefaradCLM              => { Nx,      'culmus/StamSefaradCLM' },            # (no variants )
+    Symbol                      => { std14 => 'Symbol', vs => [ '' ] },             # ( no variants )
+    TakaoPGothic                => { Nx,      'takao-gothic/TakaoPGothic' },        # (no variants )
+    TibetanMachineUni           => { Nx,      'tibetan-machine/TibetanMachineUni' }, # (no variants )
+    Times                       => { std14 => 'Times', Dbi, undef },                # vs => fv( '-', '', 'Bold', 'Italic' )
+    TlwgMono                    => { DboM,    'tlwg/TlwgMono' },                    # ; -Bold; -Oblique; -BoldOblique
+    TlwgTypewriter              => { Dbo,     'tlwg/TlwgTypewriter' },              # ; -Bold; -Oblique; -BoldOblique
+    TlwgTypist                  => { Dbo,     'tlwg/TlwgTypist' },                  # ; -Bold; -Oblique; -BoldOblique
+    TlwgTypo                    => { Dbo,     'tlwg/TlwgTypo' },                    # ; -Bold; -Oblique; -BoldOblique
+    Ubuntu                      => { Drbi,    'ubuntu-font-family/Ubuntu' },        # -R; -B; -RI; -BI
+    UbuntuMono                  => { DrbiM,   'ubuntu-font-family/UbuntuMono' },    # -R; -B; -RI; -BI
+    Ubuntu_C                    => { Nx,      'ubuntu-font-family/Ubuntu-C' },      # -C
+    Ubuntu_L                    => { Nxi1,    'ubuntu-font-family/Ubuntu-L' },      # -L; -LI;
+    Ubuntu_M                    => { Nxi1,    'ubuntu-font-family/Ubuntu-M' },      # -M; -MI;
+    Umpush                      => { Dbo,     'tlwg/Umpush' },                      # ; -Bold; -Oblique; -BoldOblique
+    Umpush_Light                => { Nxo,     'tlwg/Umpush-Light' },                # -Light; -LightOblique
+    Vemana                      => { Nx,      'ttf-indic-fonts-core/Vemana' },      # (no variants )
+    Waree                       => { Dbo,     'tlwg/Waree' },                       # ; -Bold; -Oblique; -BoldOblique
+    Zapf_Dingbats               => { std14 => 'Zapf Dingbats', vs => [ '' ] },      # (no variants)
+    ani                         => { Nx,      'ttf-bengali-fonts/ani' },            # (no variants)
+    cmex10                      => { Nx,      'lyx/cmex10' },                       # (no variants)
+    cmmi10                      => { Nx,      'lyx/cmmi10' },                       # (no variants)
+    cmr10                       => { Nx,      'lyx/cmr10' },                        # (no variants)
+    cmsy10                      => { Nx,      'lyx/cmsy10' },                       # (no variants)
+    esint10                     => { Nx,      'lyx/esint10' },                      # (no variants)
+    eufm10                      => { Nx,      'lyx/eufm10' },                       # (no variants)
+    gargi                       => { Nx,      'ttf-indic-fonts-core/gargi' },       # (no variants)
+    indic_Kedage                => { Dnbx,    'ttf-indic-fonts-core/Kedage' },
+    indic_Malige                => { Dnbx,    'ttf-indic-fonts-core/Malige' },
+    kannada_Kedage              => { Dxti,    'ttf-kannada-fonts/Kedage' },
+    kannada_Malige              => { Dxti,    'ttf-kannada-fonts/Malige' },
+    lklug                       => { Nx,      'sinhala/lklug' },                    # (no variants)
+    lohit_as                    => { Nx,      'ttf-bengali-fonts/lohit_as' },       # (no variants)
+    lohit_bn                    => { Nx,      'ttf-indic-fonts-core/lohit_bn' },    # (no variants)
+    lohit_gu                    => { Nx,      'ttf-indic-fonts-core/lohit_gu' },    # (no variants)
+    lohit_hi                    => { Nx,      'ttf-indic-fonts-core/lohit_hi' },    # (no variants)
+    lohit_kn                    => { Nx,      'ttf-kannada-fonts/lohit_kn' },       # (no variants)
+    lohit_or                    => { Nx,      'ttf-oriya-fonts/lohit_or' },         # (no variants)
+    lohit_pa                    => { Nx,      'ttf-punjabi-fonts/lohit_pa' },       # (no variants)
+    lohit_ta                    => { Nx,      'ttf-indic-fonts-core/lohit_ta' },    # (no variants)
+    lohit_te                    => { Nx,      'ttf-telugu-fonts/lohit_te' },        # (no variants)
+    luxim                       => { Nrbi1l,  'ttf-xfree86-nonfree/luxim' },        # r; b; ri; bi
+    luxir                       => { Nrbi1l,  'ttf-xfree86-nonfree/luxir' },        # r; b; ri; bi
+    luxis                       => { Nrbi1l,  'ttf-xfree86-nonfree/luxis' },        # r; b; ri; bi
+    mitra                       => { Nx,      'ttf-bengali-fonts/mitra' },          # (no variants)
+    mry_KacstQurn               => { Nx,      'kacst/mry_KacstQurn' },              # (no variants)
+    msam10                      => { Nx,      'lyx/msam10' },                       # (no variants)
+    msbm10                      => { Nx,      'lyx/msbm10' },                       # (no variants)
+    openoffice                  => { Nx,      'openoffice/opens___' },              # (no variants)
+    rsfs10                      => { Nx,      'lyx/rsfs10' },                       # (no variants)
+    utkal                       => { Nx,      'ttf-indic-fonts-core/utkal' },       # (no variants)
+    wasy10                      => { Nx,      'lyx/wasy10' },                       # (no variants)
 
 );
+
+if ($^C || $^W) {
+
+    our $ttf_dir;
+    our $ttf_suffix;
+    BEGIN {
+    *ttf_dir = \$PDF::paginator::ttf_dir;
+    *ttf_suffix = \$PDF::paginator::ttf_suffix;
+    }
+
+    use Carp 'croak';
+    -d $ttf_dir or croak "Truetype fonts not in $ttf_dir;\nPlease modify \$ttf_dir in ".__FILE__." to indicate correct location\n";
+
+    my %present = map { ( $_ => 1 ) } my @present = glob $ttf_dir.'*/*'.$ttf_suffix;
+
+    my $err = 0;
+    my @claimed;
+    for my $fn ( keys %font_info ) {
+        my $fi = $font_info{$fn};
+        $fi->{std14} and next;
+        #warn "Verifying font $fn\n";
+        my $path = $fi->{path};
+        my $vs = $fi->{vs};
+        ref $vs or die "vs is not array for font $fn";
+        for my $fi ( 0 .. $#$vs ) {
+            my $fs = $vs->[$fi] // do { $fi or die "Font $fn undef on variant 0"; next };
+            my $filename = $ttf_dir.$path.$fs.$ttf_suffix;
+            $present{$filename} or ++$err, warn "Font $fn variant $fi missing $filename";
+            push @claimed, $filename;
+        }
+    }
+    $err and die "Unmatched font files $err";
+
+    if ($ENV{QDB_check_unclaimed_fonts}) {
+        # Check for unclaimed files.
+        # This doesn't really serve any purpose other than to check that the
+        # logic is finding them all. "Extra" font files won't be used.
+        delete @present{@claimed};
+        for (sort keys %present) {
+            -l $_ and next;
+            warn "Unclaimed font file $_\n";
+            ++$err;
+        }
+        $err and warn "Unclaimed (extra) fonts: $err files";
+    }
+
+    warn "Checked for fonts in $ttf_dir with suffix $ttf_suffix, glob matched @{[ 0+@present ]}\n";
+
+}
 }
 
 # Phone numbers should request Monospace except that digit grouping should use
@@ -423,7 +520,7 @@ sub font($$$$;$$) {
     }
     my $fi = $font_info{$basefont};
     my $std14 = $fi->{std14};
-    my $name = $std14 ? $basefont : $fi->{path};
+    my $name = $std14 || $fi->{path};
 
     $name .= $fi->{vs}[$fontstyle]
           // $fi->{vs}[$fontstyle^b_Italic]
@@ -434,7 +531,12 @@ sub font($$$$;$$) {
             $fi->{std14} ? $pq->pdf->corefont($name)
                          : do {
                             my $filename = $ttf_dir.$name.$ttf_suffix;
-                            $pq->pdf->ttfont($filename);
+                            eval {
+                                $pq->pdf->ttfont($filename)
+                            } or do {
+                                use Data::Dumper;
+                                croak sprintf "No font %s variant %s from file %s\n\tDump=%s", $basefont, $fontstyle, $filename, Dumper($fi);
+                            };
                         } || $pq->pdf->corefont($basefont) || croak "Cannot load font $name";
 
     $pq->{last_set_fontname} = $f;
