@@ -338,6 +338,8 @@ my $use_page_numbers;
 
 my $book_phones_first = 1;
 
+my $book_underline_members = 1;
+
 ########################################
 # Label formatting options
 
@@ -441,6 +443,7 @@ GetOptions
     'book-listing-by-wg'          => \$do_book_listing_by_wg,
     'book-names-first'            => N$book_phones_first,
     'book-phones-first'           => \$book_phones_first,
+    'book-underline-members!'     => \$book_underline_members,
     'canonical-addresses!'        => \$CSV::Common::canon_address,
     'care-of!'                    => \$CSV::Common::use_care_of,
     'class|only-class=s'          => sub { push @restrict_classes, split /[, ]+/, pop },
@@ -2739,6 +2742,7 @@ EndOfCopyright
                 $printable_page_width/mm, $printable_page_height/mm,
         if $verbose;
 
+    my $TN   = $pq->TN;
     my $TB   = $pq->TB;
     my $TBI  = $pq->TBI;
     my $TBIU = $pq->TBIU;
@@ -2746,7 +2750,6 @@ EndOfCopyright
     my $TI   = $pq->TI;
     my $TIU  = $pq->TIU;
     my $TU   = $pq->TU;
-    my $TN   = $pq->TN;
 
     my $render_column_heading = sub {
         my ( $pq, $r, $render_context, $column_width, $visible, $top, $left ) = @_;
@@ -2925,8 +2928,8 @@ EndOfCopyright
         }
 
         if ($name) {
-            my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
-            my $B = @has_membership ? $TBU : $inactive ? $TBI : $TB;
+            my $N = @has_membership && $book_underline_members ? $TU  : $inactive ? $TI  : $TN;
+            my $B = @has_membership && $book_underline_members ? $TBU : $inactive ? $TBI : $TB;
             if ($ismeeting || !$family_name) {
                 $name = $B.$name.$TN;
             }
@@ -3052,8 +3055,8 @@ EndOfCopyright
         }
 
         if ($name) {
-            my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
-            my $B = @has_membership ? $TBU : $inactive ? $TBI : $TB;
+            my $N = @has_membership && $book_underline_members ? $TU  : $inactive ? $TI  : $TN;
+            my $B = @has_membership && $book_underline_members ? $TBU : $inactive ? $TBI : $TB;
             if ($ismeeting || !$family_name) {
                 $name = $B.$name.$TN;
             }
