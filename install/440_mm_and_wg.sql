@@ -281,7 +281,7 @@ create or replace view exp_mlink_home as
   left join field_data_field_member_status   as ms   on ms.entity_type = 'user'
                                                     and ms.bundle      = 'user'
                                                     and not ms.deleted
-                                                    and ms.entity_id   = um.field_user_main_og_target_id
+                                                    and ms.entity_id   = um.entity_id
       where um.entity_type = 'user'
         and um.bundle      = 'user'
         and not um.deleted
