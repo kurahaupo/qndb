@@ -2326,10 +2326,10 @@ sub generate_labels($$;$) {
                     @parents = grep { !$_->is_child } @hh;
                     @children = grep { $_->is_child } @hh;
                     @parents = sort {
-                                    $b->label_priority  <=> $a->label_priority  ||
-                                    !$a->is_member      <=> !$b->is_member      ||
-                                    !$a->is_attender    <=> !$b->is_attender    ||
-                                    !$b->is_inactive    <=> !$a->is_inactive
+                                    $b->label_priority      <=> $a->label_priority     ||
+                                    !$a->formal_membership  <=> !$b->formal_membership ||
+                                    !$a->is_attender        <=> !$b->is_attender       ||
+                                    !$b->is_inactive        <=> !$a->is_inactive
                                 } @parents;
                 } else {
                     @parents = grep { $_->uid_of_children_under_16 } @hh;
@@ -2895,7 +2895,7 @@ EndOfCopyright
 
         my $inactive = $r->is_child_or_inactive;
         my $ismeeting = $r->is_meeting;
-        my $ismember = $r->is_member;
+        my @has_membership = $r->formal_membership;
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
@@ -2923,8 +2923,8 @@ EndOfCopyright
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
-            my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
+            my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
+            my $B = @has_membership ? $TBU : $inactive ? $TBI : $TB;
             if ($ismeeting || !$family_name) {
                 $name = $B.$name.$TN;
             }
@@ -3020,7 +3020,7 @@ EndOfCopyright
 
         my $inactive = $r->is_child_or_inactive;
         my $ismeeting = $r->is_meeting;
-        my $ismember = $r->is_member;
+        my @has_membership = $r->formal_membership;
         my $name = $r->name;
         my $family_name = $name->{family_name};
         $name = "$name";
@@ -3048,8 +3048,8 @@ EndOfCopyright
         $page_data->{first} ||= $page_data->{last};
 
         if ($name) {
-            my $N = $ismember ? $TU  : $inactive ? $TI  : $TN;
-            my $B = $ismember ? $TBU : $inactive ? $TBI : $TB;
+            my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
+            my $B = @has_membership ? $TBU : $inactive ? $TBI : $TB;
             if ($ismeeting || !$family_name) {
                 $name = $B.$name.$TN;
             }

@@ -199,6 +199,11 @@ sub uid($) {
     return "GEN".(0+$r)."-default";
 }
 
+sub formal_membership {
+    my $r = shift;
+    return $r->{formal_membership} || ();
+}
+
 sub uid_of_children_under_16 { () }     # not supported by all record types
 sub uid_of_spouse { () }                # not supported by all record types
 

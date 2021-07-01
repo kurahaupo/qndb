@@ -127,6 +127,7 @@ create or replace table exdata_wg_info(
     wg_fullname varchar(32) not null    unique,
     wg_xmid     integer     not null,
     wg_xmtag    varchar(3)  not null,
+    wg_xmname   varchar(32) not null,
     wg_order    smallint unsigned    not null unique,
         unique key (wg_id,wg_tag,wg_name,wg_xmid,wg_xmtag),
         unique key (wg_id,wg_tag,wg_xmid,wg_xmtag),
@@ -143,6 +144,7 @@ insert into exdata_wg_info
             n.title,
             m.mm_id,
             m.mm_tag,
+            m.mm_name,
             w.wg_order
        from exdata_wg_mm    as w
        join exdata_mm_info  as m    on w.wg_xmid = m.mm_id
@@ -271,6 +273,7 @@ create or replace view exp_mlink_home as
             um.delta                                         as ml_delta,
             mm.mm_id                                         as ml_xmid,
             mm.mm_tag                                        as ml_xmtag,
+            mm.mm_name                                       as ml_xmname,
             ifnull(ms.field_member_status_tid = 30, false)   as ml_formal_member,
             'OG'                                             as ml_source
        from field_data_field_user_main_og    as um
@@ -287,14 +290,15 @@ create or replace view exp_mlink_home as
 select 'exp_mlink_yf' as `Creating Internal View`;
 
 create or replace view exp_mlink_yf as
-     select entity_id    as ml_uid,
-         /* revision_id  as ml_rev, */
-         /* language     as ml_language, */
-            delta        as ml_delta,
-            -1           as ml_xmid,    /* @id_yf */
-            'YF'         as ml_xmtag,
-            false        as ml_formal_member,
-            'YF'         as ml_source
+     select entity_id        as ml_uid,
+         /* revision_id      as ml_rev, */
+         /* language         as ml_language, */
+            delta            as ml_delta,
+            -1               as ml_xmid,    /* @id_yf */
+            'YF'             as ml_xmtag,
+            'Young Friends'  as ml_xmname,
+            false            as ml_formal_member,
+            'YF'             as ml_source
        from field_data_field_shown_to_young_friends as yf
       where entity_type = 'user'
         and bundle      = 'user'
@@ -311,6 +315,7 @@ create or replace view exp_mlink_wg as
             w.delta                              as ml_delta,
             wi.wg_xmid                           as ml_xmid,
             wi.wg_xmtag                          as ml_xmtag,
+            wi.wg_xmname                         as ml_xmname,
             false                                as ml_formal_member,
             'WG'                                 as ml_source
        from field_data_field_user_worship_group  as w
@@ -329,6 +334,7 @@ create or replace view exp_mlink_os as
             delta        as ml_delta,
             -2           as ml_xmid,    /* @id_os */
             'OS'         as ml_xmtag,
+            'overseas'   as ml_xmname,
             true         as ml_formal_member,
             'OS'         as ml_source
        from field_data_field_membership_held_overseas as os
@@ -380,7 +386,8 @@ create or replace view experl_user_wgroup as
             wi.wg_tag        as wgroup_tag,
             wi.wg_name       as wgroup_name,
             wi.wg_xmid       as wgroup_xmid,
-            wi.wg_xmtag      as wgroup_xmtag
+            wi.wg_xmtag      as wgroup_xmtag,
+            wi.wg_xmname     as wgroup_xmname
        from field_data_field_user_worship_group  as w
        join exdata_wg_info                       as wi   on w.field_user_worship_group_target_id = wi.wg_id
       where w.entity_type = 'user'
@@ -393,7 +400,8 @@ create or replace view experl_user_wgroup as
             yf.ml_xmtag      as wgroup_tag,     /* 'YF' */
             'Young Friends'  as wgroup_name,
             yf.ml_xmid       as wgroup_xmid,    /* @id_yf */
-            yf.ml_xmtag      as wgroup_xmtag    /* 'YF' */
+            yf.ml_xmtag      as wgroup_xmtag,   /* 'YF' */
+            'Young Friends'  as wgroup_xmname
        from exp_mlink_yf as yf
 ;
 
@@ -406,6 +414,7 @@ create or replace view experl_user_mlink as
             ml_delta                                 as mlink_delta,
             ml_xmid                                  as mlink_xmid,
             ml_xmtag                                 as mlink_xmtag,
+            ml_xmname                                as mlink_xmname,
             max(ml_formal_member)                    as mlink_formal_member,
             group_concat(ml_source separator ':')    as mlink_source
        from (     select * from exp_mlink_home

@@ -197,10 +197,10 @@ sub fix_one {
 
     $r->{user_name} //= delete $r->{name};   # WTF?!? whyyyy, Drupal?
 
-    $r->{monthly_meeting_area} = do { $r->{mlink_xmtag} } // '';
-    $r->{formal_membership} = do { my $mlink = delete $r->{__mlink}; $mlink ? join "\n", map { $_->{mlink_xmtag} } @$mlink : undef; } // '';
-    $r->{inactive} = 0; # TODO
-#   $r->{show_me_in_young_friends_listing} = flip_coin 0.875; # TODO
+#   my $mlink = $r->{__mlink} || [];
+#   $r->{monthly_meeting_area} = [ map { $_->{mlink_xmname} } @$mlink ];
+#   $r->{formal_membership} = join "\n", map { $_->{mlink_xmname} } @$mlink;
+#   $r->{show_me_in_young_friends_listing} = grep { $_->{xm_tag} eq 'YF' } @$mlink;
 
     $r->{fax} = ''; # defunct
   # $r->{listed_address} = $r->listed_address;
@@ -250,19 +250,34 @@ sub is_child($) {
     return not $r->{__is_adult} //= flip_coin 0.75; # TODO
 }
 
-sub is_member($) {
+sub _membership_set($) {
     my $r = shift;
-    return $r->{__is_member} //= $r->is_adult && flip_coin 0.625;   # TODO
+    my $mm_set = $r->{__member_of} //= { map { ( $_->{mlink_xmtag} => 1 ) }
+                                         grep { $_->{mlink_formal_member} }
+                                         @{ $r->{__mlink} || [] } };
+}
+
+sub formal_membership($) {
+    my $r = shift;
+    my $mm_set = $r->_membership_set;
+    my @mm_list = keys %$mm_set;
+    return @mm_list;
+}
+
+sub formal_member_of($$) {
+    my $r = shift;
+    my $mm_id = shift;
+    return $r->_membership_set->{$mm_id};
 }
 
 sub is_attender($) {
     my $r = shift;
-    return $r->{__is_attender} //= ! $r->is_member && $r->is_adult && flip_coin 0.875;    # TODO
+    return $r->{__is_attender} //= ! $r->formal_membership && $r->is_adult && ! $r->is_inactive;
 }
 
 sub is_inactive($) {
     my $r = shift;
-    return $r->{__is_inactive} //= ! $r->is_member && ! $r->is_attender;   # TODO
+    return $r->{inactive};
 }
 
 sub is_child_or_inactive($) {
@@ -272,7 +287,7 @@ sub is_child_or_inactive($) {
 
 sub is_member_or_attender($) {
     my $r = shift;
-    return is_member($r) || is_attender($r);
+    return formal_membership($r) || is_attender($r);
 }
 
 sub is_maci($) {
@@ -285,35 +300,25 @@ sub _wg_set($) {
     # %wg_map fixes all the variant names to a single form
     return $r->{__wg_set} ||= { map { ( ( $wg_map{$_} ||= $_ ) => 1 ) }
                                 map { $_->{wgroup_xmtag} . ' - ' . $_->{wgroup_name} }
-                                grep { $_ }
                                 @{ $r->{__wgroup} || [] } };
 }
 
 sub _mm_from_wg_set($) {
     my $r = shift;
-    return $r->{__mm_from_wg_set} ||= { map { ( $_ => 1 ) }
-                                        map { $_->{wgroup_xmtag} }
-                                        grep { $_ }
+    return $r->{__mm_from_wg_set} ||= { map { ( $_->{wgroup_xmtag} => 1 ) }
                                         @{ $r->{__wgroup} || [] } };
 }
 
 sub _mm_from_og_set($) {
     my $r = shift;
-    return $r->{__mm_from_og_set} ||= { map { ( $_ => 1 ) }
-                                        map { $_->{wgroup_xmtag} }
-                                        grep { $_ }
+    return $r->{__mm_from_og_set} ||= { map { ( $_->{wgroup_xmtag} => 1 ) }
                                         @{ $r->{__wgroup} || [] } };
 }
 
 sub _mm_set($) {
     my $r = shift;
-    return $r->{__mm_set} ||= do {
-        my %mm = %{ $r->_mm_from_wg_set };
-        if (my $f = $r->{formal_membership}) {
-            $mm{$f} = 1;
-        }
-        \%mm;
-    };
+    return $r->{__mm_set} ||= { map { ( $_->{mlink_xmtag} => 1 ) }
+                                @{ $r->{__mlink} || [] } };
 }
 
 sub want_wg_listings($) {
@@ -335,9 +340,7 @@ sub want_mm_listings($) {
 
 sub want_mm_listing($$) {
     my ($r, $mm) = @_;
-    my @mm = $r->_mm_set->{$mm};
-  # @mm or @mm = 'NO';
-    return @mm;
+    return $r->_mm_set->{$mm} || ();
 }
 
 # In a MM but not in any WG for that MM

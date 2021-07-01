@@ -569,8 +569,9 @@ sub monthly_meeting_area($) {
 
 sub formal_membership($) {
     my $r = shift;
-    return                           $r->gtags('members of overseas meetings', 'foreign members') ? '* Overseas'  : (),
-            map { $mm_names{uc $_} } $r->gtags( qr/^member - ($mm_keys_re)/ );
+    return $r->gtags( 'members' ) ? (
+                                     $r->gtags('members of overseas meetings', 'foreign members') ? '* Overseas'  : (),
+            map { $mm_names{uc $_} } $r->gtags( qr/^member - ($mm_keys_re)/ ) ) : ();
 }
 
 sub inactive($) {
@@ -644,11 +645,6 @@ sub is_archived($) {
     return;
 }
 
-sub is_member($) {
-    my $r = shift;
-    return $r->gtags( 'members' );
-}
-
 sub is_attender($) {
     my $r = shift;
     return $r->gtags('attenders');
@@ -688,7 +684,7 @@ sub is_child_or_inactive($) {
 sub is_member_or_attender($) {
     my $r = shift;
     return $r->gtags('members', 'attenders');
-  # return is_member($r) || is_attender($r);
+  # return formal_membership($r) || is_attender($r);
 }
 
 sub is_maci($) {
