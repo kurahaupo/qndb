@@ -364,21 +364,21 @@ sub needs_overseas_postage($) {
     return $r->postal_address !~ /NZ$|New Zealand$/i;
 }
 
-                                             use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_full_users',          fetch_key => 'uid'               };
+                                             use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_full_users',          fetch_key => 'uid',                                              };
 }
 
-{ package SQL::Drupal7::user_mlink;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_mlink',          fetch_key => 'mlink_uid'         }; }
-{ package SQL::Drupal7::user_wgroup;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_wgroup',         fetch_key => 'wgroup_uid'        }; }
-{ package SQL::Drupal7::user_addresses;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_addresses',      fetch_key => 'address_uid'       }; }
-{ package SQL::Drupal7::user_phones;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_phones',         fetch_key => 'phone_uid'         }; }
-{ package SQL::Drupal7::user_visible_emails; use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_visible_emails', fetch_key => 'visible_email_uid' }; }
-{ package SQL::Drupal7::user_websites;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_websites',       fetch_key => 'website_uid'       }; }
+{ package SQL::Drupal7::user_mlink;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_mlink',          fetch_key => 'mlink_uid',         link_as => '__mlink',          }; }
+{ package SQL::Drupal7::user_wgroup;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_wgroup',         fetch_key => 'wgroup_uid',        link_as => '__wgroup',         }; }
+{ package SQL::Drupal7::user_addresses;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_addresses',      fetch_key => 'address_uid',       link_as => '__addresses',      }; }
+{ package SQL::Drupal7::user_phones;         use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_phones',         fetch_key => 'phone_uid',         link_as => '__phones',         }; }
+{ package SQL::Drupal7::user_visible_emails; use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_visible_emails', fetch_key => 'visible_email_uid', link_as => '__visible_emails', }; }
+{ package SQL::Drupal7::user_websites;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_websites',       fetch_key => 'website_uid',       link_as => '__websites',       }; }
 
-{ package SQL::Drupal7::user_all_subs;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_all_subs',       fetch_key => 'subs_uid'          }; }
-{ package SQL::Drupal7::user_kin;            use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_kin',            fetch_key => 'kin_uid'           }; }
-{ package SQL::Drupal7::user_access_needs;   use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_access_needs',   fetch_key => 'access_needs_uid'  }; }
-{ package SQL::Drupal7::user_med_needs;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_med_needs',      fetch_key => 'med_needs_uid'     }; }
-{ package SQL::Drupal7::user_notes;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_notes',          fetch_key => 'notes_uid'         }; }
+{ package SQL::Drupal7::user_all_subs;       use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_all_subs',       fetch_key => 'subs_uid',          link_as => '__all_subs',       }; }
+{ package SQL::Drupal7::user_kin;            use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_kin',            fetch_key => 'kin_uid',           link_as => '__kin',            }; }
+{ package SQL::Drupal7::user_access_needs;   use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_access_needs',   fetch_key => 'access_needs_uid',  link_as => '__access_needs',   }; }
+{ package SQL::Drupal7::user_med_needs;      use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_med_needs',      fetch_key => 'med_needs_uid',     link_as => '__med_needs',      }; }
+{ package SQL::Drupal7::user_notes;          use parent 'SQL::Drupal7'; use constant { fetch_from => 'experl_user_notes',          fetch_key => 'notes_uid',         link_as => '__notes',          }; }
 
 #{package SQL::Drupal7::user_email_subs;        use parent 'SQL::Drupal7::user_all_subs'; use constant { fetch_from => 'experl_user_email_subs', fetch_key => 'sub_uid' }; } # TODO: not used yet;
 #{package SQL::Drupal7::user_print_subs;        use parent 'SQL::Drupal7::user_all_subs'; use constant { fetch_from => 'experl_user_print_subs', fetch_key => 'sub_uid' }; } # TODO: not used yet;

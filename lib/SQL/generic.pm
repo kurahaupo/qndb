@@ -250,7 +250,7 @@ sub fetch_users($) {
     for my $aux_class (@aux_classes) {
         my $aux_table = $aux_class->fetch_from;
         my $aux_key = $aux_class->fetch_key;
-        my $t = $aux_table =~ s/^.*user_|^exp.*?_//r;
+        my $link_as = $aux_class->link_as;
         my $rr = _fetch_rows $dbh, "select * from $aux_table", $aux_class;
         my %rz;
         my $missing_users = 0;
@@ -261,7 +261,7 @@ sub fetch_users($) {
             # about them.
             my $u = $mu{$uid} // do { ++$missing_users; next; };
             # $u // do { warn sprintf "No user with UID value %s from key %s of %s\n", $uid, $aux_key, $aux_table; +{ uid => $uid } };
-            push @{$u->{"__$t"}}, $r;
+            push @{$u->{$link_as}}, $r;
             $rz{$uid}++;
         }
         warn sprintf "Read %s, got %u rows mapped as %u uids in field %s\n\tuser field «%s» type %s\n\tMissing users: %s\n",
@@ -269,7 +269,7 @@ sub fetch_users($) {
                     scalar @$rr,
                     scalar keys %rz,
                     $aux_key,
-                    "__$t",
+                    $link_as,
                     $missing_users || "(none)",
                 if $debug;
     }
