@@ -341,6 +341,7 @@ create or replace view exp_mlink_os as
       where entity_type = 'user'
         and bundle      = 'user'
         and not deleted
+        and field_membership_held_overseas_value != 0
 ;
 
 /*
