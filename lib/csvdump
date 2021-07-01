@@ -2849,7 +2849,7 @@ EndOfCopyright
     #   * the FIRST record in the top-left corner of a left page,
     #   * the LAST record in the top-right corner of a right page
     # Note that this will produce gibberish if you have (parts of) more than one list on a page
-    my $first_or_last_on_page = sub {
+    push @{$pq->{upon_end_page}}, sub {
         my ($pq, $pagenum) = @_;
         my $page_data = $pq->{pagedata} or return;
         my $right_page = $pagenum % 2;
@@ -2914,13 +2914,15 @@ EndOfCopyright
         my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
         my $order_initial = substr $order_name, 0, 1;
 
-        # record name info of last entry on page
-        $page_data->{last} = {  initial     => $order_initial,
-                                oname       => $order_name,
-                                full_name   => $name,
-                                family_name => $family_name, };
-        # record name info of first entry on page
-        $page_data->{first} ||= $page_data->{last};
+        if ($visible) {
+            # record name info of last entry on page
+            $page_data->{last} = {  initial     => $order_initial,
+                                    oname       => $order_name,
+                                    full_name   => $name,
+                                    family_name => $family_name, };
+            # record name info of first entry on page
+            $page_data->{first} ||= $page_data->{last};
+        }
 
         if ($name) {
             my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
@@ -3039,13 +3041,15 @@ EndOfCopyright
         my $order_name = $render_context->{ORDER} eq 'surname' ? $family_name : $name;
         my $order_initial = substr $order_name, 0, 1;
 
-        # record name info of last entry on page
-        $page_data->{last} = {  initial     => $order_initial,
-                                oname       => $order_name,
-                                full_name   => $name,
-                                family_name => $family_name, };
-        # record name info of first entry on page
-        $page_data->{first} ||= $page_data->{last};
+        if ($visible) {
+            # record name info of last entry on page
+            $page_data->{last} = {  initial     => $order_initial,
+                                    oname       => $order_name,
+                                    full_name   => $name,
+                                    family_name => $family_name, };
+            # record name info of first entry on page
+            $page_data->{first} ||= $page_data->{last};
+        }
 
         if ($name) {
             my $N = @has_membership ? $TU  : $inactive ? $TI  : $TN;
@@ -3084,16 +3088,13 @@ EndOfCopyright
                                 heading_bold    => 1,
                                 heading_size    => $fontsize * PHI,
                              );
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
         my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
         ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rr, 1, 1, $col, $top);
         $pq->closepage;
-        pop @{$pq->{upon_end_page}};
     }
 
     if ($do_book_listing_by_mm) {
         warn "doing book LISTING - by MM\n" if $verbose;
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
         my $p1 = 0;
         for my $mm ( @mm_order ) {
             $skip_mm_listing{$mm} and next;
@@ -3110,7 +3111,6 @@ EndOfCopyright
             ($col, $top) = render_sorted_columnated_list($pq, $render_person_details, \%render_context, $rrr, 1, 1, $col, $top);
         }
         $pq->closepage if $p1++;
-        pop @{$pq->{upon_end_page}};
     }
 
     if ($do_book_listing_by_wg) {
@@ -3156,7 +3156,6 @@ EndOfCopyright
     if ($do_book_index_all) {
         warn "doing book INDEX - all\n" if $verbose;
         # Margin name index letters
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
         my %render_context = (  margin_note     => "(full alphanetical index)",
                                 heading         => "All Friends",
                                 heading_bold    => 1,
@@ -3165,12 +3164,10 @@ EndOfCopyright
         my ($col, $top) = render_columnated_list    ($pq, $render_column_heading, \%render_context, [undef], 1, 1, undef, undef);
         ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rr, 3, 1, $col, $top);
         $pq->closepage;
-        pop @{$pq->{upon_end_page}};
     }
 
     if ($do_book_index_by_mm) {
         warn "doing book INDEX - by MM\n" if $verbose;
-        push @{$pq->{upon_end_page}}, $first_or_last_on_page;   # need closepage after each group with this
         for my $mm ( @mm_order ) {
             $skip_mm_listing{$mm} and next;
             warn sprintf "doing book INDEX - for MM '%s'\n", $mm if $verbose;
@@ -3186,7 +3183,6 @@ EndOfCopyright
             ($col, $top) = render_sorted_columnated_list($pq, $render_person_index, \%render_context, $rrr, 3, 1, $col, $top);
             $pq->closepage;
         }
-        pop @{$pq->{upon_end_page}};
     }
 
     if ($do_book_index_by_wg) {
