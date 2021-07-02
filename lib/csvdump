@@ -1225,6 +1225,7 @@ sub fetch_dbi($) {
             ;
 
     my $dbx = SQL::Drupal7::->Connect($pseudo_filename, \%sql_opts);
+    $pseudo_filename ||= 'db';
     return SQL::Drupal7::, $pseudo_filename.strftime("-%Y%m%d.", localtime), $dbx->fetch_users;
 }
 
