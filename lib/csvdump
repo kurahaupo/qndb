@@ -2475,7 +2475,7 @@ sub generate_labels($$;$) {
     }
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
-    warn "Writing PDF to $out_name ($out)\n";
+    warn "Writing PDF to $out_name\n";
     print {$out} $pq->stringify;
     _close_output $out, $out_name, $close_when_done;
 }
@@ -3234,7 +3234,7 @@ EndOfCopyright
     delete $pq->{upon_end_page};
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
-    print "Writing PDF to $out_name ($out)\n";
+    print "Writing PDF to $out_name\n";
     print {$out} $pq->stringify;
     _close_output $out, $out_name, $close_when_done;
 }
@@ -3283,7 +3283,7 @@ sub generate_test($) {
     delete $pq->{upon_end_page};
 
     ( $out, my $out_name, my $close_when_done ) = _open_output $out, 1;
-    print "Writing PDF to $out_name ($out)\n";
+    print "Writing PDF to $out_name\n";
     print {$out} $pq->stringify;
     _close_output $out, $out_name, $close_when_done;
 }
