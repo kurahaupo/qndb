@@ -3130,7 +3130,7 @@ EndOfCopyright
                 $rrr = elsewhere_filter $by_mm{$mm}, $mm or next;
                 @$rrr or next;
                 $heading = sprintf "%s, elsewhere", $mm_titles{$mm};
-                $margin_note = sprintf "%s MM in NZ", $mm;
+                $margin_note = sprintf "%s MM elsewhere", $mm;
             } else {
                 $rrr = $by_wg{$wg} or next;
                 if ( $heading eq 'overseas' ) {
@@ -3203,7 +3203,7 @@ EndOfCopyright
                 $rrr = elsewhere_filter $by_mm{$mm}, $mm or next;
                 @$rrr or next;
                 $heading = sprintf "%s, elsewhere", $mm_titles{$mm};
-                $margin_note = sprintf "%s MM in NZ", $mm;
+                $margin_note = sprintf "%s MM elsewhere", $mm;
             } else {
                 $rrr = $by_wg{$wg} or next;
                 if ( $heading eq 'overseas' ) {
