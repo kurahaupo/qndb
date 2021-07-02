@@ -339,6 +339,7 @@ my $use_page_numbers;
 my $book_phones_first = 1;
 
 my $book_underline_members = 1;
+my $book_listing_all_margin_note = '(alphabetical %s)';
 
 ########################################
 # Label formatting options
@@ -439,6 +440,7 @@ GetOptions
     'book-index-by-mm'            => \$do_book_index_by_mm,
     'book-index-by-wg'            => \$do_book_index_by_wg,
     'book-listing-all'            => \$do_book_listing_all,
+    'book-listing-all-margin-note=s' => \$book_listing_all_margin_note,
     'book-listing-by-mm'          => \$do_book_listing_by_mm,
     'book-listing-by-wg'          => \$do_book_listing_by_wg,
     'book-names-first'            => N$book_phones_first,
@@ -515,6 +517,7 @@ GetOptions
     'labels-ordered-in-rows'      => sub { $labels_ordered_in = 'rows' },
     'labels-ordered-in=s'         => \$labels_ordered_in,
     'names-only!'                 => \$hide_all_but_names,
+    'no-book-listing-all-margin-note' => N$book_listing_all_margin_note,
     'num-labels-across|nla=i'     => \$num_labels_across,
     'num-labels-down|nld=i'       => \$num_labels_down,
     'octet|byte|b'                => sub { $presume_decoding = $use_encoding = 'OCTET' },
@@ -3087,7 +3090,7 @@ EndOfCopyright
     if ($do_book_listing_all) {
         warn "doing book LISTING - all\n" if $verbose;
         # Margin name index letters
-        my %render_context = (  margin_note     => "(full alphanetical listing)",
+        my %render_context = (  margin_note     => sprintf($book_listing_all_margin_note, 'listing'),
                                 heading         => "All Friends",
                                 heading_bold    => 1,
                                 heading_size    => $fontsize * PHI,
@@ -3161,7 +3164,7 @@ EndOfCopyright
     if ($do_book_index_all) {
         warn "doing book INDEX - all\n" if $verbose;
         # Margin name index letters
-        my %render_context = (  margin_note     => "(full alphanetical index)",
+        my %render_context = (  margin_note     => sprintf($book_listing_all_margin_note, 'index'),
                                 heading         => "All Friends",
                                 heading_bold    => 1,
                                 heading_size    => $fontsize * PHI,
